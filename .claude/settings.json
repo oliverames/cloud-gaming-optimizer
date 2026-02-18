@@ -1,0 +1,14 @@
+{
+  "hooks": {
+    "SessionStart": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash -c 'if [ \"$CLAUDE_CODE_REMOTE\" = \"true\" ] && [ ! -f ~/.claude/.cloud-config-installed ]; then TMPDIR=$(mktemp -d) && git clone --quiet --depth=1 \"https://${GITHUB_PERSONAL_ACCESS_TOKEN}@github.com/oliverames/claude-code-cloud.git\" \"$TMPDIR\" && bash \"$TMPDIR/init.sh\" && touch ~/.claude/.cloud-config-installed && rm -rf \"$TMPDIR\" && echo \"cloud-config installed\"; fi'"
+          }
+        ]
+      }
+    ]
+  }
+}
