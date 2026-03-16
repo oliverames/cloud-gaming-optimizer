@@ -167,7 +167,7 @@ extension Notification.Name {
     static let awdlMonitoringStateChanged = Notification.Name("com.amesvt.pingwarden.notification.MonitoringStateChanged")
     static let awdlEffectiveMonitoringStateChanged = Notification.Name("com.amesvt.pingwarden.notification.EffectiveMonitoringStateChanged")
     // These are defined in the main app but included here for reference:
-    // static let controlCenterModeChanged = Notification.Name("com.awdlcontrol.notification.ControlCenterModeChanged")
-    // static let gameModeAutoDetectChanged = Notification.Name("com.awdlcontrol.notification.GameModeAutoDetectChanged")
-    // static let dockIconVisibilityChanged = Notification.Name("com.awdlcontrol.notification.DockIconVisibilityChanged")
+    // static let controlCenterModeChanged = Notification.Name("com.amesvt.pingwarden.notification.ControlCenterModeChanged")
+    // static let gameModeAutoDetectChanged = Notification.Name("com.amesvt.pingwarden.notification.GameModeAutoDetectChanged")
+    // static let dockIconVisibilityChanged = Notification.Name("com.amesvt.pingwarden.notification.DockIconVisibilityChanged")
 }

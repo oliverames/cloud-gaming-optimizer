@@ -26,33 +26,24 @@ class PingWardenPreferences {
     private let showDockIconKey = "ShowDockIcon"
     private let showMenuDropdownMetricsKey = "ShowMenuDropdownMetrics"
 
-    private lazy var defaults: UserDefaults? = {
-        // Use standard UserDefaults if App Groups aren't available
-        guard let suite = UserDefaults(suiteName: appGroupID) else {
-            log.error("Failed to create App Group suite '\(self.appGroupID)', using standard defaults")
-            return UserDefaults.standard
-        }
-        log.debug("Successfully connected to App Group suite")
-        return suite
-    }()
+    private let defaults: UserDefaults
 
-    private init() {}
+    private init() {
+        if let suite = UserDefaults(suiteName: appGroupID) {
+            log.debug("Successfully connected to App Group suite")
+            defaults = suite
+        } else {
+            log.error("Failed to create App Group suite, using standard defaults")
+            defaults = UserDefaults.standard
+        }
+    }
 
     /// User intent for whether AWDL monitoring should be enabled.
     /// This is shared with the widget.
     var isMonitoringEnabled: Bool {
-        get {
-            return defaults?.bool(forKey: monitoringEnabledKey) ?? false
-        }
+        get { defaults.bool(forKey: monitoringEnabledKey) }
         set {
-            guard let defaults = defaults else {
-                log.error("Cannot set \(self.monitoringEnabledKey): defaults is nil")
-                return
-            }
             defaults.set(newValue, forKey: monitoringEnabledKey)
-            // Note: synchronize() is deprecated since macOS 10.14 - the system
-            // automatically synchronizes UserDefaults at appropriate times
-            // Use distributed notification for cross-process communication with widget
             DistributedNotificationCenter.default().postNotificationName(
                 .awdlMonitoringStateChanged,
                 object: nil,
@@ -65,14 +56,8 @@ class PingWardenPreferences {
     /// Effective runtime state of monitoring as reported by the app/helper.
     /// This value is used for accurate status display and should not be used as user intent.
     var effectiveMonitoringEnabled: Bool {
-        get {
-            return defaults?.bool(forKey: effectiveMonitoringEnabledKey) ?? false
-        }
+        get { defaults.bool(forKey: effectiveMonitoringEnabledKey) }
         set {
-            guard let defaults = defaults else {
-                log.error("Cannot set \(self.effectiveMonitoringEnabledKey): defaults is nil")
-                return
-            }
             defaults.set(newValue, forKey: effectiveMonitoringEnabledKey)
             DistributedNotificationCenter.default().postNotificationName(
                 .awdlEffectiveMonitoringStateChanged,
@@ -86,28 +71,14 @@ class PingWardenPreferences {
 
     /// Last known AWDL state (for widget display)
     var lastKnownState: String {
-        get {
-            return defaults?.string(forKey: lastStateKey) ?? "unknown"
-        }
-        set {
-            guard let defaults = defaults else {
-                log.error("Cannot set \(self.lastStateKey): defaults is nil")
-                return
-            }
-            defaults.set(newValue, forKey: lastStateKey)
-        }
+        get { defaults.string(forKey: lastStateKey) ?? "unknown" }
+        set { defaults.set(newValue, forKey: lastStateKey) }
     }
 
     /// Whether Control Center widget mode is enabled (hides menu bar icon)
     var controlCenterWidgetEnabled: Bool {
-        get {
-            return defaults?.bool(forKey: controlCenterEnabledKey) ?? false
-        }
+        get { defaults.bool(forKey: controlCenterEnabledKey) }
         set {
-            guard let defaults = defaults else {
-                log.error("Cannot set \(self.controlCenterEnabledKey): defaults is nil")
-                return
-            }
             defaults.set(newValue, forKey: controlCenterEnabledKey)
             NotificationCenter.default.post(name: .controlCenterModeChanged, object: nil)
         }
@@ -115,14 +86,8 @@ class PingWardenPreferences {
 
     /// Whether to auto-enable AWDL blocking when Game Mode is active
     var gameModeAutoDetect: Bool {
-        get {
-            return defaults?.bool(forKey: gameModeAutoDetectKey) ?? false
-        }
+        get { defaults.bool(forKey: gameModeAutoDetectKey) }
         set {
-            guard let defaults = defaults else {
-                log.error("Cannot set \(self.gameModeAutoDetectKey): defaults is nil")
-                return
-            }
             defaults.set(newValue, forKey: gameModeAutoDetectKey)
             NotificationCenter.default.post(name: .gameModeAutoDetectChanged, object: nil)
         }
@@ -130,14 +95,8 @@ class PingWardenPreferences {
 
     /// Whether to show the app icon in the Dock
     var showDockIcon: Bool {
-        get {
-            return defaults?.bool(forKey: showDockIconKey) ?? false
-        }
+        get { defaults.bool(forKey: showDockIconKey) }
         set {
-            guard let defaults = defaults else {
-                log.error("Cannot set \(self.showDockIconKey): defaults is nil")
-                return
-            }
             defaults.set(newValue, forKey: showDockIconKey)
             NotificationCenter.default.post(name: .dockIconVisibilityChanged, object: nil)
         }
@@ -145,14 +104,8 @@ class PingWardenPreferences {
 
     /// Whether to show live ping and intervention metrics in the menu bar dropdown
     var showMenuDropdownMetrics: Bool {
-        get {
-            return defaults?.bool(forKey: showMenuDropdownMetricsKey) ?? false
-        }
+        get { defaults.bool(forKey: showMenuDropdownMetricsKey) }
         set {
-            guard let defaults = defaults else {
-                log.error("Cannot set \(self.showMenuDropdownMetricsKey): defaults is nil")
-                return
-            }
             defaults.set(newValue, forKey: showMenuDropdownMetricsKey)
             NotificationCenter.default.post(name: .menuDropdownMetricsChanged, object: nil)
         }

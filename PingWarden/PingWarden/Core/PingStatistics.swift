@@ -63,14 +63,25 @@ enum PingStatistics {
         let failedCount = samples.count - successful.count
         let packetLoss = samples.isEmpty ? 0 : (Double(failedCount) / Double(samples.count)) * 100.0
 
+        // Use median of last 5 successful samples for quality assessment
+        // to avoid flickering from single-sample outliers.
+        let recentLatencies = Array(latencies.suffix(5))
+        let qualityLatency: Double
+        if recentLatencies.isEmpty {
+            qualityLatency = 0
+        } else {
+            let sorted = recentLatencies.sorted()
+            qualityLatency = sorted[sorted.count / 2]
+        }
+
         let quality: PingQuality
-        if current == 0 || latencies.isEmpty {
+        if qualityLatency == 0 || latencies.isEmpty {
             quality = .poor
-        } else if current < 20 && packetLoss < 1.0 {
+        } else if qualityLatency < 20 && packetLoss < 1.0 {
             quality = .excellent
-        } else if current < 50 && packetLoss < 2.0 {
+        } else if qualityLatency < 50 && packetLoss < 2.0 {
             quality = .good
-        } else if current < 100 && packetLoss < 5.0 {
+        } else if qualityLatency < 100 && packetLoss < 5.0 {
             quality = .fair
         } else {
             quality = .poor

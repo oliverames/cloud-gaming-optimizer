@@ -17,12 +17,12 @@ struct QuarantineHelper {
     
     /// Check if the app bundle has quarantine attributes
     static func isQuarantined() -> Bool {
-        guard let bundlePath = Bundle.main.bundlePath as NSString? else {
+        guard let bundlePath = Bundle.main.bundlePath as NSString?,
+              let path = bundlePath.utf8String else {
             return false
         }
-        
+
         // Try to get quarantine xattr
-        let path = bundlePath.utf8String!
         let attrName = "com.apple.quarantine"
         
         // Get size of attribute
@@ -107,11 +107,11 @@ struct QuarantineHelper {
     /// Attempt to remove quarantine attributes (requires admin privileges)
     /// This generally doesn't work from within the app itself, but worth trying
     static func attemptQuarantineRemoval() -> Bool {
-        guard let bundlePath = Bundle.main.bundlePath as NSString? else {
+        guard let bundlePath = Bundle.main.bundlePath as NSString?,
+              let path = bundlePath.utf8String else {
             return false
         }
-        
-        let path = bundlePath.utf8String!
+
         let attrName = "com.apple.quarantine"
         
         // Try to remove quarantine attribute

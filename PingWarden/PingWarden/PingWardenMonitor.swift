@@ -43,8 +43,8 @@ class PingWardenMonitor {
     /// Maximum XPC connection retry attempts
     private let maxXPCRetries = 3
 
-    /// Current XPC retry count
-    private var xpcRetryCount = 0
+    /// Current XPC retry count (protected by stateLock)
+    private var _xpcRetryCount = 0
 
     /// SMAppService instance for the helper daemon
     private lazy var helperService: SMAppService = {
@@ -77,8 +77,8 @@ class PingWardenMonitor {
         }
         set {
             stateLock.lock()
+            defer { stateLock.unlock() }
             _xpcConnection = newValue
-            stateLock.unlock()
         }
     }
 
@@ -92,6 +92,20 @@ class PingWardenMonitor {
         set {
             stateLock.lock()
             _isRegisteringHelper = newValue
+            stateLock.unlock()
+        }
+    }
+
+    /// Thread-safe access to XPC retry count
+    private var xpcRetryCount: Int {
+        get {
+            stateLock.lock()
+            defer { stateLock.unlock() }
+            return _xpcRetryCount
+        }
+        set {
+            stateLock.lock()
+            _xpcRetryCount = newValue
             stateLock.unlock()
         }
     }
@@ -125,7 +139,8 @@ class PingWardenMonitor {
 
     private init() {
         log.info("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━")
-        log.info("PingWardenMonitor v2.1.2 initializing (SMAppService + XPC)...")
+        let version = Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "unknown"
+        log.info("PingWardenMonitor v\(version) initializing (SMAppService + XPC)...")
         log.info("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━")
 
         let status = helperService.status
@@ -419,8 +434,10 @@ class PingWardenMonitor {
         })
     }
 
-    /// Perform a health check on the helper
+    /// Perform a health check on the helper.
+    /// Must be called from a background thread — uses synchronous semaphore waits.
     func performHealthCheck() -> (isHealthy: Bool, message: String) {
+        assert(!Thread.isMainThread, "performHealthCheck must not be called on the main thread")
         log.info("Performing health check...")
 
         // Check 1: Is helper registered?
@@ -590,7 +607,7 @@ class PingWardenMonitor {
                 DispatchQueue.main.async {
                     let alert = NSAlert()
                     alert.messageText = "Setup Complete!"
-                    alert.informativeText = "Ping Warden is now running.\n\nAWDL is being kept disabled to prevent network latency spikes.\n\nYou can toggle monitoring from the menu bar."
+                    alert.informativeText = "Ping Warden is now running.\n\nYour network is protected from wireless interference that causes lag spikes.\n\nYou can toggle protection from the menu bar."
                     alert.alertStyle = .informational
                     alert.addButton(withTitle: "OK")
                     alert.runModal()

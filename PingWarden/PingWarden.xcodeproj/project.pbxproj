@@ -19,14 +19,14 @@
 			containerPortal = RootObject /* Project object */;
 			proxyType = 1;
 			remoteGlobalIDString = HelperTarget;
-			remoteInfo = AWDLControlHelper;
+			remoteInfo = PingWardenHelper;
 		};
 		WidgetProxy /* PBXContainerItemProxy */ = {
 			isa = PBXContainerItemProxy;
 			containerPortal = RootObject /* Project object */;
 			proxyType = 1;
 			remoteGlobalIDString = WidgetTarget;
-			remoteInfo = AWDLControlWidget;
+			remoteInfo = PingWardenWidget;
 		};
 /* End PBXContainerItemProxy section */
 
@@ -198,7 +198,7 @@
 			packageProductDependencies = (
 				81CB024F2F357A9600AB4024 /* Sparkle */,
 			);
-			productName = AWDLControl;
+			productName = PingWarden;
 			productReference = AppRef /* Ping Warden.app */;
 			productType = "com.apple.product-type.application";
 		};
@@ -220,7 +220,7 @@
 			name = PingWardenHelper;
 			packageProductDependencies = (
 			);
-			productName = AWDLControlHelper;
+			productName = PingWardenHelper;
 			productReference = HelperRef /* PingWardenHelper */;
 			productType = "com.apple.product-type.tool";
 		};
@@ -242,7 +242,7 @@
 			name = PingWardenWidget;
 			packageProductDependencies = (
 			);
-			productName = AWDLControlWidget;
+			productName = PingWardenWidget;
 			productReference = WidgetRef /* PingWardenWidget.appex */;
 			productType = "com.apple.product-type.app-extension";
 		};
@@ -315,15 +315,15 @@
 			files = (
 			);
 			inputPaths = (
-				"$(BUILT_PRODUCTS_DIR)/AWDLControlHelper",
+				"$(BUILT_PRODUCTS_DIR)/PingWardenHelper",
 			);
 			name = "Copy Helper Binary";
 			outputPaths = (
-				"$(BUILT_PRODUCTS_DIR)/$(CONTENTS_FOLDER_PATH)/MacOS/AWDLControlHelper",
+				"$(BUILT_PRODUCTS_DIR)/$(CONTENTS_FOLDER_PATH)/MacOS/PingWardenHelper",
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 			shellPath = /bin/sh;
-			shellScript = "cp \"${BUILT_PRODUCTS_DIR}/AWDLControlHelper\" \"${BUILT_PRODUCTS_DIR}/${CONTENTS_FOLDER_PATH}/MacOS/\"\nchmod 755 \"${BUILT_PRODUCTS_DIR}/${CONTENTS_FOLDER_PATH}/MacOS/AWDLControlHelper\"\n";
+			shellScript = "cp \"${BUILT_PRODUCTS_DIR}/PingWardenHelper\" \"${BUILT_PRODUCTS_DIR}/${CONTENTS_FOLDER_PATH}/MacOS/\"\nchmod 755 \"${BUILT_PRODUCTS_DIR}/${CONTENTS_FOLDER_PATH}/MacOS/PingWardenHelper\"\n";
 		};
 		CopyHelperPlist /* Copy Helper Plist */ = {
 			isa = PBXShellScriptBuildPhase;
@@ -331,7 +331,7 @@
 			files = (
 			);
 			inputPaths = (
-				"$(​SRCROOT)/​AWDLControl​Helper​/com​.amesvt​.pingwarden​.helper​.plist",
+				"$(​SRCROOT)/​PingWarden​Helper​/com​.amesvt​.pingwarden​.helper​.plist",
 			);
 			name = "Copy Helper Plist";
 			outputPaths = (

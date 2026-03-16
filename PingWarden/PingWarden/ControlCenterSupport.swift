@@ -25,7 +25,7 @@ enum ControlCenterSupport {
         }
 
         var requirement: SecRequirement?
-        let requirementString = "anchor apple generic and certificate leaf[subject.OU] exists"
+        let requirementString = "anchor apple generic and certificate leaf[subject.OU] = \"PV3W52NDZ3\""
         guard SecRequirementCreateWithString(requirementString as CFString, [], &requirement) == errSecSuccess,
               let req = requirement else {
             return false

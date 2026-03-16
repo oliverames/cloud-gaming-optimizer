@@ -188,6 +188,16 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSMenuDele
         return false
     }
 
+    func applicationShouldHandleReopen(_ sender: NSApplication, hasVisibleWindows flag: Bool) -> Bool {
+        // Safety net for issue #28: when the menu bar icon is hidden (Control Center mode)
+        // and the dock icon is off, re-launching the app is the only way back in.
+        // Always open Settings when the app is re-opened with no visible windows.
+        if !flag {
+            openSettings()
+        }
+        return true
+    }
+
     func applicationDidBecomeActive(_ notification: Notification) {
         ensureApplicationMenuItems()
     }
@@ -248,11 +258,12 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSMenuDele
     
     func windowWillClose(_ notification: Notification) {
         guard let window = notification.object as? NSWindow else { return }
-        
-        // Update dock icon visibility when any window closes
+
+        // Update dock icon visibility when any managed window closes.
+        // Use the next run loop iteration to let the window finish closing,
+        // avoiding flicker from rapid policy toggling.
         if window === settingsWindow || window === aboutWindow || window === welcomeWindow {
-            // Delay slightly to let the window actually close
-            DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) { [weak self] in
+            DispatchQueue.main.async { [weak self] in
                 self?.updateDockIconVisibility()
             }
         }
@@ -387,7 +398,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSMenuDele
 
         // Toggle item
         let toggleItem = NSMenuItem(
-            title: PingWardenMonitor.shared.isMonitoringActive ? "Disable AWDL Blocking" : "Enable AWDL Blocking",
+            title: PingWardenMonitor.shared.isMonitoringActive ? "Disable Ping Protection" : "Enable Ping Protection",
             action: #selector(toggleMonitoring),
             keyEquivalent: ""
         )
@@ -424,7 +435,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSMenuDele
         pingMenuItem.isEnabled = false
         statusMenu?.addItem(pingMenuItem)
 
-        let interventionsMenuItem = NSMenuItem(title: "AWDL Interventions: --", action: nil, keyEquivalent: "")
+        let interventionsMenuItem = NSMenuItem(title: "Lag Spikes Blocked: --", action: nil, keyEquivalent: "")
         interventionsMenuItem.tag = 102
         interventionsMenuItem.isEnabled = false
         statusMenu?.addItem(interventionsMenuItem)
@@ -683,12 +694,12 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSMenuDele
 
         let isMonitoring = PingWardenMonitor.shared.isMonitoringActive
         let symbolName = isMonitoring ? "antenna.radiowaves.left.and.right.slash" : "antenna.radiowaves.left.and.right"
-        let accessibilityDesc = isMonitoring ? "Ping Warden: AWDL Blocking Active" : "Ping Warden: AWDL Blocking Inactive"
+        let accessibilityDesc = isMonitoring ? "Ping Warden: Protected" : "Ping Warden: Not Protected"
         let image = NSImage(systemSymbolName: symbolName, accessibilityDescription: accessibilityDesc)
         image?.isTemplate = true
 
         button.image = image
-        button.toolTip = isMonitoring ? "AWDL Blocking: Active" : "AWDL Blocking: Inactive"
+        button.toolTip = isMonitoring ? "Ping Protection: Active" : "Ping Protection: Inactive"
 
         // Accessibility for VoiceOver
         button.setAccessibilityLabel(accessibilityDesc)
@@ -698,7 +709,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSMenuDele
     private func updateMenuItem() {
         guard let menu = statusMenu else { return }
 
-        let newTitle = PingWardenMonitor.shared.isMonitoringActive ? "Disable AWDL Blocking" : "Enable AWDL Blocking"
+        let newTitle = PingWardenMonitor.shared.isMonitoringActive ? "Disable Ping Protection" : "Enable Ping Protection"
         menu.items.first?.title = newTitle
 
         updateStatusMenuItem()
@@ -727,9 +738,9 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSMenuDele
         if let interventionsItem = menu.items.first(where: { $0.tag == 102 }) {
             interventionsItem.isHidden = !showMetrics
             if let count = menuInterventionCount {
-                interventionsItem.title = "AWDL Interventions: \(count)"
+                interventionsItem.title = "Lag Spikes Blocked: \(count)"
             } else {
-                interventionsItem.title = "AWDL Interventions: --"
+                interventionsItem.title = "Lag Spikes Blocked: --"
             }
         }
     }
@@ -763,9 +774,9 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSMenuDele
         if !installed {
             statusItem.title = "Status: Not Set Up"
         } else if isMonitoring {
-            statusItem.title = "Status: Blocking AWDL"
+            statusItem.title = "Status: Protected"
         } else {
-            statusItem.title = "Status: AWDL Allowed"
+            statusItem.title = "Status: Not Protected"
         }
     }
 
@@ -951,6 +962,12 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSMenuDele
         let isProperlySignedForControlCenter = ControlCenterSupport.isAvailableForCurrentApp()
 
         if PingWardenPreferences.shared.controlCenterWidgetEnabled && isProperlySignedForControlCenter {
+            // Safety invariant (H2): never remove the menu bar if the dock icon is also hidden,
+            // as this would leave the user with no way to access the app.
+            if !PingWardenPreferences.shared.showDockIcon {
+                log.info("Control Center mode enabled — forcing dock icon on to prevent lockout")
+                PingWardenPreferences.shared.showDockIcon = true
+            }
             removeMenuBar()
         } else {
             // Reset preference if widget isn't available
@@ -964,10 +981,6 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSMenuDele
         }
     }
 
-    /// Check if Control Center widget is available (requires proper code signing)
-    private func checkControlCenterWidgetAvailable() -> Bool {
-        ControlCenterSupport.isAvailableForCurrentApp()
-    }
 }
 
 // MARK: - Welcome View
@@ -1003,7 +1016,7 @@ struct WelcomeView: View {
                 FeatureRow(
                     icon: "bolt.fill",
                     title: "Eliminate Latency Spikes",
-                    description: "Prevents 100-300ms ping spikes caused by AWDL"
+                    description: "Blocks Apple's background wireless services (AirDrop, etc.) from causing 100-300ms lag spikes"
                 )
 
                 FeatureRow(
@@ -1077,6 +1090,7 @@ struct FeatureRow: View {
                     .foregroundStyle(.secondary)
             }
         }
+        .accessibilityElement(children: .combine)
     }
 }
 
@@ -1131,13 +1145,13 @@ class SettingsSplitViewController: NSSplitViewController {
         view.wantsLayer = true
         view.layer?.masksToBounds = true
 
-        // Create sidebar
+        // Create sidebar (use [weak self] to avoid retain cycle through Binding closures)
         let sidebarView = SettingsSidebarView(
             selectedSection: Binding(
-                get: { self.selectedSection },
-                set: { newValue in
-                    self.selectedSection = newValue
-                    self.updateDetailView()
+                get: { [weak self] in self?.selectedSection ?? .general },
+                set: { [weak self] newValue in
+                    self?.selectedSection = newValue
+                    self?.updateDetailView()
                 }
             )
         )
@@ -1341,7 +1355,7 @@ struct GeneralSettingsContent: View {
         VStack(alignment: .leading, spacing: 0) {
             // AWDL Status Group
             SettingsGroup {
-                SettingsRow("AWDL Blocking", description: "Prevent network latency spikes from AWDL") {
+                SettingsRow("Ping Protection", description: "Block AWDL wireless interference that causes lag spikes") {
                     Toggle("", isOn: Binding(
                         get: { monitorState.isMonitoring },
                         set: { newValue in
@@ -1372,7 +1386,7 @@ struct GeneralSettingsContent: View {
                 if monitorState.isMonitoring && monitorState.interventionCount > 0 {
                     SettingsDivider()
                     
-                    SettingsRow("AWDL Interventions") {
+                    SettingsRow("Lag Spikes Blocked") {
                         HStack(spacing: 8) {
                             Text("\(monitorState.interventionCount)")
                                 .font(.headline)
@@ -1453,7 +1467,7 @@ struct GeneralSettingsContent: View {
                         .font(.subheadline)
                         .fontWeight(.medium)
 
-                    Text("Ping Warden uses a background helper that requires only a one-time approval in System Settings. The helper runs while the app is open and automatically restores AWDL when you quit.")
+                    Text("AWDL (Apple Wireless Direct Link) powers AirDrop, AirPlay, and Handoff. When it activates, it briefly takes over your Wi-Fi radio, causing lag spikes. Ping Warden uses a background helper to block these interruptions. The helper requires a one-time system approval and runs while the app is open.")
                         .font(.caption)
                         .foregroundStyle(.secondary)
                         .fixedSize(horizontal: false, vertical: true)
@@ -1476,7 +1490,7 @@ struct GeneralSettingsContent: View {
 
     private var statusText: String {
         if !monitorState.isHelperRegistered { return "Not Set Up" }
-        return monitorState.isMonitoring ? "Blocking AWDL" : "AWDL Allowed"
+        return monitorState.isMonitoring ? "Protected" : "Not Protected"
     }
 }
 
@@ -1485,6 +1499,7 @@ struct GeneralSettingsContent: View {
 struct AutomationSettingsContent: View {
     @State private var gameModeAutoDetect = PingWardenPreferences.shared.gameModeAutoDetect
     @State private var controlCenterEnabled = PingWardenPreferences.shared.controlCenterWidgetEnabled
+    @State private var showingControlCenterConfirm = false
 
     private var isControlCenterAvailable: Bool {
         ControlCenterSupport.isAvailableForCurrentApp()
@@ -1542,18 +1557,25 @@ struct AutomationSettingsContent: View {
                             .controlSize(.small)
                             .disabled(!isControlCenterAvailable)
                             .onChangeCompat(of: controlCenterEnabled) { newValue in
-                                PingWardenPreferences.shared.controlCenterWidgetEnabled = newValue
+                                if newValue {
+                                    showingControlCenterConfirm = true
+                                } else {
+                                    PingWardenPreferences.shared.controlCenterWidgetEnabled = false
+                                }
                             }
                     }
                 }
             }
 
             if isControlCenterAvailable && controlCenterEnabled {
-                Text("To add the widget: System Settings → Control Center → scroll to Ping Warden")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-                    .padding(.horizontal, 24)
-                    .padding(.top, 8)
+                VStack(alignment: .leading, spacing: 4) {
+                    Text("To add the widget: System Settings → Control Center → scroll to Ping Warden")
+                    Text("To access settings later, search for \"Ping Warden\" in Spotlight (Cmd+Space) or find it in your Applications folder.")
+                }
+                .font(.caption)
+                .foregroundStyle(.secondary)
+                .padding(.horizontal, 24)
+                .padding(.top, 8)
             } else if !isControlCenterAvailable {
                 Text("Control Center widgets require the app to be signed with a Developer ID certificate.")
                     .font(.caption)
@@ -1561,6 +1583,20 @@ struct AutomationSettingsContent: View {
                     .padding(.horizontal, 24)
                     .padding(.top, 8)
             }
+        }
+        .confirmationDialog(
+            "Hide Menu Bar Icon?",
+            isPresented: $showingControlCenterConfirm,
+            titleVisibility: .visible
+        ) {
+            Button("Hide Menu Bar Icon") {
+                PingWardenPreferences.shared.controlCenterWidgetEnabled = true
+            }
+            Button("Cancel", role: .cancel) {
+                controlCenterEnabled = false
+            }
+        } message: {
+            Text("The menu bar icon will be hidden. To access settings later, search for \"Ping Warden\" in Spotlight (Cmd+Space) or find it in your Applications folder.")
         }
     }
 }
@@ -1769,6 +1805,15 @@ struct AdvancedSettingsContent: View {
 
         // Stop monitoring and disconnect XPC
         PingWardenMonitor.shared.stopMonitoring()
+
+        // Reset App Group preferences to prevent lockout on reinstall (issue #28).
+        // These persist in ~/Library/Group Containers/ and survive app deletion.
+        let prefs = PingWardenPreferences.shared
+        prefs.controlCenterWidgetEnabled = false
+        prefs.showDockIcon = false
+        prefs.isMonitoringEnabled = false
+        prefs.gameModeAutoDetect = false
+        prefs.showMenuDropdownMetrics = false
 
         // Unregister the helper with SMAppService
         do {
@@ -2026,7 +2071,7 @@ class GameModeDetector {
 
     /// Checks if an app is categorized as a game by examining its Info.plist
     /// Returns true if:
-    /// - LSApplicationCategoryType == "public.app-category.games"
+    /// - LSApplicationCategoryType starts with "public.app-category.games" (includes subcategories)
     /// - OR LSSupportsGameMode == true
     private func isAppAGame(pid: pid_t) -> Bool {
         // Get the running application from PID
@@ -2045,7 +2090,7 @@ class GameModeDetector {
 
         // Check LSApplicationCategoryType for game category
         if let categoryType = infoPlist["LSApplicationCategoryType"] as? String {
-            if categoryType == "public.app-category.games" {
+            if categoryType.hasPrefix("public.app-category.games") {
                 log.debug("App \(bundleURL.lastPathComponent) has game category")
                 return true
             }
