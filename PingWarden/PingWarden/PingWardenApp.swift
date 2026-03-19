@@ -64,6 +64,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSMenuDele
     private var dockIconObserver: NSObjectProtocol?
     private var gameModeObserver: NSObjectProtocol?
     private var menuMetricsObserver: NSObjectProtocol?
+    private var windowObserver: NSObjectProtocol?
     private var statusItem: NSStatusItem?
     private var statusMenu: NSMenu?
     private var aboutWindow: NSWindow?
@@ -182,6 +183,18 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSMenuDele
 
         handleMenuMetricsPreferenceChange()
         ensureApplicationMenuItems()
+
+        // Observe all window close events so we can update dock icon visibility
+        // when the Settings scene window (which we don't own) closes.
+        windowObserver = NotificationCenter.default.addObserver(
+            forName: NSWindow.willCloseNotification,
+            object: nil,
+            queue: .main
+        ) { [weak self] _ in
+            DispatchQueue.main.async {
+                self?.updateDockIconVisibility()
+            }
+        }
     }
 
     func applicationShouldTerminateAfterLastWindowClosed(_ sender: NSApplication) -> Bool {
@@ -233,6 +246,9 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSMenuDele
         if let observer = menuMetricsObserver {
             NotificationCenter.default.removeObserver(observer)
         }
+        if let observer = windowObserver {
+            NotificationCenter.default.removeObserver(observer)
+        }
 
         menuMetricsTimer?.invalidate()
         menuMetricsTimer = nil
@@ -241,11 +257,11 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSMenuDele
     }
 
     private func updateDockIconVisibility() {
-        // Show dock icon if preference is set OR if settings window is visible
-        let settingsVisible = settingsWindow?.isVisible ?? false
+        // The Settings window is owned by the SwiftUI Settings scene, so we find it by title.
+        let settingsVisible = NSApp.windows.contains { $0.isVisible && $0.title == "Settings" }
         let aboutVisible = aboutWindow?.isVisible ?? false
         let welcomeVisible = welcomeWindow?.isVisible ?? false
-        
+
         if PingWardenPreferences.shared.showDockIcon || settingsVisible || aboutVisible || welcomeVisible {
             NSApp.setActivationPolicy(.regular)
             ensureApplicationMenuItems()
@@ -259,10 +275,9 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSMenuDele
     func windowWillClose(_ notification: Notification) {
         guard let window = notification.object as? NSWindow else { return }
 
-        // Update dock icon visibility when any managed window closes.
-        // Use the next run loop iteration to let the window finish closing,
-        // avoiding flicker from rapid policy toggling.
-        if window === settingsWindow || window === aboutWindow || window === welcomeWindow {
+        // Update dock icon visibility when a managed window closes.
+        // The Settings window is handled by the global windowObserver.
+        if window === aboutWindow || window === welcomeWindow {
             DispatchQueue.main.async { [weak self] in
                 self?.updateDockIconVisibility()
             }
@@ -504,66 +519,12 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSMenuDele
         stopMenuMetricsMonitoring()
     }
 
-    private var settingsWindow: NSWindow?
-
-    private var settingsSplitVC: SettingsSplitViewController?
-
     @objc private func openSettings() {
         log.info("openSettings called")
-
-        // If settings window already exists, just bring it to front
-        if let window = settingsWindow {
-            log.info("Existing settings window found, bringing to front")
-            window.makeKeyAndOrderFront(nil)
-            NSApp.activate(ignoringOtherApps: true)
-            ensureApplicationMenuItems()
-            return
-        }
-
-        log.info("Creating new settings window with NSSplitViewController")
-
-        // Create the split view controller
-        let splitVC = SettingsSplitViewController()
-        settingsSplitVC = splitVC
-
-        let window = NSWindow(contentViewController: splitVC)
-        window.title = "Settings"
-        window.styleMask = [.titled, .closable, .miniaturizable, .resizable, .fullSizeContentView]
-        window.titlebarAppearsTransparent = true
-        window.titleVisibility = .hidden
-        window.toolbarStyle = .unified
-
-        // Set minimum and default window size
-        window.minSize = NSSize(width: 600, height: 450)
-        
-        // Ensure window fits on screen
-        var windowSize = NSSize(width: 720, height: 580)
-        if let screen = NSScreen.main {
-            windowSize.width = min(windowSize.width, screen.visibleFrame.width - 40)
-            windowSize.height = min(windowSize.height, screen.visibleFrame.height - 40)
-        }
-        window.setContentSize(windowSize)
-        window.center()
-        window.isReleasedWhenClosed = false
-        window.delegate = self
-
-        // Add an empty toolbar to enable the unified toolbar style
-        // This is what allows the sidebar to extend under the titlebar
-        let toolbar = NSToolbar(identifier: "SettingsToolbar")
-        toolbar.displayMode = .iconOnly
-        toolbar.showsBaselineSeparator = false
-        window.toolbar = toolbar
-
-        settingsWindow = window
-        
-        // Show dock icon when settings window opens
         NSApp.setActivationPolicy(.regular)
-        
-        window.makeKeyAndOrderFront(nil)
+        NSApp.sendAction(Selector(("showSettingsWindow:")), to: nil, from: nil)
         NSApp.activate(ignoringOtherApps: true)
         ensureApplicationMenuItems()
-
-        log.info("Settings window created and shown")
     }
 
     @objc private func showAbout() {
@@ -1097,18 +1058,22 @@ struct FeatureRow: View {
 // MARK: - Settings View
 
 struct SettingsView: View {
+    @State private var selectedSection: SettingsSection = .general
+
     var body: some View {
-        SettingsViewRepresentable()
-            .frame(minWidth: 600, minHeight: 400)
-    }
-}
-
-struct SettingsViewRepresentable: NSViewControllerRepresentable {
-    func makeNSViewController(context: Context) -> SettingsSplitViewController {
-        return SettingsSplitViewController()
-    }
-
-    func updateNSViewController(_ nsViewController: SettingsSplitViewController, context: Context) {
+        NavigationSplitView {
+            List(SettingsSection.allCases, selection: $selectedSection) { section in
+                Label(section.rawValue, systemImage: section.icon)
+                    .tag(section)
+            }
+            .navigationSplitViewColumnWidth(min: 180, ideal: 200, max: 220)
+        } detail: {
+            SettingsContentView(section: selectedSection)
+                .navigationTitle(selectedSection.rawValue)
+                .toolbarTitleDisplayMode(.inline)
+        }
+        .navigationSplitViewStyle(.prominentDetail)
+        .frame(minWidth: 600, minHeight: 450)
     }
 }
 
@@ -1130,113 +1095,22 @@ enum SettingsSection: String, CaseIterable, Identifiable {
     }
 }
 
-// MARK: - AppKit Split View Controller for Finder-style Sidebar
-
-class SettingsSplitViewController: NSSplitViewController {
-    // Use regular optionals instead of implicitly unwrapped to prevent crashes
-    // if properties are accessed before viewDidLoad()
-    private var sidebarVC: NSViewController?
-    private var detailVC: NSHostingController<SettingsDetailView>?
-    private var selectedSection: SettingsSection = .general
-
-    override func viewDidLoad() {
-        super.viewDidLoad()
-
-        view.wantsLayer = true
-        view.layer?.masksToBounds = true
-
-        // Create sidebar (use [weak self] to avoid retain cycle through Binding closures)
-        let sidebarView = SettingsSidebarView(
-            selectedSection: Binding(
-                get: { [weak self] in self?.selectedSection ?? .general },
-                set: { [weak self] newValue in
-                    self?.selectedSection = newValue
-                    self?.updateDetailView()
-                }
-            )
-        )
-        let sidebarController = NSHostingController(rootView: sidebarView)
-        sidebarVC = sidebarController
-
-        // Create detail view
-        let detailView = SettingsDetailView(section: selectedSection)
-        let detailController = NSHostingController(rootView: detailView)
-        detailVC = detailController
-
-        // Create split view items
-        let sidebarItem = NSSplitViewItem(sidebarWithViewController: sidebarController)
-        sidebarItem.canCollapse = false
-        sidebarItem.minimumThickness = 180
-        sidebarItem.maximumThickness = 220
-        sidebarItem.preferredThicknessFraction = 0.26
-        sidebarItem.allowsFullHeightLayout = true
-
-        let detailItem = NSSplitViewItem(viewController: detailController)
-        detailItem.minimumThickness = 400
-        detailItem.canCollapse = false
-
-        addSplitViewItem(sidebarItem)
-        addSplitViewItem(detailItem)
-
-        splitView.isVertical = true
-        splitView.dividerStyle = .thin
-    }
-
-    private func updateDetailView() {
-        detailVC?.rootView = SettingsDetailView(section: selectedSection)
-    }
-}
-
-// MARK: - Sidebar View
-
-struct SettingsSidebarView: View {
-    @Binding var selectedSection: SettingsSection
-
-    var body: some View {
-        ZStack {
-            Color(nsColor: .windowBackgroundColor)
-            List(selection: $selectedSection) {
-                ForEach(SettingsSection.allCases) { section in
-                    Label(section.rawValue, systemImage: section.icon)
-                        .tag(section)
-                }
-            }
-            .scrollContentBackground(.hidden)
-            .listStyle(.sidebar)
-        }
-    }
-}
-
-// MARK: - Detail View
-
-struct SettingsDetailView: View {
-    let section: SettingsSection
-
-    var body: some View {
-        SettingsContentView(section: section)
-    }
-}
-
 struct SettingsContentView: View {
     let section: SettingsSection
 
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 0) {
-                // Section title with divider
-                VStack(alignment: .leading, spacing: 0) {
-                    Text(section.rawValue)
-                        .font(.title2)
-                        .fontWeight(.semibold)
-                        .padding(.horizontal, 20)
-                        .padding(.top, 16)
-                        .padding(.bottom, 6)
+                Text(section.rawValue)
+                    .font(.title3)
+                    .fontWeight(.semibold)
+                    .padding(.horizontal, 20)
+                    .padding(.top, 6)
+                    .padding(.bottom, 6)
 
-                    Divider()
-                        .padding(.horizontal, 20)
-                }
+                Divider()
+                    .padding(.horizontal, 20)
 
-                // Content with top spacing
                 VStack(alignment: .leading, spacing: 0) {
                     switch section {
                     case .dashboard:
@@ -1249,16 +1123,15 @@ struct SettingsContentView: View {
                         AdvancedSettingsContent()
                     }
                 }
-                .padding(.top, 12)
+                .padding(.top, 8)
 
                 Spacer(minLength: 20)
             }
         }
-        .padding(.leading, 2)
+        .toolbar(.hidden, for: .windowToolbar)
         .scrollContentBackground(.hidden)
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
         .background(Color(nsColor: .windowBackgroundColor))
-        .clipped()
     }
 }
 
