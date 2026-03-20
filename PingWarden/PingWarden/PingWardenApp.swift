@@ -84,6 +84,15 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSMenuDele
     func applicationDidFinishLaunching(_ notification: Notification) {
         log.info("Ping Warden launching...")
 
+        // Clear any cached Settings window state from prior builds that may have
+        // injected fullSizeContentView or other window customizations via onAppear.
+        // The SwiftUI Settings scene persists window frames under these keys.
+        for key in UserDefaults.standard.dictionaryRepresentation().keys {
+            if key.contains("NSWindow Frame") && key.contains("Settings") {
+                UserDefaults.standard.removeObject(forKey: key)
+            }
+        }
+
         // Initialize Sparkle updater and start explicitly so failures can be logged clearly.
         updaterController = SPUStandardUpdaterController(
             startingUpdater: false,
@@ -257,8 +266,17 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSMenuDele
     }
 
     private func updateDockIconVisibility() {
-        // The Settings window is owned by the SwiftUI Settings scene, so we find it by title.
-        let settingsVisible = NSApp.windows.contains { $0.isVisible && $0.title == "Settings" }
+        // The Settings window is owned by the SwiftUI Settings scene. Its title may be
+        // "Settings" or the current section name (from .navigationTitle), so we check
+        // for any visible titled window that isn't one of our other managed windows.
+        let settingsVisible = NSApp.windows.contains { window in
+            window.isVisible
+                && window !== aboutWindow
+                && window !== welcomeWindow
+                && window.styleMask.contains(.titled)
+                && window.level == .normal
+                && !(window.className.contains("StatusBar"))
+        }
         let aboutVisible = aboutWindow?.isVisible ?? false
         let welcomeVisible = welcomeWindow?.isVisible ?? false
 
@@ -1069,11 +1087,29 @@ struct SettingsView: View {
             .navigationSplitViewColumnWidth(min: 180, ideal: 200, max: 220)
         } detail: {
             SettingsContentView(section: selectedSection)
-                .navigationTitle(selectedSection.rawValue)
-                .toolbarTitleDisplayMode(.inline)
         }
         .navigationSplitViewStyle(.prominentDetail)
         .frame(minWidth: 600, minHeight: 450)
+        .onAppear {
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
+                guard let window = NSApp.windows.first(where: {
+                    $0.title.contains("Settings")
+                }) else { return }
+
+                window.titleVisibility = .hidden
+                window.titlebarAppearsTransparent = true
+                window.toolbarStyle = .unified
+                if !window.styleMask.contains(.fullSizeContentView) {
+                    window.styleMask.insert(.fullSizeContentView)
+                }
+                if window.toolbar == nil {
+                    let toolbar = NSToolbar(identifier: "SettingsToolbar")
+                    toolbar.displayMode = .iconOnly
+                    toolbar.showsBaselineSeparator = false
+                    window.toolbar = toolbar
+                }
+            }
+        }
     }
 }
 
@@ -1105,7 +1141,7 @@ struct SettingsContentView: View {
                     .font(.title3)
                     .fontWeight(.semibold)
                     .padding(.horizontal, 20)
-                    .padding(.top, 6)
+                    .padding(.top, 4)
                     .padding(.bottom, 6)
 
                 Divider()
@@ -1128,7 +1164,6 @@ struct SettingsContentView: View {
                 Spacer(minLength: 20)
             }
         }
-        .toolbar(.hidden, for: .windowToolbar)
         .scrollContentBackground(.hidden)
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
         .background(Color(nsColor: .windowBackgroundColor))
