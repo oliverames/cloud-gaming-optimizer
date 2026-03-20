@@ -21,8 +21,12 @@ NS_ASSUME_NONNULL_BEGIN
 
 /// When YES, AWDL is allowed to be up (normal operation).
 /// When NO, AWDL is kept down (blocking mode).
-/// Setting this property immediately applies the desired state.
-@property (nonatomic) BOOL awdlEnabled;
+/// Reading returns the current desired state.
+@property (nonatomic, readonly) BOOL awdlEnabled;
+
+/// Set the AWDL enabled state. Returns YES if the command was successfully
+/// queued to the background thread, NO if the pipe write failed.
+- (BOOL)setAwdlEnabled:(BOOL)enabled;
 
 /// Stop the monitoring thread and cleanup all resources.
 /// Should be called before the helper exits.

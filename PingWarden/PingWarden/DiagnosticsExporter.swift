@@ -53,6 +53,10 @@ enum DiagnosticsExporter {
             registrationStatus = "unknown"
         }
 
+        // Both getInterventionCount (above) and performHealthCheck use semaphore
+        // waits that would deadlock the main thread. The sole call site already
+        // dispatches to a background queue, so assert that contract here.
+        assert(!Thread.isMainThread, "exportSnapshot must not be called on the main thread")
         let health = monitor.performHealthCheck()
         let awdlStatus = monitor.currentAWDLInterfaceStatus()
 

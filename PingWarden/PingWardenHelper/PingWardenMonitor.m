@@ -45,10 +45,13 @@ _Static_assert(sizeof("awdl0") <= IFNAMSIZ, "TARGETIFNAM must fit in IFNAMSIZ");
     // Pipe file descriptors for internal state change communication
     int _msgfds[2];
 
-    BOOL _exit;
     // Thread-safe flag for tracking background thread state
     // Use atomic_bool to prevent data races between main thread and pollIoctl thread
     atomic_bool _threadRunning;
+
+    // Desired AWDL state — accessed from XPC handler threads and the setter,
+    // so use atomic_bool to prevent data races.
+    atomic_bool _awdlEnabledAtomic;
 
     dispatch_semaphore_t _ioctlThreadExitSemaphore;
     
@@ -82,7 +85,7 @@ _Static_assert(sizeof("awdl0") <= IFNAMSIZ, "TARGETIFNAM must fit in IFNAMSIZ");
         atomic_store(&_interventionCount, 0);
 
         // Start off allowing AWDL to be active
-        _awdlEnabled = YES;
+        atomic_store(&_awdlEnabledAtomic, true);
 
         // Socket to monitor network interface changes
         _rtfd = socket(AF_ROUTE, SOCK_RAW, 0);
@@ -188,7 +191,7 @@ _Static_assert(sizeof("awdl0") <= IFNAMSIZ, "TARGETIFNAM must fit in IFNAMSIZ");
     os_log(LOG, "pollIoctl thread started");
 
     BOOL quit = NO;
-    BOOL enable = _awdlEnabled;
+    BOOL enable = atomic_load(&_awdlEnabledAtomic);
 
     while (!quit) {
         struct pollfd fds[] = {
@@ -368,12 +371,18 @@ _Static_assert(sizeof("awdl0") <= IFNAMSIZ, "TARGETIFNAM must fit in IFNAMSIZ");
     return NO;
 }
 
-- (void)setAwdlEnabled:(BOOL)awdlEnabled {
-    _awdlEnabled = awdlEnabled;
-    const char *msg = awdlEnabled ? "U" : "D";
+- (BOOL)awdlEnabled {
+    return atomic_load(&_awdlEnabledAtomic);
+}
+
+- (BOOL)setAwdlEnabled:(BOOL)enabled {
+    const char *msg = enabled ? "U" : "D";
     if (![self writeMessageToPipe:msg]) {
-        os_log_error(LOG, "Failed to send %s message to pipe", awdlEnabled ? "enable" : "disable");
+        os_log_error(LOG, "Failed to send %s message to pipe", enabled ? "enable" : "disable");
+        return NO;
     }
+    atomic_store(&_awdlEnabledAtomic, enabled);
+    return YES;
 }
 
 - (void)invalidate {

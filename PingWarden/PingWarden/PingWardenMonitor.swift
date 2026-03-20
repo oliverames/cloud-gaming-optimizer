@@ -934,8 +934,12 @@ class PingWardenMonitor {
         }
     }
 
-    /// Run ifconfig to bring AWDL up or down (for testing only)
-    private func runIfconfig(up: Bool) {
+    /// Run ifconfig to bring AWDL up or down (for testing only).
+    /// Returns true if the command succeeded. The unprivileged app typically
+    /// cannot modify network interfaces, so this is expected to fail — the
+    /// test relies on the *helper* reacting to the route change.
+    @discardableResult
+    private func runIfconfig(up: Bool) -> Bool {
         let task = Process()
         task.executableURL = URL(fileURLWithPath: "/sbin/ifconfig")
         task.arguments = ["awdl0", up ? "up" : "down"]
@@ -945,8 +949,14 @@ class PingWardenMonitor {
         do {
             try task.run()
             task.waitUntilExit()
+            if task.terminationStatus != 0 {
+                log.debug("ifconfig awdl0 \(up ? "up" : "down") exited with status \(task.terminationStatus) (expected for unprivileged process)")
+                return false
+            }
+            return true
         } catch {
             log.error("Error running ifconfig: \(error.localizedDescription)")
+            return false
         }
     }
 

@@ -859,25 +859,41 @@ class DashboardViewModel: ObservableObject {
     }
     
     init() {
-        let gateway = NetworkGatewayResolver.defaultGatewayAddress()
-        targets = Self.baseTargets(localGateway: gateway)
-        
+        // Initialize with base targets (no local gateway yet — resolved async in start())
+        targets = Self.baseTargets(localGateway: nil)
+
         if let savedInterval = userDefaults.object(forKey: DashboardConfig.updateIntervalKey) as? Double {
             updateInterval = sanitizedInterval(savedInterval)
         }
-        
+
         if let savedTargetID = normalizedSavedTargetID(userDefaults.string(forKey: DashboardConfig.selectedTargetKey)),
            targets.contains(where: { $0.id == savedTargetID }) {
             selectedTargetID = savedTargetID
         } else {
-            selectedTargetID = targets.first(where: { $0.source == .local })?.id ?? targets.first?.id ?? ""
+            selectedTargetID = targets.first?.id ?? ""
         }
     }
     
     func start() {
         guard !isStarted else { return }
         isStarted = true
-        
+
+        // Resolve local gateway off main thread to avoid blocking UI
+        Task.detached(priority: .utility) {
+            let gateway = NetworkGatewayResolver.defaultGatewayAddress()
+            guard let gateway else { return }
+            await MainActor.run { [weak self] in
+                guard let self, self.isStarted else { return }
+                let previousSelection = self.selectedTargetID
+                self.targets = Self.baseTargets(localGateway: gateway) + self.gfnTargets
+                if self.targets.contains(where: { $0.id == previousSelection }) {
+                    self.selectedTargetID = previousSelection
+                } else {
+                    self.selectedTargetID = self.targets.first(where: { $0.source == .local })?.id ?? self.targets.first?.id ?? ""
+                }
+            }
+        }
+
         // Start ping monitoring
         pingMonitor.onPingResult = { [weak self] result in
             Task { @MainActor in
@@ -909,6 +925,8 @@ class DashboardViewModel: ObservableObject {
     
     func stop() {
         isStarted = false
+        pingMonitor.onPingResult = nil
+        pingMonitor.onStatsUpdate = nil
         pingMonitor.stop()
         interventionTimer?.invalidate()
         interventionTimer = nil
@@ -1037,7 +1055,9 @@ class DashboardViewModel: ObservableObject {
     }
     
     private func rebuildTargets() {
-        let gatewayHost = targets.first(where: { $0.source == .local })?.host ?? NetworkGatewayResolver.defaultGatewayAddress()
+        // Use cached gateway from existing targets — do NOT call NetworkGatewayResolver
+        // here since this runs on @MainActor and the resolver spawns a blocking Process.
+        let gatewayHost = targets.first(where: { $0.source == .local })?.host
         let baseTargets = Self.baseTargets(localGateway: gatewayHost)
         let sortedGFNTargets = gfnTargets.sorted { $0.displayName < $1.displayName }
         

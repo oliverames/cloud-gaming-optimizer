@@ -29,7 +29,6 @@
 static NSInteger activeConnectionCount = 0;
 static dispatch_queue_t connectionCountQueue;
 static dispatch_source_t exitTimer = nil;
-static dispatch_block_t pendingStateVerification = nil;
 
 #pragma mark - Code Signing Helpers
 
@@ -91,26 +90,15 @@ static BOOL isProperlyCodeSigned(void) {
 - (void)setAWDLEnabled:(BOOL)enable withReply:(void (^)(BOOL))reply {
     os_log(LOG, "setAWDLEnabled: %d", enable);
 
-    // Cancel any pending state verification to avoid race conditions
-    if (pendingStateVerification) {
-        dispatch_block_cancel(pendingStateVerification);
-        pendingStateVerification = nil;
-    }
-
     // Apply the state change - this sends a message to the monitoring thread
-    // which will then bring the interface UP or DOWN as needed
-    self.monitor.awdlEnabled = enable;
-
-    // Verify the state was accepted by the monitor
-    // Note: This confirms the command was received, not that the interface
-    // state has changed (that happens asynchronously in the background thread)
-    BOOL success = (self.monitor.awdlEnabled == enable);
+    // which will then bring the interface UP or DOWN as needed.
+    // setAwdlEnabled: returns YES if the pipe write succeeded (command queued),
+    // NO if the pipe write failed. The ivar is only updated on success.
+    BOOL success = [self.monitor setAwdlEnabled:enable];
     if (!success) {
-        os_log_error(LOG, "setAWDLEnabled failed: requested %d but monitor state is %d",
-                     enable, self.monitor.awdlEnabled);
+        os_log_error(LOG, "setAWDLEnabled failed: pipe write error for requested state %d", enable);
     }
 
-    // Reply immediately - the state change command has been sent
     reply(success);
 }
 
@@ -202,6 +190,19 @@ static BOOL isProperlyCodeSigned(void) {
 
 - (BOOL)listener:(NSXPCListener *)listener shouldAcceptNewConnection:(NSXPCConnection *)conn {
     os_log(LOG, "New XPC connection from PID %d (euid: %d)", conn.processIdentifier, conn.effectiveUserIdentifier);
+
+    // Defense-in-depth: even when connectionCodeSigningRequirement is set,
+    // reject connections from unexpected user IDs. On unsigned/dev builds this
+    // is the *only* protection since the code-signing requirement is absent.
+    uid_t callerEUID = conn.effectiveUserIdentifier;
+    uid_t myEUID = geteuid();
+    // Allow: root (0), same user as helper, and console users (UID >= 501).
+    // Reject system/daemon UIDs (1–500). The helper runs as root via
+    // LaunchDaemon; legitimate callers are the app running as the logged-in user.
+    if (callerEUID != 0 && callerEUID != myEUID && callerEUID < 501) {
+        os_log_error(LOG, "Rejecting XPC connection from unexpected euid %d (helper euid %d)", callerEUID, myEUID);
+        return NO;
+    }
 
     // Cancel pending exit if a new connection arrives
     [self cancelExitTimer];
@@ -322,7 +323,7 @@ int main(int argc, const char * argv[]) {
                 listener.connectionCodeSigningRequirement = requirement;
             }
         } else {
-            os_log(LOG, "WARNING: Running without code signing - any process can connect");
+            os_log(LOG, "WARNING: Running without code signing requirement - relying on UID-based validation only");
         }
 
         listener.delegate = service;

@@ -58,7 +58,10 @@ enum TCPProbe {
         defer { close(socketFD) }
 
         let currentFlags = fcntl(socketFD, F_GETFL, 0)
-        _ = fcntl(socketFD, F_SETFL, currentFlags | O_NONBLOCK)
+        guard currentFlags >= 0,
+              fcntl(socketFD, F_SETFL, currentFlags | O_NONBLOCK) >= 0 else {
+            return false
+        }
 
         let connectResult = Darwin.connect(socketFD, addrInfo.ai_addr, addrInfo.ai_addrlen)
         if connectResult == 0 {

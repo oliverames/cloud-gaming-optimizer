@@ -47,7 +47,7 @@ struct PingWardenApp: App {
 
 class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSMenuDelegate, SPUUpdaterDelegate {
     private static let appMenuCheckForUpdatesTag = 2201
-    private let sparkleFeedURLString = "https://oliverames.github.io/ping-warden/appcast.xml"
+    // Sparkle feed URL is defined in Info.plist (SUFeedURL) as the single source of truth.
 
     private struct GameModeSnapshot {
         let userIntentMonitoringEnabled: Bool
@@ -200,9 +200,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSMenuDele
             object: nil,
             queue: .main
         ) { [weak self] _ in
-            DispatchQueue.main.async {
-                self?.updateDockIconVisibility()
-            }
+            self?.updateDockIconVisibility()
         }
     }
 
@@ -636,10 +634,6 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSMenuDele
         }
     }
 
-    func feedURLString(for updater: SPUUpdater) -> String? {
-        sparkleFeedURLString
-    }
-    
     private func presentUpdaterStartFailureAlert() {
         let alert = NSAlert()
         alert.messageText = "Unable to Check For Updates"
@@ -1666,9 +1660,10 @@ struct AdvancedSettingsContent: View {
 
             do {
                 try task.run()
-                task.waitUntilExit()
-
+                // Read pipe before waitUntilExit to avoid deadlock if the process
+                // fills the pipe buffer (the process blocks on write, we block on wait).
                 let data = pipe.fileHandleForReading.readDataToEndOfFile()
+                task.waitUntilExit()
                 let output = String(data: data, encoding: .utf8) ?? "No output"
 
                 DispatchQueue.main.async {
@@ -1714,12 +1709,14 @@ struct AdvancedSettingsContent: View {
         // Stop monitoring and disconnect XPC
         PingWardenMonitor.shared.stopMonitoring()
 
-        // Reset App Group preferences to prevent lockout on reinstall (issue #28).
-        // These persist in ~/Library/Group Containers/ and survive app deletion.
+        // Reset ALL App Group preferences to prevent lockout or stale state on reinstall
+        // (issue #28). These persist in ~/Library/Group Containers/ and survive app deletion.
         let prefs = PingWardenPreferences.shared
         prefs.controlCenterWidgetEnabled = false
         prefs.showDockIcon = false
         prefs.isMonitoringEnabled = false
+        prefs.effectiveMonitoringEnabled = false
+        prefs.lastKnownState = "unknown"
         prefs.gameModeAutoDetect = false
         prefs.showMenuDropdownMetrics = false
 
@@ -1833,6 +1830,8 @@ class GameModeDetector {
     private var isGameModeActive = false
     private var hasLoggedPermissionWarning = false
     private let log = Logger(subsystem: "com.amesvt.pingwarden", category: "GameMode")
+    /// Cache of pid → isGame to avoid re-reading Info.plist every 2 seconds
+    private var gameCheckCache: [pid_t: Bool] = [:]
 
     var onGameModeChange: ((Bool) -> Void)?
 
@@ -1875,6 +1874,7 @@ class GameModeDetector {
     func stop() {
         timer?.invalidate()
         timer = nil
+        gameCheckCache.removeAll()
 
         // Reset state
         if isGameModeActive {
@@ -1977,11 +1977,18 @@ class GameModeDetector {
         return false
     }
 
-    /// Checks if an app is categorized as a game by examining its Info.plist
-    /// Returns true if:
-    /// - LSApplicationCategoryType starts with "public.app-category.games" (includes subcategories)
-    /// - OR LSSupportsGameMode == true
+    /// Checks if an app is categorized as a game by examining its Info.plist.
+    /// Results are cached per-PID to avoid repeated disk I/O on the 2-second timer.
     private func isAppAGame(pid: pid_t) -> Bool {
+        if let cached = gameCheckCache[pid] {
+            return cached
+        }
+        let result = isAppAGameUncached(pid: pid)
+        gameCheckCache[pid] = result
+        return result
+    }
+
+    private func isAppAGameUncached(pid: pid_t) -> Bool {
         // Get the running application from PID
         guard let app = NSRunningApplication(processIdentifier: pid),
               let bundleURL = app.bundleURL else {
