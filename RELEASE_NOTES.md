@@ -16,6 +16,8 @@
 - **Ping quality based on recent median** — The quality indicator (Excellent/Good/Fair/Poor) now uses the median of the last 5 samples instead of the most recent one, reducing flickering from single-sample outliers
 - **Version shown in health alerts** — The "helper needs reinstall" alert now shows the actual bundle version instead of a hardcoded string
 
+- **Rebuilt settings window chrome** — Replaced dual settings window paths (manual NSWindow + SwiftUI Settings scene) with a single NavigationSplitView inside the Settings scene, restoring native macOS sidebar-under-titlebar appearance with proper vibrancy
+
 ## Code Quality
 
 - **Thread safety** — Fixed a race condition in `xpcRetryCount` and standardized all lock/unlock calls to use `defer { stateLock.unlock() }` to prevent unlock skips on early returns
