@@ -51,5 +51,6 @@ Sparkle EdDSA key is in keychain account `"ed25519"`. Notarytool profile: `"nota
 
 ## Version History
 
+- `2.2.1` — Security hardening (XPC UID validation, atomic state), reliability fixes, performance improvements
 - `2.2.0` — Lockout fix (Issue #28), UX humanization, thread safety, game category detection fix
 - `2.1.2` — Documentation, actor isolation fix

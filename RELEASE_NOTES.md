@@ -1,3 +1,28 @@
+# Ping Warden 2.2.1
+
+Security hardening, reliability, and performance improvements.
+
+## Security
+- XPC helper now validates caller identity (UID-based defense-in-depth)
+- AWDL state control uses atomic operations and returns accurate success/failure
+- Sparkle update feed uses Info.plist as single source of truth
+
+## Reliability
+- Fixed potential socket hang in network probes when fcntl fails
+- Fixed potential pipe buffer deadlock in helper response test
+- Complete App Group preferences reset on uninstall (prevents stale widget state)
+- DiagnosticsExporter enforces background thread contract
+
+## Performance
+- Game Mode detector caches app category lookups (eliminates repeated disk I/O)
+- Dashboard gateway resolution moved off main thread
+
+## Quality
+- Removed dead code (unused variables, redundant dispatch)
+- Helper version synced with app version
+
+---
+
 # Ping Warden 2.2.0
 
 ## Bug Fixes
