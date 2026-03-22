@@ -92,6 +92,9 @@ iOSInjectionProject/
 # macOS
 .DS_Store
 
+# Claude Code
+.claude/
+
 # Compiled daemon binary (built from source)
 AWDLControl/AWDLMonitorDaemon/awdl_monitor_daemon
 
