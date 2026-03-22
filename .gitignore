@@ -101,3 +101,13 @@ AWDLControl/AWDLMonitorDaemon/awdl_monitor_daemon
 # Release artifacts
 *.dmg
 *.zip
+
+# Secrets & environment
+.env
+.env.*
+.env.local
+credentials.json
+secrets.json
+*.pem
+*.p12
+*.key
