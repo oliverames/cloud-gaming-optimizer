@@ -4,8 +4,11 @@ Ping Warden is a macOS app that keeps your connection stable by preventing AWDL-
 
 AWDL (Apple Wireless Direct Link) powers AirDrop, AirPlay, and Handoff, but it can introduce sudden ping spikes during cloud gaming, competitive play, and voice/video calls. Ping Warden gives you one-click control over that behavior.
 
-[![Download](https://img.shields.io/badge/Download-Latest_Release-blue?style=for-the-badge)](https://github.com/oliverames/ping-warden/releases/latest)
-[![Buy Me a Coffee](https://img.shields.io/badge/Buy_Me_a_Coffee-Support-orange?style=for-the-badge)](https://www.buymeacoffee.com/oliverames)
+<p align="center">
+  <a href="https://github.com/oliverames/ping-warden/releases/latest"><img src="https://img.shields.io/badge/Download-Latest_Release-f5a542?style=flat-square" alt="Download"></a>
+  <a href="LICENSE"><img src="https://img.shields.io/badge/license-MIT-f5a542?style=flat-square" alt="License"></a>
+  <a href="https://www.buymeacoffee.com/oliverames"><img src="https://img.shields.io/badge/Buy_Me_a_Coffee-support-f5a542?style=flat-square&logo=buy-me-a-coffee&logoColor=white" alt="Buy Me a Coffee"></a>
+</p>
 
 ## Download
 
@@ -81,3 +84,20 @@ Build and run from Xcode with signing configured for all targets.
 ## License
 
 MIT License. Copyright (c) 2025-2026 Oliver Ames.
+
+---
+
+<p align="center">
+  <a href="https://www.buymeacoffee.com/oliverames">
+    <img src="https://img.shields.io/badge/Buy_Me_a_Coffee-support-f5a542?style=for-the-badge&logo=buy-me-a-coffee&logoColor=white" alt="Buy Me a Coffee">
+  </a>
+</p>
+
+<p align="center">
+  <sub>
+    Built by <a href="https://ames.consulting">Oliver Ames</a> in Vermont
+    &bull; <a href="https://github.com/oliverames">GitHub</a>
+    &bull; <a href="https://linkedin.com/in/oliverames">LinkedIn</a>
+    &bull; <a href="https://bsky.app/profile/oliverames.bsky.social">Bluesky</a>
+  </sub>
+</p>
