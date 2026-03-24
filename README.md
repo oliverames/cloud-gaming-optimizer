@@ -7,7 +7,6 @@ AWDL (Apple Wireless Direct Link) powers AirDrop, AirPlay, and Handoff, but it c
 <p align="center">
   <a href="https://github.com/oliverames/ping-warden/releases/latest"><img src="https://img.shields.io/badge/Download-Latest_Release-f5a542?style=flat-square" alt="Download"></a>
   <a href="LICENSE"><img src="https://img.shields.io/badge/license-MIT-f5a542?style=flat-square" alt="License"></a>
-  <a href="https://www.buymeacoffee.com/oliverames"><img src="https://img.shields.io/badge/Buy_Me_a_Coffee-support-f5a542?style=flat-square&logo=buy-me-a-coffee&logoColor=white" alt="Buy Me a Coffee"></a>
 </p>
 
 ## Download
@@ -57,21 +56,21 @@ The fundamental constraint is that AWDL uses specific "social" WiFi channels (6 
 3. Approve the helper in System Settings when prompted
 4. Toggle AWDL blocking from the menu bar icon
 
-For detailed setup instructions, see [Quick Start Guide](AWDLControl/QUICKSTART.md).
+For detailed setup instructions, see [Quick Start Guide](PingWarden/QUICKSTART.md).
 
 ## Documentation
 
-- [Quick Start](AWDLControl/QUICKSTART.md) — Installation and first-run setup
-- [Full Documentation](AWDLControl/README.md) — Architecture, features, and operational details
-- [Troubleshooting](AWDLControl/TROUBLESHOOTING.md) — Common issues and recovery steps
+- [Quick Start](PingWarden/QUICKSTART.md) — Installation and first-run setup
+- [Full Documentation](PingWarden/README.md) — Architecture, features, and operational details
+- [Troubleshooting](PingWarden/TROUBLESHOOTING.md) — Common issues and recovery steps
 - [Release Notes](RELEASE_NOTES.md)
 
 ## Build From Source
 
 ```bash
 git clone https://github.com/oliverames/ping-warden.git
-cd ping-warden/AWDLControl
-open AWDLControl.xcodeproj
+cd ping-warden/PingWarden
+open PingWarden.xcodeproj
 ```
 
 Build and run from Xcode with signing configured for all targets.
