@@ -1,23 +1,35 @@
-# Ping Warden
+<h1 align="center">Ping Warden</h1>
 
-Ping Warden is a macOS app that keeps your connection stable by preventing AWDL-driven latency spikes.
+<p align="center">
+  <strong>macOS menu bar app that eliminates AWDL latency spikes for cloud gaming, competitive play, and video calls</strong>
+</p>
 
-AWDL (Apple Wireless Direct Link) powers AirDrop, AirPlay, and Handoff, but it can introduce sudden ping spikes during cloud gaming, competitive play, and voice/video calls. Ping Warden gives you one-click control over that behavior.
+<p align="center">
+  <code>sub-millisecond response</code> &bull;
+  <code>kernel-level monitoring</code> &bull;
+  <code>macOS 13+</code>
+</p>
 
 <p align="center">
   <a href="https://github.com/oliverames/ping-warden/releases/latest"><img src="https://img.shields.io/badge/Download-Latest_Release-f5a542?style=flat-square" alt="Download"></a>
   <a href="LICENSE"><img src="https://img.shields.io/badge/license-MIT-f5a542?style=flat-square" alt="License"></a>
+  <a href="https://www.buymeacoffee.com/oliverames"><img src="https://img.shields.io/badge/Buy_Me_a_Coffee-support-f5a542?style=flat-square&logo=buy-me-a-coffee&logoColor=white" alt="Buy Me a Coffee"></a>
 </p>
 
-## Download
+<p align="center">
+  <a href="#quick-start">Quick Start</a> &bull;
+  <a href="#why-not-just-run-sudo-ifconfig-awdl0-down">Why This Works</a> &bull;
+  <a href="#documentation">Documentation</a> &bull;
+  <a href="#build-from-source">Build</a>
+</p>
 
-[Download the latest release](https://github.com/oliverames/ping-warden/releases/latest) (macOS 13.0+)
+---
 
-Developer ID signed, notarized, with Sparkle for automatic updates.
+One-click control over Apple Wireless Direct Link (AWDL), the protocol behind AirDrop, AirPlay, and Handoff that causes sudden latency spikes during latency-sensitive activities. Developer ID signed, notarized, with Sparkle auto-updates.
 
 ## Why Not Just Run `sudo ifconfig awdl0 down`?
 
-A one-time shell command might seem like a simple fix, but it doesn't actually solve the problem.
+A one-time shell command seems like a simple fix — but it doesn't solve the problem.
 
 **The core issue:** macOS will bring AWDL back up automatically—often within seconds. You might think you could write a script that checks status every few seconds and takes AWDL down whenever it pops back up. This approach still introduces ping spikes during the seconds AWDL spools up. In some cases, it makes things *worse* because AWDL performs a channel scan each time it comes up, causing additional latency. Even reducing the polling interval to 0.5 seconds doesn't truly solve the problem.
 

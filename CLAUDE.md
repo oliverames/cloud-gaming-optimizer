@@ -98,3 +98,9 @@ Sparkle EdDSA key is in keychain account `"ed25519"`. Notarytool profile: `"nota
 - `applicationShouldHandleReopen` is the lockout recovery path (opens Settings if no windows visible)
 - User-facing strings use "Ping Protection" not "AWDL monitoring"
 
+## Gotchas
+
+- **LICENSE copyright mismatch**: The LICENSE file says "Copyright (c) 2025 AWDL Control" (leftover from the AWDLControl fork). The rest of the codebase uses "Oliver Ames". Fix the LICENSE when making the next release.
+- **`xcodebuild -exportArchive` is broken** in Xcode 26 — use the rsync workaround in the Release Process section above.
+- **Appcast on `gh-pages` branch**: After releasing, you must switch to `gh-pages`, update `appcast.xml`, push, then switch back. Easy to forget.
+
