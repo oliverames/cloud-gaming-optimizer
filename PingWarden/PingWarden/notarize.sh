@@ -10,7 +10,7 @@
 #  Licensed under the MIT License.
 #
 
-set -e
+set -euo pipefail
 
 # Resolve paths relative to this script so execution is cwd-independent.
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -18,10 +18,18 @@ PROJECT_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
 
 # Configuration
 APP_NAME="Ping Warden"
-VERSION="${1:-2.1.2}"
+VERSION="${1:-2.2.1}"
 BUNDLE_ID="com.amesvt.pingwarden"
-KEYCHAIN_PROFILE="notarytool-profile"  # Must match setup in NOTARIZATION_GUIDE.md
-TEAM_ID="PV3W52NDZ3"  # Your Apple Developer Team ID
+KEYCHAIN_PROFILE="${KEYCHAIN_PROFILE:-notarytool-profile}"  # Must match setup in NOTARIZATION_GUIDE.md
+TEAM_ID="PV3W52NDZ3"  # Apple Developer Team ID
+
+# Pre-flight: confirm notarytool credentials are configured before we burn time
+# building/staging an archive that we can't actually submit.
+if ! xcrun notarytool history --keychain-profile "$KEYCHAIN_PROFILE" >/dev/null 2>&1; then
+    echo "Error: notarytool keychain profile '$KEYCHAIN_PROFILE' is not configured." >&2
+    echo "Run: xcrun notarytool store-credentials \"$KEYCHAIN_PROFILE\"" >&2
+    exit 1
+fi
 
 # Paths
 BUILD_DIR="$PROJECT_ROOT/build"
