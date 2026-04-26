@@ -31,9 +31,9 @@ jobs:
 
     - name: Validate version consistency
       run: |
-        APP_VERSION=$(/usr/libexec/PlistBuddy -c "Print :CFBundleShortVersionString" AWDLControl/AWDLControl/Info.plist)
-        HELPER_VERSION=$(/usr/libexec/PlistBuddy -c "Print :CFBundleShortVersionString" AWDLControl/AWDLControlHelper/Info.plist)
-        WIDGET_VERSION=$(/usr/libexec/PlistBuddy -c "Print :CFBundleShortVersionString" AWDLControl/AWDLControlWidget/Info.plist)
+        APP_VERSION=$(/usr/libexec/PlistBuddy -c "Print :CFBundleShortVersionString" PingWarden/PingWarden/Info.plist)
+        HELPER_VERSION=$(/usr/libexec/PlistBuddy -c "Print :CFBundleShortVersionString" PingWarden/PingWardenHelper/Info.plist)
+        WIDGET_VERSION=$(/usr/libexec/PlistBuddy -c "Print :CFBundleShortVersionString" PingWarden/PingWardenWidget/Info.plist)
 
         if [ "$APP_VERSION" != "$HELPER_VERSION" ] || [ "$APP_VERSION" != "$WIDGET_VERSION" ]; then
           echo "ERROR: Version mismatch across targets"
@@ -44,17 +44,17 @@ jobs:
 
     - name: Run core logic smoke tests
       run: |
-        swiftc AWDLControl/AWDLControl/Core/PingStatistics.swift \
-               AWDLControl/AWDLControl/Core/XPCReconnectPolicy.swift \
+        swiftc PingWarden/PingWarden/Core/PingStatistics.swift \
+               PingWarden/PingWarden/Core/XPCReconnectPolicy.swift \
                scripts/core_logic_smoke.swift \
                -o /tmp/core_logic_smoke
         /tmp/core_logic_smoke
 
     - name: Build Helper (verification only)
       run: |
-        echo "Building AWDLControlHelper..."
-        xcodebuild -project AWDLControl/AWDLControl.xcodeproj \
-                   -target AWDLControlHelper \
+        echo "Building PingWardenHelper..."
+        xcodebuild -project PingWarden/PingWarden.xcodeproj \
+                   -target PingWardenHelper \
                    -configuration Release \
                    CODE_SIGN_IDENTITY="" \
                    CODE_SIGNING_REQUIRED=NO \
@@ -62,16 +62,16 @@ jobs:
                    ONLY_ACTIVE_ARCH=NO \
                    -quiet
         echo "Helper binary built successfully"
-        ls -la AWDLControl/build/Release/AWDLControlHelper
+        ls -la PingWarden/build/Release/PingWardenHelper
 
     - name: Build App (verification only)
       run: |
-        echo "Building AWDLControl app..."
+        echo "Building PingWarden app..."
         # Note: Widget is skipped in CI because:
         # 1. It requires App Groups entitlement which needs a valid signing certificate
         # 2. ControlWidget requires macOS 26.0+ (Tahoe) SDK for third-party Control Center controls
-        xcodebuild -project AWDLControl/AWDLControl.xcodeproj \
-                   -target AWDLControl \
+        xcodebuild -project PingWarden/PingWarden.xcodeproj \
+                   -target PingWarden \
                    -configuration Release \
                    CODE_SIGN_IDENTITY="" \
                    CODE_SIGNING_REQUIRED=NO \
@@ -86,20 +86,20 @@ jobs:
         echo ""
 
         echo "Helper binary:"
-        ls -la "AWDLControl/build/Release/AWDLControlHelper"
-        file "AWDLControl/build/Release/AWDLControlHelper"
+        ls -la "PingWarden/build/Release/PingWardenHelper"
+        file "PingWarden/build/Release/PingWardenHelper"
         echo ""
 
         echo "App bundle:"
-        ls -la "AWDLControl/build/Release/Ping Warden.app" || ls -la AWDLControl/build/Release/*.app
+        ls -la "PingWarden/build/Release/Ping Warden.app" || ls -la PingWarden/build/Release/*.app
         echo ""
 
         echo "App bundle contents:"
-        ls -la "AWDLControl/build/Release/Ping Warden.app/Contents/MacOS/" || true
+        ls -la "PingWarden/build/Release/Ping Warden.app/Contents/MacOS/" || true
         echo ""
 
         echo "Helper plist (source):"
-        ls -la "AWDLControl/AWDLControlHelper/com.amesvt.pingwarden.helper.plist"
+        ls -la "PingWarden/PingWardenHelper/com.amesvt.pingwarden.helper.plist"
         echo ""
 
         echo "=== Build verification passed ==="
@@ -113,28 +113,28 @@ jobs:
         echo "Checking required files for app bundling..."
 
         # Check helper binary exists
-        if [ ! -f "AWDLControl/build/Release/AWDLControlHelper" ]; then
+        if [ ! -f "PingWarden/build/Release/PingWardenHelper" ]; then
           echo "ERROR: Helper binary missing"
           exit 1
         fi
         echo "✓ Helper binary present"
 
         # Check helper plist exists
-        if [ ! -f "AWDLControl/AWDLControlHelper/com.amesvt.pingwarden.helper.plist" ]; then
+        if [ ! -f "PingWarden/PingWardenHelper/com.amesvt.pingwarden.helper.plist" ]; then
           echo "ERROR: Helper plist missing"
           exit 1
         fi
         echo "✓ Helper plist present"
 
         # Check app bundle exists
-        if [ ! -d "AWDLControl/build/Release/Ping Warden.app" ]; then
+        if [ ! -d "PingWarden/build/Release/Ping Warden.app" ]; then
           echo "ERROR: App bundle missing"
           exit 1
         fi
         echo "✓ App bundle present"
 
         # Verify main binary exists in app
-        if [ ! -f "AWDLControl/build/Release/Ping Warden.app/Contents/MacOS/Ping Warden" ]; then
+        if [ ! -f "PingWarden/build/Release/Ping Warden.app/Contents/MacOS/Ping Warden" ]; then
           echo "ERROR: Main binary missing from app bundle"
           exit 1
         fi
@@ -142,3 +142,30 @@ jobs:
 
         echo ""
         echo "All bundle structure requirements verified."
+
+  shell-lint:
+    runs-on: macos-14
+    steps:
+    - name: Checkout
+      uses: actions/checkout@v4
+
+    - name: Install shellcheck
+      run: brew install shellcheck
+
+    - name: Lint shell scripts
+      run: |
+        set -e
+        scripts=(
+          PingWarden/PingWarden/notarize.sh
+          PingWarden/PingWarden/release.sh
+          PingWarden/create-dmg.sh
+        )
+        for f in "${scripts[@]}"; do
+          echo "=== bash -n $f ==="
+          bash -n "$f"
+          echo "=== shellcheck $f ==="
+          # error severity only: catches genuine bugs (unquoted-but-globbed vars,
+          # undefined references, command-substitution mistakes) without flagging
+          # intentionally-kept documentation variables.
+          shellcheck --severity=error "$f"
+        done
