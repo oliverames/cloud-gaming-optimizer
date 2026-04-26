@@ -19,7 +19,18 @@ jobs:
       uses: actions/checkout@v4
 
     - name: Select Xcode
-      run: sudo xcode-select -s /Applications/Xcode_16.app/Contents/Developer
+      run: |
+        # Prefer Xcode 16 (any minor), fall back to the runner default. The
+        # exact path of /Applications/Xcode_16.app rotates with the runner
+        # image, so glob for the highest 16.x available.
+        candidate=$(ls -d /Applications/Xcode_16*.app 2>/dev/null | sort -V | tail -1 || true)
+        if [ -z "$candidate" ]; then
+          echo "No Xcode_16*.app found; using runner default."
+          ls -d /Applications/Xcode*.app 2>/dev/null || true
+        else
+          echo "Selecting $candidate"
+          sudo xcode-select -s "$candidate/Contents/Developer"
+        fi
 
     - name: Show Xcode version
       run: xcodebuild -version
