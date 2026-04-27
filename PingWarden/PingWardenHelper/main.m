@@ -23,8 +23,10 @@
 // Team ID for code signing validation
 #define TEAM_ID @"PV3W52NDZ3"
 
-// Grace period before exiting when all connections close (allows reconnection)
-#define EXIT_GRACE_PERIOD_SECONDS 5.0
+// Grace period before exiting when all connections close. Long enough that an
+// app crash + SMAppService relaunch can re-establish XPC without the helper
+// tearing down monitoring and re-enabling AWDL mid-session.
+#define EXIT_GRACE_PERIOD_SECONDS 60.0
 
 static NSInteger activeConnectionCount = 0;
 static dispatch_queue_t connectionCountQueue;

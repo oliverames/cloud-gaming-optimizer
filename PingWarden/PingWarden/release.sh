@@ -10,7 +10,7 @@
 #  Licensed under the MIT License.
 #
 
-set -e
+set -euo pipefail
 
 # Resolve paths relative to this script so execution is cwd-independent.
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -18,7 +18,7 @@ PROJECT_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
 REPO_ROOT="$(cd "$PROJECT_ROOT/.." && pwd)"
 
 # Configuration
-VERSION="${1}"
+VERSION="${1:-}"
 RELEASE_NOTES="${2:-RELEASE_NOTES.md}"
 APP_NAME="Ping Warden"
 BUNDLE_ID="com.amesvt.pingwarden"
@@ -27,11 +27,23 @@ DMG_PATH="$PROJECT_ROOT/$DMG_BASENAME"
 BUILD_DIR="$PROJECT_ROOT/build"
 SPARKLE_KEY="$HOME/sparkle_private_key"
 SPARKLE_KEYCHAIN_ACCOUNT="${SPARKLE_KEYCHAIN_ACCOUNT:-ed25519}"
+KEYCHAIN_PROFILE="${KEYCHAIN_PROFILE:-notarytool-profile}"
 GITHUB_USER="oliverames"
 REPO_NAME="ping-warden"
 NOTARIZE_SCRIPT="$SCRIPT_DIR/notarize.sh"
 APPCAST_FILE="$REPO_ROOT/appcast.xml"
 APP_INFO_PLIST="$PROJECT_ROOT/PingWarden/Info.plist"
+
+# Pre-flight credential check (skipped when notarization itself is skipped, e.g.
+# when re-running release.sh against an already-notarized DMG). Fails fast so
+# we don't go through the build/sign dance only to discover bad creds later.
+if [ "${SKIP_NOTARIZE:-0}" != "1" ]; then
+    if ! xcrun notarytool history --keychain-profile "$KEYCHAIN_PROFILE" >/dev/null 2>&1; then
+        echo "Error: notarytool keychain profile '$KEYCHAIN_PROFILE' is not configured." >&2
+        echo "Run: xcrun notarytool store-credentials \"$KEYCHAIN_PROFILE\"" >&2
+        exit 1
+    fi
+fi
 
 if [[ "$RELEASE_NOTES" = /* ]]; then
     RELEASE_NOTES_PATH="$RELEASE_NOTES"
@@ -108,21 +120,36 @@ echo ""
 # Step 3: Sign update for Sparkle (required)
 echo -e "${GREEN}Step 2: Signing update for Sparkle...${NC}"
 
-# Find sign_update tool (from Sparkle SPM package)
-SIGN_TOOL=$(find ~/Library/Developer/Xcode/DerivedData -name "sign_update" -type f 2>/dev/null | head -1)
-
+# Locate the sign_update tool. Sparkle SPM puts it under the user's DerivedData,
+# but the path varies by Xcode version, scheme name and hash. Searching ~ is
+# slow and unreliable, so prefer xcrun --find first; fall back to a bounded
+# DerivedData search only if that fails.
+SIGN_TOOL=""
+if command -v xcrun >/dev/null 2>&1; then
+    SIGN_TOOL=$(xcrun --find sign_update 2>/dev/null || true)
+fi
 if [ -z "$SIGN_TOOL" ]; then
+    SIGN_TOOL=$(find "$HOME/Library/Developer/Xcode/DerivedData" \
+                     -maxdepth 6 -type f -name "sign_update" -print -quit 2>/dev/null || true)
+fi
+
+if [ -z "$SIGN_TOOL" ] || [ ! -x "$SIGN_TOOL" ]; then
     echo -e "${RED}Error: sign_update tool not found${NC}"
-    echo "Build Sparkle command line tools first so update signatures can be generated."
+    echo "Build the Sparkle SPM package once so DerivedData contains sign_update,"
+    echo "or install the Sparkle command-line tools system-wide."
     exit 1
 fi
 
-if [ -f "$SPARKLE_KEY" ]; then
+# Prefer the keychain account: it's the documented setup (CLAUDE.md), survives
+# DerivedData wipes, and matches what notarize.sh uses. Fall back to a private
+# key file at $SPARKLE_KEY only if the keychain attempt fails.
+SIGNATURE=""
+if SIGNATURE=$("$SIGN_TOOL" "$DMG_PATH" --account "$SPARKLE_KEYCHAIN_ACCOUNT" -p 2>/dev/null | tr -d '\r\n') && [ -n "$SIGNATURE" ]; then
+    :
+elif [ -f "$SPARKLE_KEY" ]; then
+    echo -e "${YELLOW}Keychain account '$SPARKLE_KEYCHAIN_ACCOUNT' did not yield a signature${NC}"
+    echo "Falling back to private key file at $SPARKLE_KEY..."
     SIGNATURE=$("$SIGN_TOOL" "$DMG_PATH" --ed-key-file "$SPARKLE_KEY" -p | tr -d '\r\n')
-else
-    echo -e "${YELLOW}Sparkle private key file not found at $SPARKLE_KEY${NC}"
-    echo "Falling back to keychain account '$SPARKLE_KEYCHAIN_ACCOUNT'..."
-    SIGNATURE=$("$SIGN_TOOL" "$DMG_PATH" --account "$SPARKLE_KEYCHAIN_ACCOUNT" -p | tr -d '\r\n')
 fi
 
 if [ -z "$SIGNATURE" ]; then
@@ -219,9 +246,13 @@ if ! xmllint --noout "$APPCAST_FILE" 2>/dev/null; then
     exit 1
 fi
 
-LATEST_APPCAST_VERSION=$(grep -m1 "<sparkle:shortVersionString>" "$APPCAST_FILE" | sed -E 's/.*<sparkle:shortVersionString>([^<]+)<\/sparkle:shortVersionString>.*/\1/')
+# Use xmllint XPath instead of grep|sed: namespace-safe via local-name(),
+# and unaffected by formatting (whitespace, multi-line tags, attribute order).
+LATEST_APPCAST_VERSION=$(xmllint --xpath \
+    'string(//*[local-name()="item"][1]/*[local-name()="shortVersionString"])' \
+    "$APPCAST_FILE" 2>/dev/null || true)
 if [ "$LATEST_APPCAST_VERSION" != "$VERSION" ]; then
-    echo -e "${RED}Error: appcast latest version is $LATEST_APPCAST_VERSION, expected $VERSION${NC}"
+    echo -e "${RED}Error: appcast latest version is '$LATEST_APPCAST_VERSION', expected '$VERSION'${NC}"
     exit 1
 fi
 
@@ -257,27 +288,81 @@ fi
 
 echo ""
 
-# Step 7: Instructions for appcast
+# Step 7: Push appcast to gh-pages
+#
+# Sparkle reads the appcast from the gh-pages branch (Github Pages), so this
+# branch must be updated alongside the GitHub release. Doing this manually is
+# the easiest step in the release process to forget. We snapshot the new
+# appcast to a temp file, switch branches with git stash for any in-progress
+# work, copy it in, commit, push, and switch back. A trap restores the
+# original branch on any failure.
+echo -e "${GREEN}Step 6: Publishing appcast to gh-pages...${NC}"
+
+if [ "${SKIP_GH_PAGES:-0}" = "1" ]; then
+    echo -e "${YELLOW}SKIP_GH_PAGES=1 set; skipping gh-pages publish.${NC}"
+else
+    # Capture original branch so we can restore on failure.
+    ORIGINAL_BRANCH=$(git -C "$REPO_ROOT" rev-parse --abbrev-ref HEAD)
+    if [ -z "$ORIGINAL_BRANCH" ] || [ "$ORIGINAL_BRANCH" = "HEAD" ]; then
+        echo -e "${RED}Error: could not determine current branch in $REPO_ROOT${NC}"
+        exit 1
+    fi
+
+    # Stash any in-progress changes so the branch switch is clean.
+    STASHED=0
+    if ! git -C "$REPO_ROOT" diff --quiet || ! git -C "$REPO_ROOT" diff --cached --quiet; then
+        git -C "$REPO_ROOT" stash push --include-untracked -m "release.sh v$VERSION pre-gh-pages" >/dev/null
+        STASHED=1
+    fi
+
+    restore_branch() {
+        local rc=$?
+        # Best-effort: return to the original branch and pop the stash.
+        git -C "$REPO_ROOT" checkout --quiet "$ORIGINAL_BRANCH" 2>/dev/null || true
+        if [ "$STASHED" = "1" ]; then
+            git -C "$REPO_ROOT" stash pop --quiet 2>/dev/null || true
+        fi
+        return $rc
+    }
+    trap restore_branch EXIT
+
+    # Snapshot the just-updated appcast before switching branches; the working
+    # copy on gh-pages will be a different version of this file.
+    APPCAST_SNAPSHOT=$(mktemp /tmp/pingwarden-appcast.XXXXXX.xml)
+    cp "$APPCAST_FILE" "$APPCAST_SNAPSHOT"
+
+    git -C "$REPO_ROOT" fetch --quiet origin gh-pages
+    git -C "$REPO_ROOT" checkout --quiet gh-pages
+    git -C "$REPO_ROOT" pull --quiet --ff-only origin gh-pages || true
+
+    cp "$APPCAST_SNAPSHOT" "$REPO_ROOT/appcast.xml"
+    rm -f "$APPCAST_SNAPSHOT"
+
+    if git -C "$REPO_ROOT" diff --quiet -- appcast.xml; then
+        echo -e "${YELLOW}gh-pages appcast already matches v$VERSION; nothing to push.${NC}"
+    else
+        git -C "$REPO_ROOT" add appcast.xml
+        git -C "$REPO_ROOT" commit -m "Update appcast for v$VERSION"
+        git -C "$REPO_ROOT" push origin gh-pages
+        echo -e "${GREEN}✓ gh-pages appcast pushed${NC}"
+    fi
+
+    # Trap fires on EXIT to restore branch + stash.
+fi
+
+echo ""
 echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
 echo -e "${GREEN}Release Complete!${NC}"
 echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
 echo ""
 echo "Next steps:"
 echo ""
-echo "1. Update appcast on GitHub Pages:"
-echo "   ${BLUE}git checkout gh-pages${NC}"
-echo "   ${BLUE}cp appcast.xml .${NC}"
-echo "   ${BLUE}git add appcast.xml${NC}"
-echo "   ${BLUE}git commit -m 'Update appcast for v$VERSION'${NC}"
-echo "   ${BLUE}git push origin gh-pages${NC}"
-echo "   ${BLUE}git checkout main${NC}"
-echo ""
-echo "2. Test the update:"
+echo "1. Test the update:"
 echo "   - Install an older version"
 echo "   - Click 'Check for Updates'"
 echo "   - Verify v$VERSION is offered"
 echo ""
-echo "3. Announce on Reddit:"
+echo "2. Announce on Reddit:"
 echo "   - r/GeForceNOW"
 echo "   - r/xcloud"
 echo "   - r/macgaming"
@@ -285,7 +370,7 @@ echo ""
 echo "Release artifacts:"
 echo "  • $DMG_PATH"
 echo "  • GitHub release: https://github.com/$GITHUB_USER/$REPO_NAME/releases/tag/v$VERSION"
-echo "  • Appcast: $APPCAST_FILE (needs to be pushed to gh-pages)"
+echo "  • Appcast: $APPCAST_FILE (published to gh-pages)"
 echo ""
 echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
 echo ""
