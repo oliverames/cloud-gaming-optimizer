@@ -100,9 +100,7 @@ Sparkle EdDSA key is in keychain account `"ed25519"`. Notarytool profile: `"nota
 
 ## Gotchas
 
-- **LICENSE copyright mismatch**: The LICENSE file says "Copyright (c) 2025 AWDL Control" (leftover from the AWDLControl fork) but the README and app say "2025-2026 Oliver Ames". Fix before the next release: change line 3 of `LICENSE` from `Copyright (c) 2025 AWDL Control` to `Copyright (c) 2025-2026 Oliver Ames`.
 - **`xcodebuild -exportArchive` is broken** in Xcode 26 — use the rsync workaround in the Release Process section above.
 - **SMAppService requires `/Applications`**: The daemon registration (`SMAppService.daemon(plistName:)`) refuses to register when the app runs from Xcode's DerivedData. To test the full helper registration flow, build in Release, copy to `/Applications`, and launch from there. Running from Xcode is fine for non-helper UI work.
-- **README missing header icon**: The README has no `<img>` icon above the `<h1>` (required by the readme-style guide). Add one next time the README is updated.
 - **Appcast on `gh-pages` branch**: After releasing, you must switch to `gh-pages`, update `appcast.xml`, push, then switch back. Easy to forget.
 

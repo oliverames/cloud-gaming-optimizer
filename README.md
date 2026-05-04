@@ -1,3 +1,7 @@
+<p align="center">
+  <img src="PingWarden/PingWarden/AppIcon.icon/Assets/network-error-svgrepo-com.svg" width="80" height="80" alt="Ping Warden">
+</p>
+
 <h1 align="center">Ping Warden</h1>
 
 <p align="center">
