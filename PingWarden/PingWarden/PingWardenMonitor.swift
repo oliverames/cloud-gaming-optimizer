@@ -124,12 +124,8 @@ class PingWardenMonitor {
         }
     }
 
-    /// Legacy single callback support.
-    /// New code should use addStateObserver/removeStateObserver or notifications.
-    var onStateChange: (() -> Void)?
-
-    /// Multi-observer state callbacks.
-    private var stateObservers: [UUID: () -> Void] = [:]
+    /// Thread-safe registry of state-change observer callbacks.
+    private let stateObservers = StateObserverRegistry()
 
     /// Timer for polling registration status
     private var registrationTimer: Timer?
@@ -191,47 +187,29 @@ class PingWardenMonitor {
     /// Register for monitor state changes. Returns a token that can be removed later.
     @discardableResult
     func addStateObserver(_ observer: @escaping () -> Void) -> UUID {
-        let token = UUID()
-        stateLock.lock()
-        stateObservers[token] = observer
-        stateLock.unlock()
-        return token
+        stateObservers.add(observer)
     }
 
     /// Remove a previously registered state observer.
     func removeStateObserver(_ token: UUID) {
-        stateLock.lock()
-        stateObservers.removeValue(forKey: token)
-        stateLock.unlock()
+        stateObservers.remove(token)
     }
 
-    /// Validate that the helper binary and plist exist in the app bundle
-    private func validateHelperBundle() -> (valid: Bool, error: String?) {
-        let appBundle = Bundle.main.bundlePath
-
-        let helperBinaryPath = "\(appBundle)/Contents/MacOS/PingWardenHelper"
-        let helperPlistPath = "\(appBundle)/Contents/Library/LaunchDaemons/\(helperPlistName)"
-
-        let fileManager = FileManager.default
-
-        if !fileManager.fileExists(atPath: helperBinaryPath) {
-            log.error("Helper binary not found at: \(helperBinaryPath)")
-            return (false, "Helper binary not found in app bundle.\n\nPlease reinstall the app.")
+    /// Validate that the helper binary and plist exist in the app bundle.
+    /// Returns `nil` on success or a `ValidationFailure` describing the first
+    /// missing/invalid piece. Logging is handled here so the underlying
+    /// validator stays pure-Foundation and testable.
+    private func validateHelperBundle() -> HelperBundleValidator.ValidationFailure? {
+        let failure = HelperBundleValidator.validate(
+            appBundlePath: Bundle.main.bundlePath,
+            helperPlistName: helperPlistName
+        )
+        if let failure {
+            log.error("Helper bundle validation failed at: \(failure.path, privacy: .public)")
+        } else {
+            log.debug("Helper bundle validation passed")
         }
-
-        if !fileManager.fileExists(atPath: helperPlistPath) {
-            log.error("Helper plist not found at: \(helperPlistPath)")
-            return (false, "Helper configuration not found in app bundle.\n\nPlease reinstall the app.")
-        }
-
-        // Verify binary is executable
-        if !fileManager.isExecutableFile(atPath: helperBinaryPath) {
-            log.error("Helper binary is not executable: \(helperBinaryPath)")
-            return (false, "Helper binary is not executable.\n\nPlease reinstall the app.")
-        }
-
-        log.debug("Helper bundle validation passed")
-        return (true, nil)
+        return failure
     }
 
     /// Register helper with SMAppService
@@ -242,11 +220,9 @@ class PingWardenMonitor {
         log.info("└─────────────────────────────────────────────────────┘")
 
         // Validate helper bundle before attempting registration
-        let validation = validateHelperBundle()
-        if !validation.valid {
-            log.error("Helper bundle validation failed: \(validation.error ?? "unknown")")
+        if let failure = validateHelperBundle() {
             DispatchQueue.main.async { [weak self] in
-                self?.showError(validation.error ?? "Helper bundle validation failed")
+                self?.showError(failure.userMessage)
             }
             completion?(false)
             return
@@ -355,9 +331,10 @@ class PingWardenMonitor {
             return
         }
 
-        // Ensure XPC connection with retry
+        // Ensure XPC connection; connectXPC() resets the retry counter
+        // internally on successful activation.
         if xpcConnection == nil {
-            connectXPCWithRetry()
+            connectXPC()
         }
 
         // Send command to disable AWDL
@@ -629,10 +606,16 @@ class PingWardenMonitor {
 
     // MARK: - XPC Connection Management
 
-    /// Connect to helper via XPC with retry logic
-    private func connectXPCWithRetry() {
-        xpcRetryCount = 0
-        connectXPC()
+    /// Atomically increment the XPC retry counter and return the new value.
+    /// Using a single locked read-modify-write avoids the race window that a
+    /// `xpcRetryCount += 1` through the property accessor would open between
+    /// the read and the write.
+    @discardableResult
+    private func incrementXPCRetryCount() -> Int {
+        stateLock.lock()
+        defer { stateLock.unlock() }
+        _xpcRetryCount += 1
+        return _xpcRetryCount
     }
 
     /// Connect to helper via XPC
@@ -774,12 +757,14 @@ class PingWardenMonitor {
             stateLock.unlock()
         }
 
-        // If we were monitoring, try to reconnect with exponential backoff
+        // If we were monitoring, try to reconnect with exponential backoff.
+        // Snapshot the new retry count from a single atomic increment and use
+        // the local for every read below, so we never see a torn value.
         if wasMonitoring {
-            xpcRetryCount += 1
-            if xpcRetryCount <= maxXPCRetries {
-                let delay = XPCReconnectPolicy.delayForAttempt(xpcRetryCount)
-                log.info("Attempting XPC reconnect in \(delay)s (attempt \(self.xpcRetryCount)/\(self.maxXPCRetries))")
+            let currentRetry = incrementXPCRetryCount()
+            if currentRetry <= maxXPCRetries {
+                let delay = XPCReconnectPolicy.delayForAttempt(currentRetry)
+                log.info("Attempting XPC reconnect in \(delay)s (attempt \(currentRetry)/\(self.maxXPCRetries))")
                 DispatchQueue.main.asyncAfter(deadline: .now() + delay) { [weak self] in
                     self?.connectXPC()
                 }
@@ -884,13 +869,10 @@ class PingWardenMonitor {
     // MARK: - Helper Methods
 
     private func notifyStateChange() {
-        let observers: [() -> Void]
-        stateLock.lock()
-        observers = Array(stateObservers.values)
-        stateLock.unlock()
-
+        // Snapshot under the registry's own lock, then deliver outside it so
+        // observers may freely call back into add/remove during their callback.
+        let observers = stateObservers.snapshot()
         DispatchQueue.main.async {
-            self.onStateChange?()
             observers.forEach { $0() }
             NotificationCenter.default.post(name: .awdlMonitorStateChanged, object: nil)
         }
@@ -915,13 +897,17 @@ class PingWardenMonitor {
 
         let pipe = Pipe()
         task.standardOutput = pipe
-        task.standardError = Pipe()
+        // Discard stderr so its pipe buffer can never fill up and block ifconfig.
+        task.standardError = FileHandle.nullDevice
 
         do {
             try task.run()
-            task.waitUntilExit()
-
+            // Read until EOF first; the pipe closes when the subprocess exits,
+            // so the read unblocks at the same moment waitUntilExit would. The
+            // reverse order (wait, then read) can deadlock if a subprocess
+            // ever writes enough output to fill the pipe buffer.
             let data = pipe.fileHandleForReading.readDataToEndOfFile()
+            task.waitUntilExit()
             let output = String(data: data, encoding: .utf8) ?? ""
 
             if let flagsLine = output.components(separatedBy: "\n").first(where: { $0.contains("flags=") }) {
@@ -943,8 +929,10 @@ class PingWardenMonitor {
         let task = Process()
         task.executableURL = URL(fileURLWithPath: "/sbin/ifconfig")
         task.arguments = ["awdl0", up ? "up" : "down"]
-        task.standardOutput = Pipe()
-        task.standardError = Pipe()
+        // Output is not consumed here; route both streams to /dev/null so a
+        // verbose subprocess cannot fill an unread pipe buffer and block.
+        task.standardOutput = FileHandle.nullDevice
+        task.standardError = FileHandle.nullDevice
 
         do {
             try task.run()

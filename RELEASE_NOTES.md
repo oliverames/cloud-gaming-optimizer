@@ -1,3 +1,33 @@
+# Ping Warden 2.2.2
+
+Correctness, concurrency, and tooling improvements. No user-visible feature changes.
+
+## Reliability
+- **TCPProbe**: removed a `freeaddrinfo` call on the `getaddrinfo` failure path. POSIX leaves the result pointer's contents unspecified on resolver failure, so calling `freeaddrinfo` on it was undefined behavior — tolerated on macOS today but a latent portability bug. Tightened the success-path defer to use a non-optional pointer.
+- **Process pipes**: three subprocess invocations (`getAWDLInterfaceStatus`, `runIfconfig`, `NetworkGatewayResolver`) used a wait-then-read pipe pattern that can deadlock if a subprocess fills the kernel pipe buffer. Now read first (which unblocks on subprocess EOF) and route unused streams to `/dev/null`.
+- **Concurrency**: `xpcRetryCount += 1` opened a brief unlocked window between read and write through the property accessor. Replaced with an atomic `incrementXPCRetryCount()` helper that does read-modify-write under a single locked critical section.
+- **Game Mode cache**: PID → isGame cache now evicts entries when the application terminates (via `NSWorkspace.didTerminateApplicationNotification`), so the cache stays bounded over long sessions and cannot be poisoned by PID reuse.
+
+## Correctness
+- **Median calculation**: `PingStatistics.calculate` now uses the true median for even-count windows (mean of two middle elements) instead of the upper-middle pick. Improves quality classification for edge cases like a 2-sample window.
+
+## Code Quality
+- **Removed `connectXPCWithRetry()`**: it was a no-op wrapper that reset a counter `connectXPC()` was about to reset anyway.
+- **Removed dead `onStateChange` callback**: declared on `PingWardenMonitor` and called, but never assigned anywhere in the codebase — guaranteed nil.
+- **Extracted `StateObserverRegistry`** into `Core/`: thread-safe observer registry with its own lock, reducing contention on `PingWardenMonitor.stateLock`.
+- **Extracted `HelperBundleValidator`** into `Core/`: pure-Foundation validator for the helper-bundle layout, fully unit-testable.
+- **Decomposed `DashboardView.swift`** (was 1304 lines):
+  - `NetworkGatewayResolver` → its own file
+  - `GeForceNOWDiscovery` → its own file
+  - `DashboardViewModel` → its own file
+  - Remaining `DashboardView.swift` is 673 lines of view code
+
+## Test infrastructure
+- **`Package.swift` test target**: smoke tests are now driven by `swift test` via a proper SwiftPM `XCTest` target at `Tests/PingWardenCoreTests/`. The Xcode app build is unaffected — the SwiftPM target references the same `Core/` sources via an explicit `path:`.
+- **Coverage**: 15 tests across `PingStatistics`, `XPCReconnectPolicy`, `TCPProbe` (failure and success paths), `StateObserverRegistry`, and `HelperBundleValidator`.
+
+---
+
 # Ping Warden 2.2.1
 
 Security hardening, reliability, and performance improvements.

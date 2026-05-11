@@ -122,7 +122,11 @@ echo -e "${GREEN}✓${NC} Compiled app icon present (AppIcon.icns)"
 SPARKLE_FRAMEWORK_ROOT="$STAGED_APP_PATH/Contents/Frameworks/Sparkle.framework"
 SPARKLE_VERSION_DIR="$SPARKLE_FRAMEWORK_ROOT/Versions/B"
 
-APP_DEVELOPER_IDENTITY=$(codesign -dvv "$STAGED_APP_PATH" 2>&1 | awk -F= '/^Authority=Developer ID Application:/ {print $2; exit}')
+# Avoid `codesign | awk { exit }` — awk's early exit closes the pipe before
+# codesign finishes writing, and with `set -o pipefail` that surfaces as
+# SIGPIPE/141 and kills the script. Buffer codesign output first.
+CODESIGN_INFO="$(codesign -dvv "$STAGED_APP_PATH" 2>&1 || true)"
+APP_DEVELOPER_IDENTITY=$(printf '%s\n' "$CODESIGN_INFO" | awk -F= '/^Authority=Developer ID Application:/ {print $2; exit}')
 if [ -z "$APP_DEVELOPER_IDENTITY" ]; then
     echo -e "${RED}Error: Could not determine Developer ID identity from staged app${NC}"
     exit 1

@@ -129,8 +129,10 @@ if command -v xcrun >/dev/null 2>&1; then
     SIGN_TOOL=$(xcrun --find sign_update 2>/dev/null || true)
 fi
 if [ -z "$SIGN_TOOL" ]; then
+    # Depth 7 path under DerivedData:
+    # <project-hash>/SourcePackages/artifacts/sparkle/Sparkle/bin/sign_update
     SIGN_TOOL=$(find "$HOME/Library/Developer/Xcode/DerivedData" \
-                     -maxdepth 6 -type f -name "sign_update" -print -quit 2>/dev/null || true)
+                     -maxdepth 8 -type f -name "sign_update" -perm -u+x -print -quit 2>/dev/null || true)
 fi
 
 if [ -z "$SIGN_TOOL" ] || [ ! -x "$SIGN_TOOL" ]; then
@@ -308,6 +310,12 @@ else
         exit 1
     fi
 
+    # Snapshot the just-updated appcast BEFORE any stash. The previous order
+    # (stash → snapshot) silently reverted the snapshot to the committed
+    # version of appcast.xml, leaving gh-pages stuck on the prior release.
+    APPCAST_SNAPSHOT=$(mktemp /tmp/pingwarden-appcast.XXXXXX.xml)
+    cp "$APPCAST_FILE" "$APPCAST_SNAPSHOT"
+
     # Stash any in-progress changes so the branch switch is clean.
     STASHED=0
     if ! git -C "$REPO_ROOT" diff --quiet || ! git -C "$REPO_ROOT" diff --cached --quiet; then
@@ -325,11 +333,6 @@ else
         return $rc
     }
     trap restore_branch EXIT
-
-    # Snapshot the just-updated appcast before switching branches; the working
-    # copy on gh-pages will be a different version of this file.
-    APPCAST_SNAPSHOT=$(mktemp /tmp/pingwarden-appcast.XXXXXX.xml)
-    cp "$APPCAST_FILE" "$APPCAST_SNAPSHOT"
 
     git -C "$REPO_ROOT" fetch --quiet origin gh-pages
     git -C "$REPO_ROOT" checkout --quiet gh-pages

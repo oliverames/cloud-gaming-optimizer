@@ -1830,8 +1830,11 @@ class GameModeDetector {
     private var isGameModeActive = false
     private var hasLoggedPermissionWarning = false
     private let log = Logger(subsystem: "com.amesvt.pingwarden", category: "GameMode")
-    /// Cache of pid → isGame to avoid re-reading Info.plist every 2 seconds
+    /// Cache of pid → isGame to avoid re-reading Info.plist every 2 seconds.
+    /// Entries are evicted via `appDidTerminateObserver` so the cache cannot
+    /// outgrow the set of currently-running apps for the session.
     private var gameCheckCache: [pid_t: Bool] = [:]
+    private var appDidTerminateObserver: NSObjectProtocol?
 
     var onGameModeChange: ((Bool) -> Void)?
 
@@ -1869,12 +1872,33 @@ class GameModeDetector {
         if let timer = timer {
             RunLoop.main.add(timer, forMode: .common)
         }
+
+        // Evict cache entries when their PID terminates so the cache cannot
+        // grow unbounded over a long-running session. macOS reuses PIDs, so
+        // keeping stale entries would also poison the cache after rollover.
+        if appDidTerminateObserver == nil {
+            appDidTerminateObserver = NSWorkspace.shared.notificationCenter.addObserver(
+                forName: NSWorkspace.didTerminateApplicationNotification,
+                object: nil,
+                queue: .main
+            ) { [weak self] notification in
+                guard let pid = (notification.userInfo?[NSWorkspace.applicationUserInfoKey] as? NSRunningApplication)?.processIdentifier else {
+                    return
+                }
+                self?.gameCheckCache.removeValue(forKey: pid)
+            }
+        }
     }
 
     func stop() {
         timer?.invalidate()
         timer = nil
         gameCheckCache.removeAll()
+
+        if let observer = appDidTerminateObserver {
+            NSWorkspace.shared.notificationCenter.removeObserver(observer)
+            appDidTerminateObserver = nil
+        }
 
         // Reset state
         if isGameModeActive {

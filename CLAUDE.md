@@ -50,18 +50,30 @@ xcodebuild -project PingWarden.xcodeproj -scheme PingWarden -configuration Relea
 
 ## Testing
 
-No Xcode test target. Smoke tests via standalone Swift script:
+The Foundation-only core helpers are covered by a SwiftPM test target driven
+by `Package.swift` at the repo root. The Xcode app build is unaffected — the
+package's `PingWardenCore` target points at `PingWarden/PingWarden/Core/` via
+an explicit `path:` so the same Swift sources back both build systems.
+
 ```bash
-swift scripts/core_logic_smoke.swift
+swift test            # canonical command
+./scripts/run-smoke-tests.sh   # thin wrapper, runs `swift test`
 ```
-Covers `PingStatistics.calculate()` edge cases (empty, healthy, mixed, high-loss samples).
+
+Coverage: `PingStatistics.calculate()` edge cases (empty, healthy, lossy,
+even-count median), `XPCReconnectPolicy.delayForAttempt` (backoff curve),
+`TCPProbe` failure and success paths (invalid hostname, closed loopback port,
+open loopback port), `StateObserverRegistry` add/remove/snapshot lifecycle,
+and `HelperBundleValidator` failure modes (missing binary, missing plist,
+non-executable binary, valid bundle).
 
 ## Release Process
 
-**Before starting a release, always pre-validate notarytool credentials:**
+`notarize.sh` pre-validates notarytool credentials automatically (it calls
+`xcrun notarytool history --keychain-profile` and aborts with a setup hint
+before doing any work). If the profile ever expires, run:
 ```bash
-xcrun notarytool history --keychain-profile "notarytool-profile"
-# If 401: xcrun notarytool store-credentials "notarytool-profile"
+xcrun notarytool store-credentials "notarytool-profile"
 ```
 
 **Do NOT use `xcodebuild -exportArchive`** — broken in Xcode 26 (IDEDistributionMethodManagerErrorDomain Code=2). Instead:

@@ -31,16 +31,16 @@ enum TCPProbe {
         var result: UnsafeMutablePointer<addrinfo>?
         let status = getaddrinfo(host, String(port), &hints, &result)
 
-        guard status == 0 else {
-            if let result {
-                freeaddrinfo(result)
-            }
+        // Per POSIX, the contents of `result` are unspecified when
+        // getaddrinfo() fails, so freeaddrinfo() must not be called on it.
+        // On success the manpage guarantees a non-nil linked list.
+        guard status == 0, let resolved = result else {
             return false
         }
 
-        defer { freeaddrinfo(result) }
+        defer { freeaddrinfo(resolved) }
 
-        var current = result
+        var current: UnsafeMutablePointer<addrinfo>? = resolved
         while let addrInfo = current {
             if connectSingle(addrInfo: addrInfo.pointee, timeoutSeconds: timeoutSeconds) {
                 return true

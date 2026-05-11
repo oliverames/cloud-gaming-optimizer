@@ -63,15 +63,21 @@ enum PingStatistics {
         let failedCount = samples.count - successful.count
         let packetLoss = samples.isEmpty ? 0 : (Double(failedCount) / Double(samples.count)) * 100.0
 
-        // Use median of last 5 successful samples for quality assessment
-        // to avoid flickering from single-sample outliers.
+        // Use the median of the last 5 successful samples for quality
+        // assessment to avoid flickering from single-sample outliers. For
+        // even-count windows the median is the average of the two middle
+        // elements, so the classifier behaves the same whether the window
+        // has 1, 2, 3, 4, or 5 samples.
         let recentLatencies = Array(latencies.suffix(5))
         let qualityLatency: Double
         if recentLatencies.isEmpty {
             qualityLatency = 0
         } else {
             let sorted = recentLatencies.sorted()
-            qualityLatency = sorted[sorted.count / 2]
+            let midIndex = sorted.count / 2
+            qualityLatency = sorted.count.isMultiple(of: 2)
+                ? (sorted[midIndex - 1] + sorted[midIndex]) / 2.0
+                : sorted[midIndex]
         }
 
         let quality: PingQuality

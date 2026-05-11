@@ -18,7 +18,7 @@
 #import "PingWardenMonitor.h"
 
 #define LOG OS_LOG_DEFAULT
-#define HELPER_VERSION @"2.2.1"
+#define HELPER_VERSION @"2.2.2"
 
 // Team ID for code signing validation
 #define TEAM_ID @"PV3W52NDZ3"
