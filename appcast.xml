@@ -6,6 +6,26 @@
     <description>Updates for Ping Warden - AWDL blocking for cloud gaming</description>
     <language>en</language>
     <item>
+      <title>Version 2.2.2</title>
+      <link>https://github.com/oliverames/ping-warden/releases/tag/v2.2.2</link>
+      <sparkle:version>2.2.2</sparkle:version>
+      <sparkle:shortVersionString>2.2.2</sparkle:shortVersionString>
+      <description><![CDATA[
+        <h2>What's New in 2.2.2</h2>
+        <p>See release notes on GitHub</p>
+      ]]></description>
+      <pubDate>Mon, 11 May 2026 15:05:33 UTC</pubDate>
+      <enclosure
+        url="https://github.com/oliverames/ping-warden/releases/download/v2.2.2/PingWarden-2.2.2.dmg"
+        sparkle:version="2.2.2"
+        sparkle:shortVersionString="2.2.2"
+        length="3685550"
+        type="application/octet-stream"
+        sparkle:edSignature="G/RTmCdSZGH3LzONVigErU/Cc3CA1tB5+sxRgN+knb5X2IC+IAA138bIr99TtebdjL0iuT9uIj4Uyv/eIubrCA=="
+      />
+      <sparkle:minimumSystemVersion>13.0</sparkle:minimumSystemVersion>
+    </item>
+    <item>
       <title>Version 2.2.1</title>
       <link>https://github.com/oliverames/ping-warden/releases/tag/v2.2.1</link>
       <sparkle:version>2.2.1</sparkle:version>
