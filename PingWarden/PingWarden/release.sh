@@ -313,7 +313,12 @@ else
     # Snapshot the just-updated appcast BEFORE any stash. The previous order
     # (stash → snapshot) silently reverted the snapshot to the committed
     # version of appcast.xml, leaving gh-pages stuck on the prior release.
-    APPCAST_SNAPSHOT=$(mktemp /tmp/pingwarden-appcast.XXXXXX.xml)
+    #
+    # macOS mktemp requires the X-placeholder to be at the very END of the
+    # template. The previous form `XXXXXX.xml` produced a *literal* filename
+    # with X's that persisted across release runs and caused "File exists"
+    # on subsequent invocations.
+    APPCAST_SNAPSHOT=$(mktemp -t pingwarden-appcast)
     cp "$APPCAST_FILE" "$APPCAST_SNAPSHOT"
 
     # Stash any in-progress changes so the branch switch is clean.

@@ -25,8 +25,13 @@ class PingWardenPreferences {
     private let gameModeAutoDetectKey = "GameModeAutoDetect"
     private let showDockIconKey = "ShowDockIcon"
     private let showMenuDropdownMetricsKey = "ShowMenuDropdownMetrics"
+    private let donationLastSeenVersionKey = "DonationPromptLastSeenVersion"
+    private let donationDismissedPermanentlyKey = "DonationPromptDismissedPermanently"
 
-    private let defaults: UserDefaults
+    /// Shared App Group defaults handle, exposed so non-singleton consumers
+    /// (CustomPingTargetStore, tests, future widget targets) can re-use the
+    /// same suite without duplicating the suite name.
+    let defaults: UserDefaults
 
     private init() {
         if let suite = UserDefaults(suiteName: appGroupID) {
@@ -109,6 +114,27 @@ class PingWardenPreferences {
             defaults.set(newValue, forKey: showMenuDropdownMetricsKey)
             NotificationCenter.default.post(name: .menuDropdownMetricsChanged, object: nil)
         }
+    }
+
+    /// Last `CFBundleShortVersionString` for which the donation prompt was
+    /// shown (or postponed via "Maybe later"). `nil` until the very first
+    /// time the prompt would have fired.
+    var donationPromptLastSeenVersion: String? {
+        get { defaults.string(forKey: donationLastSeenVersionKey) }
+        set {
+            if let newValue {
+                defaults.set(newValue, forKey: donationLastSeenVersionKey)
+            } else {
+                defaults.removeObject(forKey: donationLastSeenVersionKey)
+            }
+        }
+    }
+
+    /// User-set kill switch. Once true, the donation prompt never fires
+    /// again on this Mac for any future version. Reset by `performUninstall`.
+    var donationPromptDismissedPermanently: Bool {
+        get { defaults.bool(forKey: donationDismissedPermanentlyKey) }
+        set { defaults.set(newValue, forKey: donationDismissedPermanentlyKey) }
     }
 }
 

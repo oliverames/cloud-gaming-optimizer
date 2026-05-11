@@ -243,3 +243,177 @@ final class HelperBundleValidatorTests: XCTestCase {
         ))
     }
 }
+
+final class VersionPromptPolicyTests: XCTestCase {
+    func testFirstLaunchPromptsWhenNothingSeen() {
+        XCTAssertTrue(VersionPromptPolicy.shouldPrompt(
+            currentVersion: "2.3.0",
+            lastSeenVersion: nil,
+            dismissedPermanently: false
+        ))
+    }
+
+    func testKillSwitchSuppressesEverything() {
+        XCTAssertFalse(VersionPromptPolicy.shouldPrompt(
+            currentVersion: "2.3.0",
+            lastSeenVersion: nil,
+            dismissedPermanently: true
+        ))
+        XCTAssertFalse(VersionPromptPolicy.shouldPrompt(
+            currentVersion: "9.9.0",
+            lastSeenVersion: "1.0.0",
+            dismissedPermanently: true
+        ))
+    }
+
+    /// Patch bumps (2.2.1 → 2.2.2) must not re-trigger the prompt;
+    /// otherwise we'd be asking users for money after a bug fix.
+    func testPatchBumpDoesNotPrompt() {
+        XCTAssertFalse(VersionPromptPolicy.shouldPrompt(
+            currentVersion: "2.2.2",
+            lastSeenVersion: "2.2.1",
+            dismissedPermanently: false
+        ))
+        XCTAssertFalse(VersionPromptPolicy.shouldPrompt(
+            currentVersion: "2.2.1",
+            lastSeenVersion: "2.2.1",
+            dismissedPermanently: false
+        ))
+    }
+
+    func testMinorBumpPrompts() {
+        XCTAssertTrue(VersionPromptPolicy.shouldPrompt(
+            currentVersion: "2.3.0",
+            lastSeenVersion: "2.2.5",
+            dismissedPermanently: false
+        ))
+    }
+
+    func testMajorBumpPrompts() {
+        XCTAssertTrue(VersionPromptPolicy.shouldPrompt(
+            currentVersion: "3.0.0",
+            lastSeenVersion: "2.9.9",
+            dismissedPermanently: false
+        ))
+    }
+
+    /// A downgrade (somehow) must NOT prompt — we already showed them this
+    /// minor version, and going backwards isn't a fresh trigger.
+    func testDowngradeDoesNotPrompt() {
+        XCTAssertFalse(VersionPromptPolicy.shouldPrompt(
+            currentVersion: "2.2.0",
+            lastSeenVersion: "2.3.0",
+            dismissedPermanently: false
+        ))
+    }
+
+    func testGarbageCurrentVersionFailsClosed() {
+        // We cannot decide — better to stay quiet than to nag.
+        XCTAssertFalse(VersionPromptPolicy.shouldPrompt(
+            currentVersion: "not-a-version",
+            lastSeenVersion: "2.2.0",
+            dismissedPermanently: false
+        ))
+    }
+
+    func testGarbageStoredVersionTreatedAsFirstLaunch() {
+        XCTAssertTrue(VersionPromptPolicy.shouldPrompt(
+            currentVersion: "2.3.0",
+            lastSeenVersion: "garbage",
+            dismissedPermanently: false
+        ))
+    }
+}
+
+final class CustomPingTargetStoreTests: XCTestCase {
+    private var defaults: UserDefaults!
+    private var suiteName: String!
+    private var store: CustomPingTargetStore!
+
+    override func setUpWithError() throws {
+        suiteName = "pingwarden-test-\(UUID().uuidString)"
+        defaults = try XCTUnwrap(UserDefaults(suiteName: suiteName))
+        store = CustomPingTargetStore(userDefaults: defaults)
+    }
+
+    override func tearDownWithError() throws {
+        defaults.removePersistentDomain(forName: suiteName)
+        defaults = nil
+        store = nil
+        suiteName = nil
+    }
+
+    func testEmptyStoreReturnsEmptyArray() {
+        XCTAssertEqual(store.load(), [])
+    }
+
+    func testAddPersistsAcrossInstances() {
+        let target = CustomPingTarget(displayName: "NextDNS", host: "45.90.28.0", port: 53)
+        store.add(target)
+
+        let fresh = CustomPingTargetStore(userDefaults: defaults)
+        XCTAssertEqual(fresh.load(), [target])
+    }
+
+    func testRemoveById() {
+        let a = CustomPingTarget(displayName: "A", host: "1.1.1.1", port: 53)
+        let b = CustomPingTarget(displayName: "B", host: "2.2.2.2", port: 53)
+        store.save([a, b])
+
+        let remaining = store.remove(id: a.id)
+        XCTAssertEqual(remaining, [b])
+        XCTAssertEqual(store.load(), [b])
+    }
+
+    func testUpdateById() {
+        let original = CustomPingTarget(displayName: "Old", host: "1.1.1.1", port: 53)
+        store.add(original)
+
+        let edited = CustomPingTarget(id: original.id, displayName: "New", host: "9.9.9.9", port: 853)
+        let result = store.update(edited)
+        XCTAssertEqual(result, [edited])
+        XCTAssertEqual(store.load(), [edited])
+    }
+
+    func testCorruptedBlobReturnsEmptyAndDoesNotCrash() {
+        defaults.set(Data("not json".utf8), forKey: "DashboardCustomPingTargets")
+        XCTAssertEqual(store.load(), [])
+    }
+
+    func testValidationRejectsEmptyName() {
+        XCTAssertEqual(
+            CustomPingTargetStore.validate(displayName: "  ", host: "1.1.1.1", port: 53),
+            .nameEmpty
+        )
+    }
+
+    func testValidationRejectsEmptyHost() {
+        XCTAssertEqual(
+            CustomPingTargetStore.validate(displayName: "X", host: "", port: 53),
+            .hostEmpty
+        )
+    }
+
+    func testValidationRejectsTooLongHost() {
+        let longHost = String(repeating: "x", count: 300)
+        XCTAssertEqual(
+            CustomPingTargetStore.validate(displayName: "X", host: longHost, port: 53),
+            .hostTooLong
+        )
+    }
+
+    func testValidationRejectsOutOfRangePort() {
+        XCTAssertEqual(
+            CustomPingTargetStore.validate(displayName: "X", host: "1.1.1.1", port: 0),
+            .portOutOfRange
+        )
+        XCTAssertEqual(
+            CustomPingTargetStore.validate(displayName: "X", host: "1.1.1.1", port: 70000),
+            .portOutOfRange
+        )
+    }
+
+    func testValidationAcceptsGoodInput() {
+        XCTAssertNil(CustomPingTargetStore.validate(displayName: "NextDNS", host: "45.90.28.0", port: 53))
+    }
+}

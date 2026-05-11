@@ -69,6 +69,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSMenuDele
     private var statusMenu: NSMenu?
     private var aboutWindow: NSWindow?
     private var welcomeWindow: NSWindow?
+    private var donationWindow: NSWindow?
     private var gameModeDetector: GameModeDetector?
     private var monitorStateObserverToken: UUID?
     private var gameModeSnapshot: GameModeSnapshot?
@@ -138,6 +139,13 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSMenuDele
             log.info("Helper already registered")
             if PingWardenPreferences.shared.isMonitoringEnabled && !monitor.isMonitoringActive {
                 monitor.startMonitoring()
+            }
+            // Only consider the donation prompt once setup is finished. Brand
+            // new users see the welcome flow on their first launch and the
+            // donation ask on the next one — asking before they've used the
+            // app would feel like a paywall.
+            DispatchQueue.main.asyncAfter(deadline: .now() + 2.0) { [weak self] in
+                self?.showDonationPromptIfNeeded()
             }
         }
 
@@ -271,29 +279,41 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSMenuDele
             window.isVisible
                 && window !== aboutWindow
                 && window !== welcomeWindow
+                && window !== donationWindow
                 && window.styleMask.contains(.titled)
                 && window.level == .normal
                 && !(window.className.contains("StatusBar"))
         }
         let aboutVisible = aboutWindow?.isVisible ?? false
         let welcomeVisible = welcomeWindow?.isVisible ?? false
+        let donationVisible = donationWindow?.isVisible ?? false
 
-        if PingWardenPreferences.shared.showDockIcon || settingsVisible || aboutVisible || welcomeVisible {
+        if PingWardenPreferences.shared.showDockIcon || settingsVisible || aboutVisible || welcomeVisible || donationVisible {
             NSApp.setActivationPolicy(.regular)
             ensureApplicationMenuItems()
         } else {
             NSApp.setActivationPolicy(.accessory)
         }
     }
-    
+
     // MARK: - NSWindowDelegate
-    
+
     func windowWillClose(_ notification: Notification) {
         guard let window = notification.object as? NSWindow else { return }
 
         // Update dock icon visibility when a managed window closes.
         // The Settings window is handled by the global windowObserver.
-        if window === aboutWindow || window === welcomeWindow {
+        if window === aboutWindow || window === welcomeWindow || window === donationWindow {
+            if window === donationWindow {
+                // The user closed the prompt via the window control rather
+                // than a button. Treat it as "Maybe later" so we don't
+                // re-prompt within this minor version.
+                let currentVersion = Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? ""
+                if !currentVersion.isEmpty {
+                    PingWardenPreferences.shared.donationPromptLastSeenVersion = currentVersion
+                }
+                donationWindow = nil
+            }
             DispatchQueue.main.async { [weak self] in
                 self?.updateDockIconVisibility()
             }
@@ -402,13 +422,73 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSMenuDele
         window.delegate = self
 
         welcomeWindow = window
-        
+
         // Show dock icon when welcome window opens
         NSApp.setActivationPolicy(.regular)
-        
+
         window.makeKeyAndOrderFront(nil)
         NSApp.activate(ignoringOtherApps: true)
         ensureApplicationMenuItems()
+    }
+
+    // MARK: - Donation Prompt
+
+    private func showDonationPromptIfNeeded() {
+        guard donationWindow == nil else { return }
+
+        let prefs = PingWardenPreferences.shared
+        let currentVersion = Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? ""
+
+        guard VersionPromptPolicy.shouldPrompt(
+            currentVersion: currentVersion,
+            lastSeenVersion: prefs.donationPromptLastSeenVersion,
+            dismissedPermanently: prefs.donationPromptDismissedPermanently
+        ) else {
+            return
+        }
+
+        log.info("Showing donation prompt for v\(currentVersion, privacy: .public)")
+
+        let view = DonationPromptView(
+            onSupport: { [weak self] in
+                NSWorkspace.shared.open(DonationPromptView.donationURL)
+                prefs.donationPromptLastSeenVersion = currentVersion
+                self?.closeDonationWindow()
+            },
+            onMaybeLater: { [weak self] in
+                prefs.donationPromptLastSeenVersion = currentVersion
+                self?.closeDonationWindow()
+            },
+            onDontAskAgain: { [weak self] in
+                prefs.donationPromptLastSeenVersion = currentVersion
+                prefs.donationPromptDismissedPermanently = true
+                self?.closeDonationWindow()
+            }
+        )
+
+        let hostingController = NSHostingController(rootView: view)
+        let window = NSWindow(contentViewController: hostingController)
+        window.titlebarAppearsTransparent = true
+        window.titleVisibility = .hidden
+        window.styleMask = [.titled, .closable, .fullSizeContentView]
+        window.isMovableByWindowBackground = true
+        window.backgroundColor = .clear
+        window.center()
+        window.isReleasedWhenClosed = false
+        window.delegate = self
+
+        donationWindow = window
+
+        NSApp.setActivationPolicy(.regular)
+        window.makeKeyAndOrderFront(nil)
+        NSApp.activate(ignoringOtherApps: true)
+        ensureApplicationMenuItems()
+    }
+
+    private func closeDonationWindow() {
+        donationWindow?.close()
+        donationWindow = nil
+        updateDockIconVisibility()
     }
 
     // MARK: - Menu Bar
@@ -1719,6 +1799,11 @@ struct AdvancedSettingsContent: View {
         prefs.lastKnownState = "unknown"
         prefs.gameModeAutoDetect = false
         prefs.showMenuDropdownMetrics = false
+        prefs.donationPromptLastSeenVersion = nil
+        prefs.donationPromptDismissedPermanently = false
+
+        // Drop any user-defined ping servers so a reinstall starts clean.
+        CustomPingTargetStore(userDefaults: prefs.defaults).save([])
 
         // Unregister the helper with SMAppService
         do {

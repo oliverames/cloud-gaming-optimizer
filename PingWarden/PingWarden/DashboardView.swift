@@ -19,14 +19,15 @@ struct PingTarget: Identifiable, Hashable {
         case publicDNS
         case geforceNow
         case gaming
+        case custom
     }
-    
+
     let id: String
     let displayName: String
     let host: String
     let port: UInt16
     let source: Source
-    
+
     init(displayName: String, host: String, port: UInt16, source: Source) {
         self.displayName = displayName
         self.host = host.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -153,6 +154,9 @@ struct DashboardSettingsContent: View {
                 
                 // Server Selection
                 ServerSelectionCard(viewModel: viewModel)
+
+                // User-defined servers (issue #29)
+                CustomServersCard(viewModel: viewModel)
             }
             .padding(20)
         }
@@ -631,6 +635,145 @@ struct ServerSelectionCard: View {
             }
         }
         .dashboardCardStyle()
+    }
+}
+
+// MARK: - Custom Servers Card
+
+/// Lets the user add their own ping targets (issue #29). Persists through
+/// `DashboardViewModel.addCustomTarget` / `removeCustomTarget` so the same
+/// validation path runs whether input comes from this UI or from a future
+/// import/config-file flow.
+struct CustomServersCard: View {
+    @ObservedObject var viewModel: DashboardViewModel
+    @State private var isAdding = false
+    @State private var newName = ""
+    @State private var newHost = ""
+    @State private var newPortText = "53"
+    @State private var validationMessage: String?
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 14) {
+            HStack {
+                Text("Custom Servers")
+                    .font(.headline)
+                Spacer()
+                if !isAdding {
+                    Button {
+                        beginAdd()
+                    } label: {
+                        Label("Add Server", systemImage: "plus")
+                    }
+                    .buttonStyle(.bordered)
+                    .controlSize(.small)
+                }
+            }
+
+            if viewModel.customTargets.isEmpty && !isAdding {
+                Text("Add your own DNS or ping targets (e.g. NextDNS, Control D) to monitor latency to servers we don't ship with.")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+
+            if !viewModel.customTargets.isEmpty {
+                VStack(spacing: 0) {
+                    ForEach(Array(viewModel.customTargets.enumerated()), id: \.element.id) { index, target in
+                        if index > 0 {
+                            Divider()
+                        }
+                        HStack(alignment: .center, spacing: 12) {
+                            VStack(alignment: .leading, spacing: 2) {
+                                Text(target.displayName)
+                                    .font(.body)
+                                Text("\(target.host):\(target.port)")
+                                    .font(.caption2)
+                                    .foregroundStyle(.secondary)
+                            }
+                            Spacer()
+                            Button {
+                                viewModel.removeCustomTarget(id: target.id)
+                            } label: {
+                                Image(systemName: "trash")
+                                    .foregroundStyle(.red)
+                            }
+                            .buttonStyle(.borderless)
+                            .help("Remove \(target.displayName)")
+                        }
+                        .padding(.vertical, 8)
+                    }
+                }
+            }
+
+            if isAdding {
+                Divider()
+                VStack(alignment: .leading, spacing: 10) {
+                    TextField("Name (e.g. NextDNS)", text: $newName)
+                        .textFieldStyle(.roundedBorder)
+                    TextField("Host (hostname or IP)", text: $newHost)
+                        .textFieldStyle(.roundedBorder)
+                    HStack(spacing: 8) {
+                        Text("Port")
+                            .foregroundStyle(.secondary)
+                        TextField("53", text: $newPortText)
+                            .textFieldStyle(.roundedBorder)
+                            .frame(width: 80)
+                            .onChangeCompat(of: newPortText) { newValue in
+                                let filtered = newValue.filter(\.isNumber)
+                                if filtered != newValue {
+                                    newPortText = filtered
+                                }
+                            }
+                        Spacer()
+                    }
+
+                    if let validationMessage {
+                        Text(validationMessage)
+                            .font(.caption)
+                            .foregroundStyle(.red)
+                    }
+
+                    HStack {
+                        Spacer()
+                        Button("Cancel") {
+                            cancelAdd()
+                        }
+                        .buttonStyle(.bordered)
+                        Button("Save") {
+                            commitAdd()
+                        }
+                        .buttonStyle(.borderedProminent)
+                        .keyboardShortcut(.defaultAction)
+                        .disabled(newName.trimmingCharacters(in: .whitespaces).isEmpty || newHost.trimmingCharacters(in: .whitespaces).isEmpty)
+                    }
+                }
+                .padding(.top, 4)
+            }
+        }
+        .dashboardCardStyle()
+    }
+
+    private func beginAdd() {
+        newName = ""
+        newHost = ""
+        newPortText = "53"
+        validationMessage = nil
+        isAdding = true
+    }
+
+    private func cancelAdd() {
+        isAdding = false
+        validationMessage = nil
+    }
+
+    private func commitAdd() {
+        let port = Int(newPortText) ?? 0
+        if let failure = viewModel.addCustomTarget(displayName: newName, host: newHost, port: port) {
+            validationMessage = failure.userMessage
+            return
+        }
+        validationMessage = nil
+        isAdding = false
     }
 }
 

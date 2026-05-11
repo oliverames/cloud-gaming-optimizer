@@ -60,6 +60,7 @@ class DashboardViewModel: ObservableObject {
         }
     }
     @Published private(set) var isRefreshingGFNServers: Bool = false
+    @Published private(set) var customTargets: [CustomPingTarget] = []
 
     private let pingMonitor = PingMonitor()
     private var interventionTimer: Timer?
@@ -72,6 +73,7 @@ class DashboardViewModel: ObservableObject {
     private var hasInitializedInterventionBaseline = false
 
     private let userDefaults = UserDefaults.standard
+    private let customTargetStore = CustomPingTargetStore(userDefaults: PingWardenPreferences.shared.defaults)
 
     var selectedTarget: PingTarget? {
         targets.first { $0.id == selectedTargetID }
@@ -96,7 +98,8 @@ class DashboardViewModel: ObservableObject {
 
     init() {
         // Initialize with base targets (no local gateway yet — resolved async in start())
-        targets = Self.baseTargets(localGateway: nil)
+        customTargets = customTargetStore.load()
+        targets = Self.baseTargets(localGateway: nil) + Self.toPingTargets(customTargets)
 
         if let savedInterval = userDefaults.object(forKey: DashboardConfig.updateIntervalKey) as? Double {
             updateInterval = sanitizedInterval(savedInterval)
@@ -107,6 +110,57 @@ class DashboardViewModel: ObservableObject {
             selectedTargetID = savedTargetID
         } else {
             selectedTargetID = targets.first?.id ?? ""
+        }
+    }
+
+    // MARK: - Custom Targets
+
+    /// Validate + persist a new custom target. Returns the validation error
+    /// (if any) without mutating the store on failure.
+    @discardableResult
+    func addCustomTarget(displayName: String, host: String, port: Int) -> CustomPingTargetValidationError? {
+        if let failure = CustomPingTargetStore.validate(displayName: displayName, host: host, port: port) {
+            return failure
+        }
+        let target = CustomPingTarget(
+            displayName: displayName.trimmingCharacters(in: .whitespacesAndNewlines),
+            host: host.trimmingCharacters(in: .whitespacesAndNewlines),
+            port: UInt16(port)
+        )
+        customTargets = customTargetStore.add(target)
+        rebuildTargets()
+        return nil
+    }
+
+    func removeCustomTarget(id: UUID) {
+        customTargets = customTargetStore.remove(id: id)
+        rebuildTargets()
+    }
+
+    @discardableResult
+    func updateCustomTarget(id: UUID, displayName: String, host: String, port: Int) -> CustomPingTargetValidationError? {
+        if let failure = CustomPingTargetStore.validate(displayName: displayName, host: host, port: port) {
+            return failure
+        }
+        let updated = CustomPingTarget(
+            id: id,
+            displayName: displayName.trimmingCharacters(in: .whitespacesAndNewlines),
+            host: host.trimmingCharacters(in: .whitespacesAndNewlines),
+            port: UInt16(port)
+        )
+        customTargets = customTargetStore.update(updated)
+        rebuildTargets()
+        return nil
+    }
+
+    private static func toPingTargets(_ customs: [CustomPingTarget]) -> [PingTarget] {
+        customs.map { custom in
+            PingTarget(
+                displayName: custom.displayName,
+                host: custom.host,
+                port: custom.port,
+                source: .custom
+            )
         }
     }
 
@@ -121,7 +175,9 @@ class DashboardViewModel: ObservableObject {
             await MainActor.run { [weak self] in
                 guard let self, self.isStarted else { return }
                 let previousSelection = self.selectedTargetID
-                self.targets = Self.baseTargets(localGateway: gateway) + self.gfnTargets
+                self.targets = Self.baseTargets(localGateway: gateway)
+                    + self.gfnTargets
+                    + Self.toPingTargets(self.customTargets)
                 if self.targets.contains(where: { $0.id == previousSelection }) {
                     self.selectedTargetID = previousSelection
                 } else {
@@ -295,11 +351,12 @@ class DashboardViewModel: ObservableObject {
         let gatewayHost = targets.first(where: { $0.source == .local })?.host
         let baseTargets = Self.baseTargets(localGateway: gatewayHost)
         let sortedGFNTargets = gfnTargets.sorted { $0.displayName < $1.displayName }
+        let customAsTargets = Self.toPingTargets(customTargets)
 
         var deduplicatedTargets: [PingTarget] = []
         var seenIDs = Set<String>()
 
-        for target in baseTargets + sortedGFNTargets {
+        for target in baseTargets + sortedGFNTargets + customAsTargets {
             if seenIDs.insert(target.id).inserted {
                 deduplicatedTargets.append(target)
             }

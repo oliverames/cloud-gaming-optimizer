@@ -1,3 +1,18 @@
+# Ping Warden 2.3.0
+
+Two user-facing features plus the usual round of testing improvements.
+
+## Features
+- **Custom ping servers** ([#29](https://github.com/oliverames/ping-warden/issues/29)) — Add your own DNS or ping targets (NextDNS, Control D, anything else) under Dashboard → Custom Servers. Targets persist in the App Group, survive updates, and feed into the same auto-select-nearest flow as the built-in list.
+- **One-time donation prompt** — A polite, dismissible Buy Me a Coffee ask that appears once on launch and again only on minor-version bumps. A "Don't ask again" button is a permanent kill switch, and the entire flow is governed by `VersionPromptPolicy` so it cannot accidentally re-fire after a patch release.
+
+## Internal
+- New `VersionPromptPolicy` and `CustomPingTargetStore` in `Core/`, both pure-Foundation and covered by `swift test`. Total Core test count: 33 (up from 15 in v2.2.2).
+- `PingWardenPreferences.defaults` is now exposed so non-singleton consumers (custom-target store, future targets) can share the App Group suite without duplicating the suite name.
+- `performUninstall` resets the new donation-prompt and custom-targets state alongside the existing keys.
+
+---
+
 # Ping Warden 2.2.2
 
 Correctness, concurrency, and tooling improvements. No user-visible feature changes.
