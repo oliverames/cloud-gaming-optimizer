@@ -11,8 +11,59 @@
       <sparkle:version>2.3.0</sparkle:version>
       <sparkle:shortVersionString>2.3.0</sparkle:shortVersionString>
       <description><![CDATA[
-        <h2>What's New in 2.3.0</h2>
-        <p>See release notes on GitHub</p>
+<style>
+body {
+    font-family: -apple-system, BlinkMacSystemFont, "Helvetica Neue", Helvetica, Arial, sans-serif;
+    font-size: 13px;
+    line-height: 1.55;
+    color: #1d1d1f;
+    margin: 0;
+    padding: 0;
+}
+h1, h2, h3 { color: #000; font-weight: 600; }
+h1 { font-size: 18px; margin: 0 0 10px 0; }
+h2 {
+    font-size: 11px;
+    text-transform: uppercase;
+    letter-spacing: 0.6px;
+    color: #6e6e73;
+    margin: 18px 0 6px 0;
+}
+h3 { font-size: 13px; margin: 14px 0 6px 0; }
+p { margin: 0 0 10px 0; }
+ul, ol { padding-left: 20px; margin: 0 0 10px 0; }
+li { margin-bottom: 5px; }
+li > strong:first-child { color: #000; }
+code {
+    font-family: ui-monospace, "SF Mono", Menlo, monospace;
+    background: #f2f2f7;
+    padding: 1px 5px;
+    border-radius: 3px;
+    font-size: 12px;
+}
+a { color: #f5a542; text-decoration: none; }
+a:hover { text-decoration: underline; }
+hr { border: 0; border-top: 1px solid #e5e5ea; margin: 16px 0; }
+@media (prefers-color-scheme: dark) {
+    body { color: #f5f5f7; }
+    h1, h2, h3, li > strong:first-child { color: #fff; }
+    h2 { color: #98989d; }
+    code { background: #2c2c2e; }
+    hr { border-top-color: #38383a; }
+}
+</style>
+<p>Two user-facing features plus the usual round of testing improvements.</p>
+<h2>Features</h2>
+<ul>
+<li><strong>Custom ping servers</strong> (<a href="https://github.com/oliverames/ping-warden/issues/29" data-hovercard-type="issue" data-hovercard-url="/oliverames/ping-warden/issues/29/hovercard">#29</a>) — Add your own DNS or ping targets (NextDNS, Control D, anything else) under Dashboard → Custom Servers. Targets persist in the App Group, survive updates, and feed into the same auto-select-nearest flow as the built-in list.</li>
+<li><strong>One-time donation prompt</strong> — A polite, dismissible Buy Me a Coffee ask that appears once on launch and again only on minor-version bumps. A "Don't ask again" button is a permanent kill switch, and the entire flow is governed by <code class="notranslate">VersionPromptPolicy</code> so it cannot accidentally re-fire after a patch release.</li>
+</ul>
+<h2>Internal</h2>
+<ul>
+<li>New <code class="notranslate">VersionPromptPolicy</code> and <code class="notranslate">CustomPingTargetStore</code> in <code class="notranslate">Core/</code>, both pure-Foundation and covered by <code class="notranslate">swift test</code>. Total Core test count: 33 (up from 15 in v2.2.2).</li>
+<li><code class="notranslate">PingWardenPreferences.defaults</code> is now exposed so non-singleton consumers (custom-target store, future targets) can share the App Group suite without duplicating the suite name.</li>
+<li><code class="notranslate">performUninstall</code> resets the new donation-prompt and custom-targets state alongside the existing keys.</li>
+</ul>
       ]]></description>
       <pubDate>Mon, 11 May 2026 15:24:51 UTC</pubDate>
       <enclosure
