@@ -27,6 +27,7 @@ class PingWardenPreferences {
     private let showMenuDropdownMetricsKey = "ShowMenuDropdownMetrics"
     private let donationLastSeenVersionKey = "DonationPromptLastSeenVersion"
     private let donationDismissedPermanentlyKey = "DonationPromptDismissedPermanently"
+    private let crashReportingEnabledKey = "CrashReportingEnabled"
 
     /// Shared App Group defaults handle, exposed so non-singleton consumers
     /// (CustomPingTargetStore, tests, future widget targets) can re-use the
@@ -135,6 +136,14 @@ class PingWardenPreferences {
     var donationPromptDismissedPermanently: Bool {
         get { defaults.bool(forKey: donationDismissedPermanentlyKey) }
         set { defaults.set(newValue, forKey: donationDismissedPermanentlyKey) }
+    }
+
+    /// Opt-in crash reporting via Sentry. Default `false` (privacy posture
+    /// matches the app's brand). Toggled in Settings → Advanced → Privacy;
+    /// applied at next launch. Reset by `performUninstall`.
+    var isCrashReportingEnabled: Bool {
+        get { defaults.bool(forKey: crashReportingEnabledKey) }
+        set { defaults.set(newValue, forKey: crashReportingEnabledKey) }
     }
 }
 

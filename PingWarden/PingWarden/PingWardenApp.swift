@@ -85,6 +85,10 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSMenuDele
     func applicationDidFinishLaunching(_ notification: Notification) {
         log.info("Ping Warden launching...")
 
+        // Opt-in crash reporting (Sentry). No-op unless the user has enabled
+        // it in Settings; safe to call before Sparkle init.
+        CrashReporter.startIfEnabled()
+
         // Clear any cached Settings window state from prior builds that may have
         // injected fullSizeContentView or other window customizations via onAppear.
         // The SwiftUI Settings scene persists window frames under these keys.
@@ -1592,9 +1596,25 @@ struct AdvancedSettingsContent: View {
     @State private var testResults = ""
     @State private var showingDiagnosticsExportResult = false
     @State private var diagnosticsExportMessage = ""
+    @State private var crashReportingEnabled = PingWardenPreferences.shared.isCrashReportingEnabled
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
+            SettingsSectionHeader(title: "PRIVACY")
+
+            SettingsGroup {
+                SettingsRow(
+                    "Send Crash Reports",
+                    description: "Anonymous crash reports help us fix bugs. No IP address, no usage data, no ping targets. Applies after restart."
+                ) {
+                    Toggle("", isOn: $crashReportingEnabled)
+                        .labelsHidden()
+                        .onChangeCompat(of: crashReportingEnabled) { newValue in
+                            PingWardenPreferences.shared.isCrashReportingEnabled = newValue
+                        }
+                }
+            }
+
             SettingsSectionHeader(title: "DIAGNOSTICS")
 
             SettingsGroup {
@@ -1801,6 +1821,7 @@ struct AdvancedSettingsContent: View {
         prefs.showMenuDropdownMetrics = false
         prefs.donationPromptLastSeenVersion = nil
         prefs.donationPromptDismissedPermanently = false
+        prefs.isCrashReportingEnabled = false
 
         // Drop any user-defined ping servers so a reinstall starts clean.
         CustomPingTargetStore(userDefaults: prefs.defaults).save([])

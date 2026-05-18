@@ -9,6 +9,7 @@
 /* Begin PBXBuildFile section */
 		815E03172EAEA562006913A8 /* PingWardenWidget.appex in Embed Foundation Extensions */ = {isa = PBXBuildFile; fileRef = WidgetRef /* PingWardenWidget.appex */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
 		81CB02502F357A9600AB4024 /* Sparkle in Frameworks */ = {isa = PBXBuildFile; productRef = 81CB024F2F357A9600AB4024 /* Sparkle */; };
+		5E1705182026010100000003 /* Sentry in Frameworks */ = {isa = PBXBuildFile; productRef = 5E1705182026010100000002 /* Sentry */; };
 		Widget001 /* WidgetKit.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = WidgetKitRef /* WidgetKit.framework */; };
 		Widget002 /* SwiftUI.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = SwiftUIRef /* SwiftUI.framework */; };
 /* End PBXBuildFile section */
@@ -111,6 +112,7 @@
 			buildActionMask = 2147483647;
 			files = (
 				81CB02502F357A9600AB4024 /* Sparkle in Frameworks */,
+				5E1705182026010100000003 /* Sentry in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -197,6 +199,7 @@
 			name = PingWarden;
 			packageProductDependencies = (
 				81CB024F2F357A9600AB4024 /* Sparkle */,
+				5E1705182026010100000002 /* Sentry */,
 			);
 			productName = PingWarden;
 			productReference = AppRef /* Ping Warden.app */;
@@ -278,6 +281,7 @@
 			minimizedProjectReferenceProxies = 1;
 			packageReferences = (
 				81CB024E2F357A9600AB4024 /* XCRemoteSwiftPackageReference "Sparkle" */,
+				5E1705182026010100000001 /* XCRemoteSwiftPackageReference "sentry-cocoa" */,
 			);
 			preferredProjectObjectVersion = 77;
 			productRefGroup = ProductsGroup /* Products */;
@@ -741,6 +745,14 @@
 				minimumVersion = 2.8.1;
 			};
 		};
+		5E1705182026010100000001 /* XCRemoteSwiftPackageReference "sentry-cocoa" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/getsentry/sentry-cocoa";
+			requirement = {
+				kind = upToNextMajorVersion;
+				minimumVersion = 9.13.0;
+			};
+		};
 /* End XCRemoteSwiftPackageReference section */
 
 /* Begin XCSwiftPackageProductDependency section */
@@ -748,6 +760,11 @@
 			isa = XCSwiftPackageProductDependency;
 			package = 81CB024E2F357A9600AB4024 /* XCRemoteSwiftPackageReference "Sparkle" */;
 			productName = Sparkle;
+		};
+		5E1705182026010100000002 /* Sentry */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = 5E1705182026010100000001 /* XCRemoteSwiftPackageReference "sentry-cocoa" */;
+			productName = Sentry;
 		};
 /* End XCSwiftPackageProductDependency section */
 	};
