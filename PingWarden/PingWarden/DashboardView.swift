@@ -121,13 +121,20 @@ private enum LatencyPalette {
 }
 
 private extension View {
+    /// Card chrome used by every dashboard card. Uses `.regularMaterial`
+    /// instead of an opaque `unemphasizedSelectedContentBackgroundColor`
+    /// fill so the cards render as translucent system material on macOS
+    /// 13+ and inherit Liquid Glass treatment automatically on macOS 26+.
+    /// One source of truth → applies to StatusCard, PingGraphCard,
+    /// LatencyTimelineCard, InterventionsCard, ServerSelectionCard, and
+    /// CustomServersCard simultaneously.
     func dashboardCardStyle() -> some View {
         self
             .padding(DashboardLayout.cardPadding)
             .frame(maxWidth: .infinity, alignment: .leading)
             .background(
-                RoundedRectangle(cornerRadius: DashboardLayout.cardCornerRadius, style: .continuous)
-                    .fill(Color(nsColor: .unemphasizedSelectedContentBackgroundColor))
+                .regularMaterial,
+                in: RoundedRectangle(cornerRadius: DashboardLayout.cardCornerRadius, style: .continuous)
             )
     }
 }

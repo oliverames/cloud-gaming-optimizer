@@ -1268,8 +1268,11 @@ struct SettingsGroup<Content: View>: View {
             content
         }
         .frame(maxWidth: .infinity, alignment: .leading)
-        .background(Color(nsColor: .unemphasizedSelectedContentBackgroundColor))
-        .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
+        // Use system material (translucent on macOS 13+, Liquid Glass on
+        // macOS 26+) instead of an opaque unemphasizedSelectedContent fill.
+        // Single line cascades through every SettingsGroup that General
+        // and Automation still use until those views migrate to Form/Section.
+        .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 10, style: .continuous))
         .padding(.horizontal, 20)
     }
 }
