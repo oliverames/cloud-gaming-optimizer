@@ -34,13 +34,49 @@ NOTARIZE_SCRIPT="$SCRIPT_DIR/notarize.sh"
 APPCAST_FILE="$REPO_ROOT/appcast.xml"
 APP_INFO_PLIST="$PROJECT_ROOT/PingWarden/Info.plist"
 
-# Pre-flight credential check (skipped when notarization itself is skipped, e.g.
-# when re-running release.sh against an already-notarized DMG). Fails fast so
-# we don't go through the build/sign dance only to discover bad creds later.
+# Pre-flight credential checks. Both blocks fail fast so we don't go through
+# 5+ minutes of build/sign/notarize only to discover at the end that an
+# enrichment step (dSYM upload) was going to silently no-op the whole time.
+# SKIP_NOTARIZE=1 / SKIP_SENTRY=1 are explicit opt-outs for cases like
+# re-running against an already-notarized DMG.
 if [ "${SKIP_NOTARIZE:-0}" != "1" ]; then
     if ! xcrun notarytool history --keychain-profile "$KEYCHAIN_PROFILE" >/dev/null 2>&1; then
         echo "Error: notarytool keychain profile '$KEYCHAIN_PROFILE' is not configured." >&2
         echo "Run: xcrun notarytool store-credentials \"$KEYCHAIN_PROFILE\"" >&2
+        echo "Or set SKIP_NOTARIZE=1 to skip (not recommended for production releases)." >&2
+        exit 1
+    fi
+fi
+
+# Sentry pre-flight. We require sentry-cli, op CLI, and a readable token in
+# the vault. Anything missing -> abort here, before notarization. The previous
+# inline checks in Step 6 would have *warned and continued*, which means a
+# Mac without the tooling could ship a release with no dSYMs uploaded and
+# the maintainer would only notice weeks later when crashes came in
+# unsymbolicated. That failure mode is closed by checking up-front.
+if [ "${SKIP_SENTRY:-0}" != "1" ]; then
+    # Match the runtime PATH that Step 6 uses so this check sees the same binaries.
+    export PATH="$HOME/.local/bin:$PATH"
+    SENTRY_PREFLIGHT_OK=1
+    if ! command -v sentry-cli >/dev/null 2>&1; then
+        echo "Error: sentry-cli not on PATH." >&2
+        echo "  Install: curl -sSfL https://sentry.io/get-cli/ | INSTALL_DIR=\"\$HOME/.local/bin\" bash" >&2
+        SENTRY_PREFLIGHT_OK=0
+    fi
+    if ! command -v op >/dev/null 2>&1; then
+        echo "Error: 1Password CLI (op) not on PATH." >&2
+        echo "  Install: brew install 1password-cli" >&2
+        SENTRY_PREFLIGHT_OK=0
+    fi
+    if [ "$SENTRY_PREFLIGHT_OK" = "1" ]; then
+        if ! op read "op://Development/PingWarden Sentry API Token/credential" >/dev/null 2>&1; then
+            echo "Error: Cannot read Sentry token from 1Password." >&2
+            echo "  Expected vault item: 'PingWarden Sentry API Token' in 'Development'." >&2
+            SENTRY_PREFLIGHT_OK=0
+        fi
+    fi
+    if [ "$SENTRY_PREFLIGHT_OK" != "1" ]; then
+        echo "Or set SKIP_SENTRY=1 to skip Sentry upload (not recommended for production releases)." >&2
         exit 1
     fi
 fi
@@ -196,6 +232,31 @@ EOF
     sed -i "" "s/REPO_NAME/$REPO_NAME/g" "$APPCAST_FILE"
 fi
 
+# Render release notes from RELEASE_NOTES.md to styled HTML for the Sparkle
+# update window. If the section is missing or rendering fails, fall back to
+# the legacy stub so the release doesn't abort over cosmetic content.
+RENDER_SCRIPT="$REPO_ROOT/scripts/render_release_notes.sh"
+if [ -x "$RENDER_SCRIPT" ] && RELEASE_NOTES_HTML=$("$RENDER_SCRIPT" "$VERSION" 2>/dev/null) && [ -n "$RELEASE_NOTES_HTML" ]; then
+    echo "  ✓ rendered release notes from RELEASE_NOTES.md ($(printf '%s' "$RELEASE_NOTES_HTML" | wc -c | tr -d ' ') bytes)"
+else
+    echo -e "${YELLOW}  ⚠ release-notes render unavailable; using stub${NC}"
+    RELEASE_NOTES_HTML="<h2>What's New in $VERSION</h2><p>See release notes on GitHub</p>"
+fi
+
+# Critical update marker. Adds <sparkle:criticalUpdate/> to the appcast item
+# so Sparkle treats this version as required for all users on prior
+# versions — prompt is more prominent and Skip This Version is disabled.
+# Use for releases that fix security/stability issues or land
+# observability the maintainer needs everyone on (e.g. crash reporting).
+# Invoke with: CRITICAL_UPDATE=1 release.sh X.Y.Z
+if [ "${CRITICAL_UPDATE:-0}" = "1" ]; then
+    CRITICAL_UPDATE_TAG="
+      <sparkle:criticalUpdate />"
+    echo "  ✓ marking v$VERSION as a critical update (recommended for all users)"
+else
+    CRITICAL_UPDATE_TAG=""
+fi
+
 # Create new item entry
 NEW_ITEM="    <item>
       <title>Version $VERSION</title>
@@ -203,9 +264,8 @@ NEW_ITEM="    <item>
       <sparkle:version>$VERSION</sparkle:version>
       <sparkle:shortVersionString>$VERSION</sparkle:shortVersionString>
       <description><![CDATA[
-        <h2>What's New in $VERSION</h2>
-        <p>See release notes on GitHub</p>
-      ]]></description>
+$RELEASE_NOTES_HTML
+      ]]></description>$CRITICAL_UPDATE_TAG
       <pubDate>$DMG_DATE</pubDate>
       <enclosure
         url=\"https://github.com/$GITHUB_USER/$REPO_NAME/releases/download/v$VERSION/$DMG_BASENAME\"
@@ -290,6 +350,70 @@ fi
 
 echo ""
 
+# Step 6: Upload dSYMs and tag the release in Sentry.
+#
+# Sentry needs the dSYMs to symbolicate crash reports — without them the
+# stacks are raw memory addresses. We also create a release object so
+# crashes can be filtered/grouped by version.
+#
+# Auth token comes from 1Password at runtime via `op read`; never written
+# to disk and never committed. Fail-soft: if sentry-cli or `op` are
+# missing, or SKIP_SENTRY=1 is set, we warn and continue with the release.
+SENTRY_RELEASE="com.amesvt.pingwarden@${VERSION}"
+SENTRY_ORG="ames-consulting-llc"
+SENTRY_PROJECT="ping-warden"
+XCARCHIVE_DSYMS="/tmp/PingWarden-${VERSION}.xcarchive/dSYMs"
+
+# Prepend the official sentry-cli install path so the official binary at
+# ~/.local/bin wins over any older brew-tap install on $PATH.
+export PATH="$HOME/.local/bin:$PATH"
+
+echo -e "${GREEN}Step 6: Publishing release to Sentry...${NC}"
+
+if [ "${SKIP_SENTRY:-0}" = "1" ]; then
+    echo -e "${YELLOW}SKIP_SENTRY=1 set; skipping Sentry upload.${NC}"
+elif [ ! -d "$XCARCHIVE_DSYMS" ]; then
+    # This case is the only thing pre-flight couldn't validate (xcarchive
+    # is produced by notarize.sh earlier in this run). If it's still
+    # missing here, something upstream went wrong and we shouldn't
+    # quietly skip — abort so gh-pages doesn't get pushed without dSYMs.
+    echo -e "${RED}Error: No dSYMs found at $XCARCHIVE_DSYMS${NC}" >&2
+    echo "notarize.sh should have produced the xcarchive there." >&2
+    exit 1
+else
+    # Pre-flight validated sentry-cli, op, and token readability. Read the
+    # token now into env for the duration of this block only.
+    SENTRY_AUTH_TOKEN=$(op read "op://Development/PingWarden Sentry API Token/credential")
+    export SENTRY_AUTH_TOKEN
+    export SENTRY_ORG SENTRY_PROJECT
+    export SENTRY_LOG_LEVEL=warn
+
+    # Sentry is enrichment, not a release gate. GitHub has already published
+    # by this point; a network blip during one sentry-cli call must not abort
+    # the script before gh-pages gets updated. The subshell + set +e localizes
+    # the relaxed error handling, and the trailing summary makes any failures
+    # visible rather than silently passing.
+    SENTRY_FAILURES=0
+    (
+        set +e
+        sentry-cli debug-files upload "$XCARCHIVE_DSYMS" || exit 1
+        sentry-cli releases new "$SENTRY_RELEASE" || exit 2
+        sentry-cli releases set-commits "$SENTRY_RELEASE" --auto || true  # needs repo integration; non-fatal
+        sentry-cli releases finalize "$SENTRY_RELEASE" || exit 4
+        exit 0
+    )
+    SENTRY_FAILURES=$?
+
+    unset SENTRY_AUTH_TOKEN SENTRY_ORG SENTRY_PROJECT SENTRY_LOG_LEVEL
+    if [ "$SENTRY_FAILURES" = "0" ]; then
+        echo -e "${GREEN}✓ Sentry release published: $SENTRY_RELEASE${NC}"
+    else
+        echo -e "${RED}⚠ Sentry step exited with code $SENTRY_FAILURES — check above. Release continues.${NC}"
+    fi
+fi
+
+echo ""
+
 # Step 7: Push appcast to gh-pages
 #
 # Sparkle reads the appcast from the gh-pages branch (Github Pages), so this
@@ -298,7 +422,7 @@ echo ""
 # appcast to a temp file, switch branches with git stash for any in-progress
 # work, copy it in, commit, push, and switch back. A trap restores the
 # original branch on any failure.
-echo -e "${GREEN}Step 6: Publishing appcast to gh-pages...${NC}"
+echo -e "${GREEN}Step 7: Publishing appcast to gh-pages...${NC}"
 
 if [ "${SKIP_GH_PAGES:-0}" = "1" ]; then
     echo -e "${YELLOW}SKIP_GH_PAGES=1 set; skipping gh-pages publish.${NC}"
