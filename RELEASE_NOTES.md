@@ -3,7 +3,7 @@
 Adds opt-in crash reporting and hardens the release pipeline so future updates ship with symbolicated crash reports and properly-formatted release notes. Recommended for all users.
 
 ## Features
-- **Opt-in crash reporting** — A new toggle under Settings → Advanced → Privacy. Off by default. When enabled, anonymized crash reports are sent to Sentry with no IP address, no usage telemetry, no information about your ping targets, and no app-lifecycle session events. The intent is to catch bugs you don't see, so they get fixed in the next release.
+- **Crash reporting** — On by default to help find bugs you don't see. Anonymous data only: no IP address, no usage telemetry, no information about your ping targets, and no app-lifecycle session events. Toggle it off under Settings → Advanced → Privacy if you'd rather not send anything.
 
 ## Internal
 - **Sparkle release notes** — The update window now renders the actual release notes from `RELEASE_NOTES.md` (categorized "Features / Internal" with brand-styled HTML, light and dark mode) instead of "See release notes on GitHub". v2.3.0 also retroactively updated on the live appcast.

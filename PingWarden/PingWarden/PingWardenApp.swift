@@ -1244,7 +1244,11 @@ struct SettingsContentView: View {
         }
         .scrollContentBackground(.hidden)
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
-        .background(Color(nsColor: .windowBackgroundColor))
+        // No explicit .background here: on macOS 26 the Settings scene
+        // already renders with the system Liquid Glass material, and an
+        // opaque windowBackgroundColor on top would obscure it. On
+        // macOS 13-25 the inherited scene background continues to look
+        // correct without us setting one explicitly.
     }
 }
 
@@ -1821,7 +1825,9 @@ struct AdvancedSettingsContent: View {
         prefs.showMenuDropdownMetrics = false
         prefs.donationPromptLastSeenVersion = nil
         prefs.donationPromptDismissedPermanently = false
-        prefs.isCrashReportingEnabled = false
+        // Crash reporting key is cleared (not set false) so that on
+        // reinstall the registered default (true) re-applies.
+        prefs.defaults.removeObject(forKey: "CrashReportingEnabled")
 
         // Drop any user-defined ping servers so a reinstall starts clean.
         CustomPingTargetStore(userDefaults: prefs.defaults).save([])

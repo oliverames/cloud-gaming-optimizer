@@ -42,6 +42,14 @@ class PingWardenPreferences {
             log.error("Failed to create App Group suite, using standard defaults")
             defaults = UserDefaults.standard
         }
+
+        // Per-app defaults. `register` only applies when the key has never
+        // been written by the user, so toggling crash reporting off in the
+        // UI persists across launches; only fresh installs (or users on
+        // v2.3.0 launching v2.3.1 for the first time) see the default.
+        defaults.register(defaults: [
+            crashReportingEnabledKey: true,
+        ])
     }
 
     /// User intent for whether AWDL monitoring should be enabled.
@@ -138,9 +146,13 @@ class PingWardenPreferences {
         set { defaults.set(newValue, forKey: donationDismissedPermanentlyKey) }
     }
 
-    /// Opt-in crash reporting via Sentry. Default `false` (privacy posture
-    /// matches the app's brand). Toggled in Settings → Advanced → Privacy;
-    /// applied at next launch. Reset by `performUninstall`.
+    /// Crash reporting via Sentry. Default `true` — anonymous data only
+    /// (no IP, no network targets, no usage telemetry, no session events).
+    /// The default is registered in `init` so existing users who have not
+    /// explicitly toggled the setting also get crash reporting on first
+    /// launch of v2.3.1; explicit user choices persist. Toggled in
+    /// Settings → Advanced → Privacy; applied at next launch. Reset to
+    /// the registered default by `performUninstall`.
     var isCrashReportingEnabled: Bool {
         get { defaults.bool(forKey: crashReportingEnabledKey) }
         set { defaults.set(newValue, forKey: crashReportingEnabledKey) }

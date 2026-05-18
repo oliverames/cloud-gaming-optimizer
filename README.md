@@ -59,7 +59,7 @@ For detailed first-run instructions, see the [Quick Start Guide](PingWarden/QUIC
 Ping Warden operates at the network layer on your Mac. The app has no telemetry, no analytics, and no network calls home for usage data. Two narrow exceptions, both opt-in or commodity:
 
 - **Sparkle update checks** read the appcast feed at `oliverames.github.io/ping-warden/appcast.xml` to detect new versions. Sparkle sends a standard `User-Agent` and no other identifying information.
-- **Crash reports** are off by default. You can opt in under Settings → Advanced → Privacy. When enabled, anonymized crash data is sent to Sentry with no IP address, no usage telemetry, and no information about your ping targets.
+- **Crash reports** are on by default so bugs you don't see still get fixed. The data is anonymized: no IP address, no usage telemetry, no information about your ping targets, no app-lifecycle session events. Toggle off under Settings → Advanced → Privacy if you'd rather not send anything.
 
 The source is open under MIT, so the data posture is verifiable by reading the code.
 

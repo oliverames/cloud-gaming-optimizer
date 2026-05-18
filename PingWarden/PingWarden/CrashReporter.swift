@@ -7,12 +7,15 @@
 //  thanks to the `#if canImport(Sentry)` guards.
 //
 //  Privacy posture (matches the app's stated promise):
-//    • Default OFF — user must opt in via Settings → Advanced → Privacy.
+//    • Default ON — anonymous crashes only. Users opt out via
+//      Settings → Advanced → Privacy. The choice persists; only fresh
+//      installs and existing users launching v2.3.1 see the default.
 //    • No IP address (sendDefaultPii = false).
 //    • No network breadcrumbs — would otherwise leak TCP-probe target
 //      hostnames (e.g. user's DNS server) into crash payloads.
 //    • No performance tracing or profiling — crashes only.
-//    • beforeSend re-checks the opt-in preference as defense-in-depth, so a
+//    • No app-lifecycle session tracking (enableAutoSessionTracking = false).
+//    • beforeSend re-checks the preference as defense-in-depth, so a
 //      racing toggle-off between SDK init and first event still suppresses.
 //
 //  Copyright (c) 2025-2026 Oliver Ames. All rights reserved.
@@ -33,12 +36,13 @@ enum CrashReporter {
     /// distributed client binaries; Sentry enforces project-side scrubbing.
     private static let dsn = "https://3492628142810aa2deb988baaec35d0c@o4511410883985408.ingest.us.sentry.io/4511410888704000"
 
-    /// Initialize Sentry if (a) the SDK is linked and (b) the user has opted in.
-    /// Call once at app launch, before the first opportunity for a crash.
-    /// Toggle changes at runtime require an app restart to take effect.
+    /// Initialize Sentry if (a) the SDK is linked and (b) the user has not
+    /// opted out. Call once at app launch, before the first opportunity for
+    /// a crash. Toggle changes at runtime require an app restart to take
+    /// effect.
     static func startIfEnabled() {
         guard PingWardenPreferences.shared.isCrashReportingEnabled else {
-            log.info("Crash reporting disabled by preference; Sentry not initialized")
+            log.info("Crash reporting opted out by user; Sentry not initialized")
             return
         }
 
