@@ -22,12 +22,20 @@ VERSION="${1:-2.2.1}"
 BUNDLE_ID="com.amesvt.pingwarden"
 KEYCHAIN_PROFILE="${KEYCHAIN_PROFILE:-notarytool-profile}"  # Must match setup in NOTARIZATION_GUIDE.md
 TEAM_ID="PV3W52NDZ3"  # Apple Developer Team ID
+DEVELOPER_ID_IDENTITY="${DEVELOPER_ID_IDENTITY:-Developer ID Application: Oliver Ames (${TEAM_ID})}"
+NOTARYTOOL_ARGS=()
+
+if [ -n "${NOTARYTOOL_KEY:-}" ] && [ -n "${NOTARYTOOL_KEY_ID:-}" ] && [ -n "${NOTARYTOOL_ISSUER_ID:-}" ]; then
+    NOTARYTOOL_ARGS=(--key "$NOTARYTOOL_KEY" --key-id "$NOTARYTOOL_KEY_ID" --issuer "$NOTARYTOOL_ISSUER_ID")
+else
+    NOTARYTOOL_ARGS=(--keychain-profile "$KEYCHAIN_PROFILE")
+fi
 
 # Pre-flight: confirm notarytool credentials are configured before we burn time
 # building/staging an archive that we can't actually submit.
-if ! xcrun notarytool history --keychain-profile "$KEYCHAIN_PROFILE" >/dev/null 2>&1; then
-    echo "Error: notarytool keychain profile '$KEYCHAIN_PROFILE' is not configured." >&2
-    echo "Run: xcrun notarytool store-credentials \"$KEYCHAIN_PROFILE\"" >&2
+if ! xcrun notarytool history "${NOTARYTOOL_ARGS[@]}" >/dev/null 2>&1; then
+    echo "Error: notarytool credentials are not configured or not readable." >&2
+    echo "Provide either keychain profile '$KEYCHAIN_PROFILE' or NOTARYTOOL_KEY, NOTARYTOOL_KEY_ID, and NOTARYTOOL_ISSUER_ID." >&2
     exit 1
 fi
 
@@ -87,6 +95,7 @@ STAGED_APP_PATH="$STAGING_DIR/${APP_NAME}.app"
 
 echo "Preparing staging copy..."
 rsync -a "$APP_PATH/" "$STAGED_APP_PATH/"
+xattr -cr "$STAGED_APP_PATH" 2>/dev/null || true
 echo -e "${GREEN}✓${NC} Staging copy ready"
 
 # Step 1.5: Validate Sparkle configuration used at runtime
@@ -128,8 +137,14 @@ SPARKLE_VERSION_DIR="$SPARKLE_FRAMEWORK_ROOT/Versions/B"
 CODESIGN_INFO="$(codesign -dvv "$STAGED_APP_PATH" 2>&1 || true)"
 APP_DEVELOPER_IDENTITY=$(printf '%s\n' "$CODESIGN_INFO" | awk -F= '/^Authority=Developer ID Application:/ {print $2; exit}')
 if [ -z "$APP_DEVELOPER_IDENTITY" ]; then
-    echo -e "${RED}Error: Could not determine Developer ID identity from staged app${NC}"
-    exit 1
+    if security find-identity -p codesigning -v | grep -Fq "$DEVELOPER_ID_IDENTITY"; then
+        APP_DEVELOPER_IDENTITY="$DEVELOPER_ID_IDENTITY"
+        echo -e "${YELLOW}Staged app is not Developer ID signed yet; using configured identity:${NC} $APP_DEVELOPER_IDENTITY"
+    else
+        echo -e "${RED}Error: Could not determine Developer ID identity from staged app, and configured identity was not found:${NC}" >&2
+        echo "  $DEVELOPER_ID_IDENTITY" >&2
+        exit 1
+    fi
 fi
 
 echo "Re-signing distribution payload with secure timestamps..."
@@ -151,6 +166,11 @@ if [ -d "$SPARKLE_VERSION_DIR" ]; then
         codesign -f -s "$APP_DEVELOPER_IDENTITY" -o runtime --timestamp "$SPARKLE_VERSION_DIR/Updater.app"
     fi
     codesign -f -s "$APP_DEVELOPER_IDENTITY" -o runtime --timestamp "$SPARKLE_FRAMEWORK_ROOT"
+fi
+
+SENTRY_FRAMEWORK_ROOT="$STAGED_APP_PATH/Contents/Frameworks/Sentry.framework"
+if [ -d "$SENTRY_FRAMEWORK_ROOT" ]; then
+    codesign -f -s "$APP_DEVELOPER_IDENTITY" -o runtime --timestamp "$SENTRY_FRAMEWORK_ROOT"
 fi
 
 HELPER_BINARY_PATH="$STAGED_APP_PATH/Contents/MacOS/PingWardenHelper"
@@ -222,7 +242,7 @@ echo "This may take 1-10 minutes..."
 echo ""
 
 SUBMIT_OUTPUT=$(xcrun notarytool submit "$ZIP_NAME" \
-    --keychain-profile "$KEYCHAIN_PROFILE" \
+    "${NOTARYTOOL_ARGS[@]}" \
     --wait 2>&1)
 
 echo "$SUBMIT_OUTPUT"
@@ -254,7 +274,7 @@ if [ -f "$CREATE_DMG_SCRIPT" ]; then
         echo ""
         echo "Submitting DMG to Apple for notarization..."
         DMG_SUBMIT_OUTPUT=$(xcrun notarytool submit "$DMG_NAME" \
-            --keychain-profile "$KEYCHAIN_PROFILE" \
+            "${NOTARYTOOL_ARGS[@]}" \
             --wait 2>&1)
         echo "$DMG_SUBMIT_OUTPUT"
         
