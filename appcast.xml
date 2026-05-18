@@ -6,6 +6,78 @@
     <description>Updates for Ping Warden - AWDL blocking for cloud gaming</description>
     <language>en</language>
     <item>
+      <title>Version 2.3.2</title>
+      <link>https://github.com/oliverames/ping-warden/releases/tag/v2.3.2</link>
+      <sparkle:version>2.3.2</sparkle:version>
+      <sparkle:shortVersionString>2.3.2</sparkle:shortVersionString>
+      <description><![CDATA[
+<style>
+body {
+    font-family: -apple-system, BlinkMacSystemFont, "Helvetica Neue", Helvetica, Arial, sans-serif;
+    font-size: 13px;
+    line-height: 1.55;
+    color: #1d1d1f;
+    margin: 0;
+    padding: 0;
+}
+h1, h2, h3 { color: #000; font-weight: 600; }
+h1 { font-size: 18px; margin: 0 0 10px 0; }
+h2 {
+    font-size: 11px;
+    text-transform: uppercase;
+    letter-spacing: 0.6px;
+    color: #6e6e73;
+    margin: 18px 0 6px 0;
+}
+h3 { font-size: 13px; margin: 14px 0 6px 0; }
+p { margin: 0 0 10px 0; }
+ul, ol { padding-left: 20px; margin: 0 0 10px 0; }
+li { margin-bottom: 5px; }
+li > strong:first-child { color: #000; }
+code {
+    font-family: ui-monospace, "SF Mono", Menlo, monospace;
+    background: #f2f2f7;
+    padding: 1px 5px;
+    border-radius: 3px;
+    font-size: 12px;
+}
+a { color: #f5a542; text-decoration: none; }
+a:hover { text-decoration: underline; }
+hr { border: 0; border-top: 1px solid #e5e5ea; margin: 16px 0; }
+@media (prefers-color-scheme: dark) {
+    body { color: #f5f5f7; }
+    h1, h2, h3, li > strong:first-child { color: #fff; }
+    h2 { color: #98989d; }
+    code { background: #2c2c2e; }
+    hr { border-top-color: #38383a; }
+}
+</style>
+<p>Stability-focused beta with packaging fixes for the Control Center widget and tighter reconnect behavior around the privileged helper.</p>
+<h2>Reliability</h2>
+<ul>
+<li><strong>Control Center widget packaging</strong> — The widget target now builds with its own <code class="notranslate">Info.plist</code> and entitlements instead of inheriting the main app metadata. The built <code class="notranslate">.appex</code> now carries the required <code class="notranslate">NSExtension</code> payload and correct extension package type.</li>
+<li><strong>Helper reconnect hardening</strong> — Replacing an XPC connection can no longer let the old connection's invalidation handler clear the fresh connection. This avoids false "lost helper" states during reconnect churn.</li>
+<li><strong>Ping monitor session isolation</strong> — Stale ping probes are dropped after a target change or monitor restart, and overlapping probes are skipped instead of building a backlog when a network call is slow.</li>
+<li><strong>Helper control pipe</strong> — The helper's write side of the control pipe is now non-blocking, so rapid toggle/reconnect churn cannot hang an XPC handler thread.</li>
+</ul>
+<h2>Internal</h2>
+<ul>
+<li>Version metadata is consistent across the app, helper, widget, Xcode build settings, and helper runtime version string.</li>
+<li>XPC helper connection counting now guards against underflow on duplicate invalidation callbacks.</li>
+</ul>
+      ]]></description>
+      <pubDate>Mon, 18 May 2026 21:52:26 UTC</pubDate>
+      <enclosure
+        url="https://github.com/oliverames/ping-warden/releases/download/v2.3.2/PingWarden-2.3.2.dmg"
+        sparkle:version="2.3.2"
+        sparkle:shortVersionString="2.3.2"
+        length="4351953"
+        type="application/octet-stream"
+        sparkle:edSignature="+ozqofQYvQiQRWQe83cQmV2VCt4vVKuYN4xcAY8CnN/ZyVC70IQL36lLcz9YmM8x9VkTcIKu/5Y8WvYExzMRAQ=="
+      />
+      <sparkle:minimumSystemVersion>13.0</sparkle:minimumSystemVersion>
+    </item>
+    <item>
       <title>Version 2.3.0</title>
       <link>https://github.com/oliverames/ping-warden/releases/tag/v2.3.0</link>
       <sparkle:version>2.3.0</sparkle:version>
