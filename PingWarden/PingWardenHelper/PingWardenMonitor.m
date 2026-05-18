@@ -114,9 +114,15 @@ _Static_assert(sizeof("awdl0") <= IFNAMSIZ, "TARGETIFNAM must fit in IFNAMSIZ");
             [self cleanupFileDescriptors];
             return nil;
         }
-        // Set pipe to non-blocking
+        // Set both pipe ends to non-blocking so XPC handler threads cannot
+        // hang behind a full control pipe during rapid toggle/reconnect churn.
         if (fcntl(_msgfds[0], F_SETFL, O_NONBLOCK) < 0) {
             os_log_error(LOG, "Error setting nonblock on pipe read fd: %d (%s)", errno, strerror(errno));
+            [self cleanupFileDescriptors];
+            return nil;
+        }
+        if (fcntl(_msgfds[1], F_SETFL, O_NONBLOCK) < 0) {
+            os_log_error(LOG, "Error setting nonblock on pipe write fd: %d (%s)", errno, strerror(errno));
             [self cleanupFileDescriptors];
             return nil;
         }

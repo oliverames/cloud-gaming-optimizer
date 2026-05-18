@@ -1,5 +1,36 @@
 # Ping Warden Worklog
 
+## 2026-05-18 - v2.3.2 stability beta pass
+
+**What changed**:
+- Fixed target metadata wiring: helper now uses `PingWardenHelper/Info.plist`;
+  widget now uses `PingWardenWidget/Info.plist` and
+  `PingWardenWidget.entitlements`. A Release build before this change produced
+  a widget `.appex` with `CFBundlePackageType=APPL` and no `NSExtension`
+  dictionary even though `xcodebuild` succeeded.
+- Bumped app/helper/widget plist versions, Xcode `MARKETING_VERSION`, and
+  helper runtime `HELPER_VERSION` to 2.3.2.
+- Hardened XPC reconnect handling so stale invalidation callbacks from a
+  replaced connection cannot clear the fresh `_xpcConnection`.
+- Added PingMonitor session IDs and in-flight gating so stale probes are
+  dropped after target changes and slow probes cannot queue unbounded work.
+- Made the helper control pipe write end non-blocking and guarded helper
+  connection-count underflow.
+- Added `RELEASE_NOTES.md` v2.3.2 entry and tightened README privacy wording.
+
+**Audit notes**:
+- Unused/stale candidates: `PingWardenHelper/Info.plist` and
+  `PingWardenWidget/Info.plist` existed but were not actually wired into the
+  Xcode targets before this pass. `PingWardenApp.swift` remains oversized
+  (2,200+ lines) and still mixes app delegate lifecycle, menu construction,
+  settings views, welcome/about views, and game detection.
+- Code feel: the project is real in the low-level helper/core paths, but some
+  UI/app-delegate code still reads like accumulated AI-assisted code because of
+  oversized files, issue-number comments, and defensive explanatory comments
+  around straightforward UI.
+
+---
+
 ## 2026-05-18 (continued) - v2.3.1 prep round 2: default-on, UI modernization, archive blocker
 
 **What changed**:

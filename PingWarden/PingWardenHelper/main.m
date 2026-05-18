@@ -18,7 +18,7 @@
 #import "PingWardenMonitor.h"
 
 #define LOG OS_LOG_DEFAULT
-#define HELPER_VERSION @"2.3.0"
+#define HELPER_VERSION @"2.3.2"
 
 // Team ID for code signing validation
 #define TEAM_ID @"PV3W52NDZ3"
@@ -226,7 +226,12 @@ static BOOL isProperlyCodeSigned(void) {
 
         // Use dispatch_async to avoid deadlock
         dispatch_async(connectionCountQueue, ^{
-            activeConnectionCount--;
+            if (activeConnectionCount > 0) {
+                activeConnectionCount--;
+            } else {
+                os_log_error(LOG, "XPC connection count underflow avoided");
+                activeConnectionCount = 0;
+            }
             os_log_debug(LOG, "Active connections after invalidation: %ld", (long)activeConnectionCount);
 
             if (activeConnectionCount <= 0) {

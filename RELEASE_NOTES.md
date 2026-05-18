@@ -1,3 +1,19 @@
+# Ping Warden 2.3.2
+
+Stability-focused beta with packaging fixes for the Control Center widget and tighter reconnect behavior around the privileged helper.
+
+## Reliability
+- **Control Center widget packaging** — The widget target now builds with its own `Info.plist` and entitlements instead of inheriting the main app metadata. The built `.appex` now carries the required `NSExtension` payload and correct extension package type.
+- **Helper reconnect hardening** — Replacing an XPC connection can no longer let the old connection's invalidation handler clear the fresh connection. This avoids false "lost helper" states during reconnect churn.
+- **Ping monitor session isolation** — Stale ping probes are dropped after a target change or monitor restart, and overlapping probes are skipped instead of building a backlog when a network call is slow.
+- **Helper control pipe** — The helper's write side of the control pipe is now non-blocking, so rapid toggle/reconnect churn cannot hang an XPC handler thread.
+
+## Internal
+- Version metadata is consistent across the app, helper, widget, Xcode build settings, and helper runtime version string.
+- XPC helper connection counting now guards against underflow on duplicate invalidation callbacks.
+
+---
+
 # Ping Warden 2.3.1
 
 Adds opt-in crash reporting and hardens the release pipeline so future updates ship with symbolicated crash reports and properly-formatted release notes. Recommended for all users.

@@ -61,10 +61,13 @@ class PingMonitor {
     private var timer: Timer?
     private var history: [PingResult] = []
     private let historyLock = NSLock()
+    private let stateLock = NSLock()
     private let queue = DispatchQueue(label: "com.amesvt.pingwarden.pingmonitor", qos: .utility)
     private let statsWindowSeconds: TimeInterval = 120
     private let historyRetentionSeconds: TimeInterval = 3900 // Keep slightly over one hour
     private let connectionTimeoutSeconds: Int = 1
+    private var activeSessionID: UInt64 = 0
+    private var inFlightSessionID: UInt64?
     
     /// Current server to ping
     var server: String = "8.8.8.8"
@@ -111,16 +114,17 @@ class PingMonitor {
         }
         
         log.info("Starting ping monitor: \(self.server):\(self.port) every \(self.interval)s")
+        let sessionID = beginSession()
         
         // Perform immediate ping
-        performPing()
+        performPing(sessionID: sessionID)
         
         // Schedule repeating timer on main thread
         runOnMainThreadSync { [weak self] in
             guard let self else { return }
             self.timer?.invalidate()
             self.timer = Timer.scheduledTimer(withTimeInterval: self.interval, repeats: true) { [weak self] _ in
-                self?.performPing()
+                self?.performPing(sessionID: sessionID)
             }
             // Ensure timer continues during UI interactions
             if let timer = self.timer {
@@ -137,6 +141,7 @@ class PingMonitor {
             self?.timer?.invalidate()
             self?.timer = nil
         }
+        endSession()
     }
     
     /// Get current network statistics
@@ -176,9 +181,15 @@ class PingMonitor {
     
     // MARK: - Private Methods
     
-    private func performPing() {
+    private func performPing(sessionID: UInt64) {
+        guard markProbeInFlight(sessionID: sessionID) else {
+            log.debug("Skipping ping because the previous probe is still in flight")
+            return
+        }
+
         queue.async { [weak self] in
             guard let self = self else { return }
+            defer { self.markProbeFinished(sessionID: sessionID) }
 
             let timestamp = Date()
             let measuredLatencyMs = TCPProbe.measureLatency(
@@ -195,6 +206,11 @@ class PingMonitor {
                 timestamp: timestamp,
                 success: success
             )
+
+            guard self.isSessionCurrent(sessionID) else {
+                log.debug("Dropping stale ping result from an old monitor session")
+                return
+            }
             
             // Store in history
             self.addToHistory(result, interval: configuredInterval)
@@ -211,6 +227,45 @@ class PingMonitor {
                 log.warning("Ping to \(self.server) failed")
             }
         }
+    }
+
+    private func beginSession() -> UInt64 {
+        stateLock.lock()
+        defer { stateLock.unlock() }
+        activeSessionID &+= 1
+        inFlightSessionID = nil
+        return activeSessionID
+    }
+
+    private func endSession() {
+        stateLock.lock()
+        activeSessionID &+= 1
+        inFlightSessionID = nil
+        stateLock.unlock()
+    }
+
+    private func markProbeInFlight(sessionID: UInt64) -> Bool {
+        stateLock.lock()
+        defer { stateLock.unlock() }
+        guard activeSessionID == sessionID, inFlightSessionID == nil else {
+            return false
+        }
+        inFlightSessionID = sessionID
+        return true
+    }
+
+    private func markProbeFinished(sessionID: UInt64) {
+        stateLock.lock()
+        if inFlightSessionID == sessionID {
+            inFlightSessionID = nil
+        }
+        stateLock.unlock()
+    }
+
+    private func isSessionCurrent(_ sessionID: UInt64) -> Bool {
+        stateLock.lock()
+        defer { stateLock.unlock() }
+        return activeSessionID == sessionID
     }
 
     private static func mapQuality(_ quality: PingQuality) -> Quality {

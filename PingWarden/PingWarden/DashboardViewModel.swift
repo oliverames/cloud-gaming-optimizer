@@ -307,8 +307,10 @@ class DashboardViewModel: ObservableObject {
                 sampleCount: sampleCount
             )
 
+            guard !Task.isCancelled else { return }
+
             await MainActor.run {
-                guard let self else { return }
+                guard let self, !Task.isCancelled else { return }
 
                 self.isAutoSelectingTarget = false
                 self.baselineLatencyResults = measurements.mapValues(Self.robustAverage(from:))

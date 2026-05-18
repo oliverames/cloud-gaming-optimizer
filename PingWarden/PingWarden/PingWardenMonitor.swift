@@ -622,11 +622,6 @@ class PingWardenMonitor {
     private func connectXPC() {
         log.debug("Connecting to XPC service: \(self.xpcServiceName)")
 
-        // Invalidate existing connection if any
-        stateLock.lock()
-        _xpcConnection?.invalidate()
-        stateLock.unlock()
-
         // Use .privileged for daemon registered via SMAppService
         // This is required because the daemon runs as root
         let connection = NSXPCConnection(machServiceName: xpcServiceName, options: .privileged)
@@ -639,18 +634,21 @@ class PingWardenMonitor {
             }
         }
 
-        connection.invalidationHandler = { [weak self] in
+        connection.invalidationHandler = { [weak self, weak connection] in
             log.warning("XPC connection invalidated")
             DispatchQueue.main.async {
-                self?.handleXPCInvalidation()
+                self?.handleXPCInvalidation(for: connection)
             }
         }
 
         connection.activate()
 
         stateLock.lock()
+        let previousConnection = _xpcConnection
         _xpcConnection = connection
         stateLock.unlock()
+
+        previousConnection?.invalidate()
 
         // Reset retry count on successful activation
         xpcRetryCount = 0
@@ -733,9 +731,17 @@ class PingWardenMonitor {
     }
 
     /// Handle XPC invalidation (permanent disconnect)
-    private func handleXPCInvalidation() {
+    private func handleXPCInvalidation(for invalidatedConnection: NSXPCConnection? = nil) {
         // Prevent re-entrant handling
         stateLock.lock()
+        if let invalidatedConnection,
+           let currentConnection = _xpcConnection,
+           currentConnection !== invalidatedConnection {
+            stateLock.unlock()
+            log.debug("Ignoring stale XPC invalidation from a replaced connection")
+            return
+        }
+
         if _isHandlingInvalidation {
             stateLock.unlock()
             log.debug("Already handling XPC invalidation, skipping")
@@ -796,10 +802,10 @@ class PingWardenMonitor {
             return nil
         }
 
-        return xpc.remoteObjectProxyWithErrorHandler { error in
+        return xpc.remoteObjectProxyWithErrorHandler { [weak self, weak xpc] error in
             log.error("XPC proxy error: \(error.localizedDescription)")
-            DispatchQueue.main.async { [weak self] in
-                self?.handleXPCInvalidation()
+            DispatchQueue.main.async {
+                self?.handleXPCInvalidation(for: xpc)
             }
         } as? PingWardenHelperProtocol
     }
