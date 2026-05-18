@@ -1,5 +1,77 @@
 # Ping Warden Worklog
 
+## 2026-05-18 (continued) - v2.3.1 prep round 2: default-on, UI modernization, archive blocker
+
+**What changed**:
+- Flipped crash reporting from opt-in to **on by default** via
+  `UserDefaults.register()` in PingWardenPreferences. Existing v2.3.0
+  users picking up v2.3.1 get crash reports enabled on first launch;
+  explicit user toggles persist. README and v2.3.1 release notes updated
+  to reflect the new posture. `enableAutoSessionTracking = false` so the
+  README's "no usage telemetry" claim remains accurate.
+- AdvancedSettingsContent refactored from hand-rolled
+  SettingsGroup/SettingsRow to native `Form { Section { ... } }
+  .formStyle(.grouped)` with `LabeledContent` rows. Inherits System
+  Settings appearance on macOS 13-25 and Liquid Glass automatically on
+  macOS 26+. Tap-to-toggle on the whole label area, addressing the one
+  accessibility nit. General + Automation views still use the legacy
+  chrome; queued for v2.3.2.
+- Dashboard cards (StatusCard, PingGraphCard, LatencyTimelineCard,
+  InterventionsCard, ServerSelectionCard, CustomServersCard) and the
+  legacy SettingsGroup now use `.regularMaterial` instead of an opaque
+  `unemphasizedSelectedContentBackgroundColor` fill. Translucent on all
+  versions, Liquid Glass on macOS 26+. Two one-line changes cascade
+  through all six dashboard cards and the General/Automation settings.
+- Sentry project-side privacy hardening via API: `scrubIPAddresses=true`,
+  `dataScrubber=true`, `dataScrubberDefaults=true` on the ping-warden
+  project. Belt-and-braces with the SDK-side `sendDefaultPii=false`.
+- `~/.claude/settings.json` env: added
+  `XCODEBUILDMCP_ENABLED_WORKFLOWS=coverage,macos,project-discovery,session-management,simulator,ui-automation,utilities,workflow-discovery`.
+  Default config only loads simulator tools; this adds the macOS
+  workflow so future sessions can drive `xcodebuild archive` for macOS
+  apps through XcodeBuildMCP rather than direct Bash.
+
+**Decisions made**:
+- AdvancedSettingsContent migrated to Form/Section first (most visible,
+  has the new Privacy section). General/Automation deferred to v2.3.2.
+- Crash reporting default flipped from off to on, with strong privacy
+  posture preserved (anonymous, no IP, no targets, no sessions). The
+  data utility outweighs the cost given how restrictive the data is.
+- Sentry session tracking (`enableAutoSessionTracking`) left at false
+  rather than reframing the README, on the theory that "no usage
+  telemetry" is the cleaner promise.
+
+**Left off at**:
+- Six commits pushed since v2.3.0 (`f9413ff` through `566df00`).
+  Working tree clean.
+- v2.3.1 release pipeline ready. Info.plist at 2.3.1 across app, helper,
+  and widget. RELEASE_NOTES.md v2.3.1 section in place. release.sh
+  hardened (sentry-cli + op + token preflight) and CRITICAL_UPDATE=1
+  flag wired.
+- **Archive still blocked**. `xcodebuild archive` from CLI fails because
+  the project uses CODE_SIGN_STYLE=Manual with an empty
+  PROVISIONING_PROFILE_SPECIFIER, and the App Groups capability
+  requires a profile. Local Provisioning Profiles directory is empty.
+  Three resolution paths surfaced; user chose path 2 (enable macOS
+  workflow in XcodeBuildMCP). settings.json env updated. After
+  `/reload-plugins` or a fresh session, the macOS workflow tools should
+  load and the archive can run through MCP.
+
+**Open questions**:
+- Will `/reload-plugins` cause XcodeBuildMCP to re-read its env, or does
+  the MCP server cache its workflow allowlist at process start? If the
+  latter, a full session restart is needed before we can call the new
+  macOS tools. Unknown until tested.
+- Even after MCP loads `macos` tools, can `archive_mac` produce a
+  notarizable Developer ID archive without the provisioning profile, or
+  does it hit the same App Groups blocker xcodebuild does? If so, the
+  next escalation is editing the project's PROVISIONING_PROFILE_SPECIFIER
+  to a known profile name, which the user would need to provide.
+- General/Automation Form/Section migration deferred to v2.3.2.
+- Token rotation still pending after v2.3.1 ships and crashes flow.
+
+---
+
 ## 2026-05-18 - Team-product polish: crash reporting, embedded release notes, README refresh
 
 **What changed**:
