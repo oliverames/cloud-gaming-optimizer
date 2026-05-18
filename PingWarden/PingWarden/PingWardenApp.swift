@@ -1603,72 +1603,87 @@ struct AdvancedSettingsContent: View {
     @State private var crashReportingEnabled = PingWardenPreferences.shared.isCrashReportingEnabled
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 0) {
-            SettingsSectionHeader(title: "PRIVACY")
-
-            SettingsGroup {
-                SettingsRow(
-                    "Send Crash Reports",
-                    description: "Anonymous crash reports help us fix bugs. No IP address, no usage data, no ping targets. Applies after restart."
-                ) {
-                    Toggle("", isOn: $crashReportingEnabled)
-                        .labelsHidden()
-                        .onChangeCompat(of: crashReportingEnabled) { newValue in
-                            PingWardenPreferences.shared.isCrashReportingEnabled = newValue
-                        }
+        Form {
+            Section("Privacy") {
+                Toggle(isOn: $crashReportingEnabled) {
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text("Send Crash Reports")
+                        Text("Anonymous crash reports help us fix bugs. No IP address, no usage data, no ping targets. Applies after restart.")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                    }
+                }
+                .onChangeCompat(of: crashReportingEnabled) { newValue in
+                    PingWardenPreferences.shared.isCrashReportingEnabled = newValue
                 }
             }
 
-            SettingsSectionHeader(title: "DIAGNOSTICS")
-
-            SettingsGroup {
-                SettingsRow("Test Helper Response", description: "Verify the helper is responding quickly (password required)") {
-                    Button("Run Test") {
-                        runHelperTest()
+            Section("Diagnostics") {
+                LabeledContent {
+                    Button("Run Test") { runHelperTest() }
+                        .buttonStyle(.bordered)
+                } label: {
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text("Test Helper Response")
+                        Text("Verify the helper is responding quickly (password required)")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
                     }
-                    .buttonStyle(.bordered)
                 }
 
-                SettingsDivider()
-
-                SettingsRow("View Logs", description: "Open Console.app to view logs") {
-                    Button("Open Console") {
-                        openConsoleApp()
+                LabeledContent {
+                    Button("Open Console") { openConsoleApp() }
+                        .buttonStyle(.bordered)
+                } label: {
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text("View Logs")
+                        Text("Open Console.app to view logs")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
                     }
-                    .buttonStyle(.bordered)
                 }
 
-                SettingsDivider()
-
-                SettingsRow("Export Diagnostics", description: "Create a support snapshot on Desktop") {
-                    Button("Export") {
-                        exportDiagnostics()
+                LabeledContent {
+                    Button("Export") { exportDiagnostics() }
+                        .buttonStyle(.bordered)
+                } label: {
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text("Export Diagnostics")
+                        Text("Create a support snapshot on Desktop")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
                     }
-                    .buttonStyle(.bordered)
                 }
             }
 
-            SettingsSectionHeader(title: "MAINTENANCE")
-
-            SettingsGroup {
-                SettingsRow("Re-register Helper", description: "Re-register if experiencing issues") {
-                    Button("Re-register...") {
-                        showingReinstallConfirm = true
+            Section("Maintenance") {
+                LabeledContent {
+                    Button("Re-register\u{2026}") { showingReinstallConfirm = true }
+                        .buttonStyle(.bordered)
+                } label: {
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text("Re-register Helper")
+                        Text("Re-register if experiencing issues")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
                     }
-                    .buttonStyle(.bordered)
                 }
 
-                SettingsDivider()
-
-                SettingsRow("Uninstall", description: "Unregister helper and quit app") {
-                    Button("Uninstall...") {
-                        showingUninstallConfirm = true
+                LabeledContent {
+                    Button("Uninstall\u{2026}") { showingUninstallConfirm = true }
+                        .buttonStyle(.bordered)
+                        .tint(.red)
+                } label: {
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text("Uninstall")
+                        Text("Unregister helper and quit app")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
                     }
-                    .buttonStyle(.bordered)
-                    .tint(.red)
                 }
             }
         }
+        .formStyle(.grouped)
         .confirmationDialog(
             "Re-register Helper?",
             isPresented: $showingReinstallConfirm,
