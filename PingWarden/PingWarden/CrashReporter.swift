@@ -62,7 +62,13 @@ enum CrashReporter {
             // → 0% profiling regardless.
 
             options.enableCrashHandler = true
-            options.enableAutoSessionTracking = true
+
+            // Session tracking sends app-start / app-end events labeled
+            // with the release. That's useful for Sentry's "crash-free
+            // sessions" health metric, but it qualifies as usage telemetry
+            // and contradicts the README's privacy claim. Off by choice:
+            // we capture crashes only, not lifecycle events.
+            options.enableAutoSessionTracking = false
 
             options.enableNetworkTracking = false
             options.enableNetworkBreadcrumbs = false

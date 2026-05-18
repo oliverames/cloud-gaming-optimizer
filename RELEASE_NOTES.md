@@ -1,3 +1,21 @@
+# Ping Warden 2.3.1
+
+Adds opt-in crash reporting and hardens the release pipeline so future updates ship with symbolicated crash reports and properly-formatted release notes. Recommended for all users.
+
+## Features
+- **Opt-in crash reporting** — A new toggle under Settings → Advanced → Privacy. Off by default. When enabled, anonymized crash reports are sent to Sentry with no IP address, no usage telemetry, no information about your ping targets, and no app-lifecycle session events. The intent is to catch bugs you don't see, so they get fixed in the next release.
+
+## Internal
+- **Sparkle release notes** — The update window now renders the actual release notes from `RELEASE_NOTES.md` (categorized "Features / Internal" with brand-styled HTML, light and dark mode) instead of "See release notes on GitHub". v2.3.0 also retroactively updated on the live appcast.
+- **`release.sh` pre-flight hardening** — `notarytool`, `sentry-cli`, the 1Password CLI, and the vaulted Sentry token are all checked up-front. Missing tooling aborts before notarization rather than silently shipping a release with no dSYMs uploaded.
+- **dSYM upload to Sentry** — Each release now uploads the xcarchive's dSYMs so crash reports come in symbolicated, and creates a Sentry release object tagged with the version. The pipeline is fail-soft after the GitHub release publishes: a Sentry-side network blip warns but does not abort the script before the gh-pages appcast push.
+- **Critical-update marker** — Sparkle prompts every user on a prior version to install this update, since the crash-reporting infrastructure is what the next several releases will depend on.
+
+## Documentation
+- **README refresh** — Imperative tagline, live release-version badge, and a new Privacy section documenting the opt-in Sentry posture and the data we never collect. Restructured so the "How It Works" section reads as product positioning rather than objection-handling.
+
+---
+
 # Ping Warden 2.3.0
 
 Two user-facing features plus the usual round of testing improvements.
