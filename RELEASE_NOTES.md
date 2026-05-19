@@ -3,12 +3,12 @@
 Post-release stability and polish pass from manual macOS app testing.
 
 ## UX
-- **Ping Protection language** — Settings, Dashboard, and the Control Center widget now consistently use "Ping Protection" and "protection events" in primary UI instead of implementation-level AWDL labels.
-- **Dashboard state copy** — The interventions panel now reflects the actual protection state instead of saying protection is active when it is off or not set up.
+- **Ping Protection language**: Settings, Dashboard, and the Control Center widget now consistently use "Ping Protection" and "protection events" in primary UI instead of implementation-level AWDL labels.
+- **Dashboard state copy**: The interventions panel now reflects the actual protection state instead of saying protection is active when it is off or not set up.
 
 ## Packaging
-- **Leaner app bundle** — Release automation scripts are excluded from the shipped app resources.
-- **macOS metadata** — The app now declares the Utilities category in its Info.plist.
+- **Leaner app bundle**: Release automation scripts are excluded from the shipped app resources.
+- **macOS metadata**: The app now declares the Utilities category in its Info.plist.
 
 ---
 
