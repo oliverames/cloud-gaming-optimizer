@@ -23,13 +23,13 @@ struct PingWardenWidget: ControlWidget {
             ControlWidgetButton(action: ToggleAWDLMonitoringIntent()) {
                 let isOn = PingWardenPreferences.shared.effectiveMonitoringEnabled || PingWardenPreferences.shared.isMonitoringEnabled
                 Label(
-                    isOn ? "AWDL Blocked" : "AWDL Allowed",
+                    isOn ? "Protection On" : "Protection Off",
                     systemImage: isOn ? "antenna.radiowaves.left.and.right.slash" : "antenna.radiowaves.left.and.right"
                 )
             }
             .tint(.blue)
         }
-        .displayName("AWDL Control")
-        .description("Toggle AWDL blocking to reduce network latency")
+        .displayName("Ping Protection")
+        .description("Toggle Ping Protection to reduce latency spikes")
     }
 }

@@ -363,7 +363,7 @@ class PingWardenMonitor {
                     log.error("❌ Failed to disable AWDL")
                     PingWardenPreferences.shared.effectiveMonitoringEnabled = false
                     self.notifyStateChange()
-                    self.showError("Failed to disable AWDL.\n\nThe helper may not be running correctly.")
+                    self.showError("Failed to enable Ping Protection.\n\nThe helper may not be running correctly.")
                 }
             }
         })
@@ -474,7 +474,7 @@ class PingWardenMonitor {
 
         if isMonitoring && !isAWDLDown {
             log.warning("Health check: AWDL is UP despite monitoring being active")
-            return (false, "Monitoring active but AWDL is UP - helper may not be functioning")
+            return (false, "Protection active but the wireless interface is still up - helper may not be functioning")
         }
 
         let message = "Helper healthy: v\(helperVersion), Status: \(helperStatus)"

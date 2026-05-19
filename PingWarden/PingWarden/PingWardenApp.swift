@@ -1350,7 +1350,7 @@ struct GeneralSettingsContent: View {
         VStack(alignment: .leading, spacing: 0) {
             // AWDL Status Group
             SettingsGroup {
-                SettingsRow("Ping Protection", description: "Block AWDL wireless interference that causes lag spikes") {
+                SettingsRow("Ping Protection", description: "Block wireless interference that causes lag spikes") {
                     Toggle("", isOn: Binding(
                         get: { monitorState.isMonitoring },
                         set: { newValue in
@@ -1444,7 +1444,7 @@ struct GeneralSettingsContent: View {
 
                 SettingsDivider()
 
-                SettingsRow("Menu Dropdown Metrics", description: "Show current ping and AWDL interventions in the menu") {
+                SettingsRow("Menu Dropdown Metrics", description: "Show current ping and protection events in the menu") {
                     Toggle("", isOn: $showMenuDropdownMetrics)
                         .toggleStyle(.switch)
                         .controlSize(.small)

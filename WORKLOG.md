@@ -1,5 +1,23 @@
 # Ping Warden Worklog
 
+# 2026-05-19 - v2.3.4 release polish and packaging cleanup
+
+- Removed `notarize.sh` and `release.sh` from the main app target's shipped
+  resources by adding them to the Xcode file-synchronized membership
+  exceptions.
+- Added `LSApplicationCategoryType=public.app-category.utilities` to the app
+  Info.plist so the Release build no longer ships without a macOS category.
+- Tightened primary UI copy around "Ping Protection" in Settings, Dashboard,
+  and the Control Center widget.
+- Fixed a Dashboard state mismatch where the interventions card could say
+  protection was active while the app was off or not set up.
+- Bumped app/helper/widget plist versions, Xcode `MARKETING_VERSION`, and
+  helper runtime `HELPER_VERSION` to 2.3.4.
+- Verified with `swift test`, unsigned Release Xcode build, app bundle
+  resource inspection, Info.plist inspection, and manual computer-control
+  testing of first launch plus Settings General, Dashboard, Automation, and
+  Advanced.
+
 # 2026-05-19 - v2.3.3 first-launch and Settings polish
 
 - Reproduced and fixed the Settings titlebar overlap by pinning the Settings

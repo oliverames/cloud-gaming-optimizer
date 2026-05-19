@@ -53,9 +53,9 @@ struct LatencyTimelineEvent: Identifiable {
             return String(format: "Latency spike: %.0f ms", latency)
         case .awdlIntervention(let delta):
             if delta == 1 {
-                return "AWDL intervention"
+                return "Protection event"
             }
-            return "AWDL interventions (+\(delta))"
+            return "Protection events (+\(delta))"
         }
     }
 
@@ -218,8 +218,8 @@ struct StatusCard: View {
                         MetricRow(label: "Jitter", value: String(format: "%.1f ms", viewModel.stats.jitter))
                         MetricRow(label: "Packet Loss", value: String(format: "%.1f%%", viewModel.stats.packetLoss))
                         MetricRow(
-                            label: "AWDL",
-                            value: viewModel.isAWDLBlocking ? "Blocking" : "Allowed",
+                            label: "Protection",
+                            value: viewModel.isAWDLBlocking ? "Active" : "Off",
                             tint: viewModel.isAWDLBlocking ? .green : .orange,
                             useMonospacedValue: false
                         )
@@ -467,7 +467,7 @@ struct LatencyTimelineCard: View {
                 Text("Latency Timeline")
                     .font(.headline)
                 Spacer()
-                Text("Spikes + AWDL interventions")
+                Text("Spikes + protection events")
                     .font(.caption)
                     .foregroundStyle(.secondary)
             }
@@ -511,7 +511,7 @@ struct InterventionsCard: View {
     
     var body: some View {
         VStack(alignment: .leading, spacing: 14) {
-            Text("AWDL Protection")
+            Text("Ping Protection")
                 .font(.headline)
             
             HStack(alignment: .center, spacing: 24) {
@@ -539,7 +539,7 @@ struct InterventionsCard: View {
                 
                 VStack(alignment: .leading, spacing: 8) {
                     if viewModel.interventionCount > 0 {
-                        Label("AWDL tried to activate", systemImage: "exclamationmark.triangle.fill")
+                        Label("Wireless interference blocked", systemImage: "exclamationmark.triangle.fill")
                             .font(.subheadline)
                             .foregroundStyle(.orange)
                         
@@ -548,10 +548,14 @@ struct InterventionsCard: View {
                             .foregroundStyle(.secondary)
                             .fixedSize(horizontal: false, vertical: true)
                     } else {
-                        Label("No AWDL activation attempts detected", systemImage: "checkmark.shield")
-                            .font(.subheadline)
-                            .foregroundStyle(.green)
-                        Text("Protection is active and your connection is stable.")
+                        Label(
+                            viewModel.isAWDLBlocking ? "No interference detected" : "Protection is off",
+                            systemImage: viewModel.isAWDLBlocking ? "checkmark.shield" : "pause.circle"
+                        )
+                        .font(.subheadline)
+                        .foregroundStyle(viewModel.isAWDLBlocking ? .green : .orange)
+
+                        Text(viewModel.isAWDLBlocking ? "Protection is active and your connection is stable." : "Enable Ping Protection to block wireless interruptions.")
                             .font(.caption)
                             .foregroundStyle(.secondary)
                     }

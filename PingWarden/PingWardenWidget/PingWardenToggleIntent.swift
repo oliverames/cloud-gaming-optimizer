@@ -23,8 +23,8 @@ private let log = Logger(subsystem: "com.amesvt.pingwarden", category: "WidgetIn
 /// If enabling while the app is not running, the app is launched in the background
 /// so helper control can be applied.
 struct ToggleAWDLMonitoringIntent: AppIntent {
-    static var title: LocalizedStringResource = "Toggle AWDL Monitoring"
-    static var description = IntentDescription("Toggles AWDL monitoring on or off")
+    static var title: LocalizedStringResource = "Toggle Ping Protection"
+    static var description = IntentDescription("Toggles Ping Protection on or off")
 
     /// Opens the main app when the intent is performed
     static var openAppWhenRun: Bool = false
@@ -115,7 +115,7 @@ enum AWDLError: Error, CustomLocalizedStringResourceConvertible {
     var localizedStringResource: LocalizedStringResource {
         switch self {
         case .toggleFailed:
-            return "Failed to toggle AWDL interface"
+            return "Failed to toggle Ping Protection"
         case .monitoringFailed:
             return "Failed to start monitoring"
         case .appLaunchFailed:
