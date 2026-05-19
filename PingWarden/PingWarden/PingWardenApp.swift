@@ -98,6 +98,9 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSMenuDele
             }
         }
 
+        // Initialize monitoring before Sparkle so first-run UX can be gated on setup state.
+        let monitor = PingWardenMonitor.shared
+
         // Initialize Sparkle updater and start explicitly so failures can be logged clearly.
         updaterController = SPUStandardUpdaterController(
             startingUpdater: false,
@@ -105,16 +108,17 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSMenuDele
             userDriverDelegate: nil
         )
         updaterController?.updater.clearFeedURLFromUserDefaults()
-        _ = startUpdaterIfNeeded()
+        if monitor.isHelperRegistered {
+            _ = startUpdaterIfNeeded()
+        } else {
+            log.info("Deferring Sparkle updater start during first-run setup")
+        }
 
         // Check for quarantine issues and help user if needed
         QuarantineHelper.showQuarantineHelpIfNeeded()
 
         // Set dock icon visibility based on preference
         updateDockIconVisibility()
-
-        // Initialize monitoring
-        let monitor = PingWardenMonitor.shared
 
         // Observe monitor state changes
         monitorStateObserverToken = monitor.addStateObserver { [weak self] in
@@ -1174,18 +1178,16 @@ struct SettingsView: View {
                     $0.title.contains("Settings")
                 }) else { return }
 
-                window.titleVisibility = .hidden
-                window.titlebarAppearsTransparent = true
+                window.titleVisibility = .visible
+                window.titlebarAppearsTransparent = false
                 window.toolbarStyle = .unified
-                if !window.styleMask.contains(.fullSizeContentView) {
-                    window.styleMask.insert(.fullSizeContentView)
-                }
+                window.styleMask.remove(.fullSizeContentView)
                 if window.toolbar == nil {
                     let toolbar = NSToolbar(identifier: "SettingsToolbar")
                     toolbar.displayMode = .iconOnly
-                    toolbar.showsBaselineSeparator = false
                     window.toolbar = toolbar
                 }
+                window.toolbar?.showsBaselineSeparator = true
             }
         }
     }
@@ -1213,18 +1215,18 @@ struct SettingsContentView: View {
     let section: SettingsSection
 
     var body: some View {
-        ScrollView {
-            VStack(alignment: .leading, spacing: 0) {
-                Text(section.rawValue)
-                    .font(.title3)
-                    .fontWeight(.semibold)
-                    .padding(.horizontal, 20)
-                    .padding(.top, 4)
-                    .padding(.bottom, 6)
+        VStack(alignment: .leading, spacing: 0) {
+            Text(section.rawValue)
+                .font(.title3)
+                .fontWeight(.semibold)
+                .padding(.horizontal, 20)
+                .padding(.top, 4)
+                .padding(.bottom, 6)
 
-                Divider()
-                    .padding(.horizontal, 20)
+            Divider()
+                .padding(.horizontal, 20)
 
+            ScrollView {
                 VStack(alignment: .leading, spacing: 0) {
                     switch section {
                     case .dashboard:
@@ -1241,8 +1243,8 @@ struct SettingsContentView: View {
 
                 Spacer(minLength: 20)
             }
+            .scrollContentBackground(.hidden)
         }
-        .scrollContentBackground(.hidden)
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
         // No explicit .background here: on macOS 26 the Settings scene
         // already renders with the system Liquid Glass material, and an

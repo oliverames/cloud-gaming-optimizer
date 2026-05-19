@@ -145,29 +145,27 @@ struct DashboardSettingsContent: View {
     @StateObject private var viewModel = DashboardViewModel()
     
     var body: some View {
-        ScrollView {
-            VStack(alignment: .leading, spacing: DashboardLayout.sectionSpacing) {
-                // Current Status Card
-                StatusCard(viewModel: viewModel)
-                
-                // Ping Graph
-                PingGraphCard(viewModel: viewModel)
+        VStack(alignment: .leading, spacing: DashboardLayout.sectionSpacing) {
+            // Current Status Card
+            StatusCard(viewModel: viewModel)
 
-                // Latency Timeline
-                LatencyTimelineCard(viewModel: viewModel)
-                
-                // AWDL Interventions Card
-                InterventionsCard(viewModel: viewModel)
-                
-                // Server Selection
-                ServerSelectionCard(viewModel: viewModel)
+            // Ping Graph
+            PingGraphCard(viewModel: viewModel)
 
-                // User-defined servers (issue #29)
-                CustomServersCard(viewModel: viewModel)
-            }
-            .padding(20)
+            // Latency Timeline
+            LatencyTimelineCard(viewModel: viewModel)
+
+            // AWDL Interventions Card
+            InterventionsCard(viewModel: viewModel)
+
+            // Server Selection
+            ServerSelectionCard(viewModel: viewModel)
+
+            // User-defined servers (issue #29)
+            CustomServersCard(viewModel: viewModel)
         }
-        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .padding(20)
+        .frame(maxWidth: .infinity, alignment: .leading)
         .onAppear {
             viewModel.start()
         }

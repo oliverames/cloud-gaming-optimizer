@@ -1,5 +1,21 @@
 # Ping Warden Worklog
 
+# 2026-05-19 - v2.3.3 first-launch and Settings polish
+
+- Reproduced and fixed the Settings titlebar overlap by pinning the Settings
+  section header outside the scroller and removing Dashboard's nested
+  `ScrollView`.
+- Deferred Sparkle updater startup when the privileged helper is not registered
+  so new users see Ping Warden's welcome/setup flow before any update prompt.
+- Hardened the gh-pages appcast commit path in `release.sh` to disable GPG
+  signing for non-interactive release automation.
+- Fixed release preflight so `release.sh` accepts App Store Connect API-key
+  notarization credentials, matching `notarize.sh`, when the keychain profile
+  is not present.
+- Verified with `swift test`, unsigned Release Xcode build, and manual
+  computer-control testing of first launch, Settings Dashboard scroll, Add
+  Server cancel, Automation, and Advanced.
+
 ## 2026-05-18 - v2.3.2 stability beta pass
 
 **What changed**:

@@ -1,3 +1,16 @@
+# Ping Warden 2.3.3
+
+First-launch and Settings polish found during manual macOS app testing.
+
+## UX
+- **Cleaner first launch** — Sparkle no longer opens its automatic-update prompt before Ping Warden's own welcome/setup flow. Manual "Check for Updates" still works from the menu.
+- **Settings scrolling** — Settings tabs now keep their section header pinned outside the scroll view, and Dashboard no longer nests a second scroll view inside Settings. Dashboard content can scroll without sliding under the titlebar.
+
+## Internal
+- **Release automation** — The release script now accepts App Store Connect API-key notarization credentials as well as the legacy keychain profile, and the gh-pages appcast commit disables GPG signing in non-interactive automation.
+
+---
+
 # Ping Warden 2.3.2
 
 Stability-focused beta with packaging fixes for the Control Center widget and tighter reconnect behavior around the privileged helper.

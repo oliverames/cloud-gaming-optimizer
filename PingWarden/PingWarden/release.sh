@@ -33,6 +33,13 @@ REPO_NAME="ping-warden"
 NOTARIZE_SCRIPT="$SCRIPT_DIR/notarize.sh"
 APPCAST_FILE="$REPO_ROOT/appcast.xml"
 APP_INFO_PLIST="$PROJECT_ROOT/PingWarden/Info.plist"
+NOTARYTOOL_ARGS=()
+
+if [ -n "${NOTARYTOOL_KEY:-}" ] && [ -n "${NOTARYTOOL_KEY_ID:-}" ] && [ -n "${NOTARYTOOL_ISSUER_ID:-}" ]; then
+    NOTARYTOOL_ARGS=(--key "$NOTARYTOOL_KEY" --key-id "$NOTARYTOOL_KEY_ID" --issuer "$NOTARYTOOL_ISSUER_ID")
+else
+    NOTARYTOOL_ARGS=(--keychain-profile "$KEYCHAIN_PROFILE")
+fi
 
 # Pre-flight credential checks. Both blocks fail fast so we don't go through
 # 5+ minutes of build/sign/notarize only to discover at the end that an
@@ -40,9 +47,9 @@ APP_INFO_PLIST="$PROJECT_ROOT/PingWarden/Info.plist"
 # SKIP_NOTARIZE=1 / SKIP_SENTRY=1 are explicit opt-outs for cases like
 # re-running against an already-notarized DMG.
 if [ "${SKIP_NOTARIZE:-0}" != "1" ]; then
-    if ! xcrun notarytool history --keychain-profile "$KEYCHAIN_PROFILE" >/dev/null 2>&1; then
-        echo "Error: notarytool keychain profile '$KEYCHAIN_PROFILE' is not configured." >&2
-        echo "Run: xcrun notarytool store-credentials \"$KEYCHAIN_PROFILE\"" >&2
+    if ! xcrun notarytool history "${NOTARYTOOL_ARGS[@]}" >/dev/null 2>&1; then
+        echo "Error: notarytool credentials are not configured or not readable." >&2
+        echo "Provide either keychain profile '$KEYCHAIN_PROFILE' or NOTARYTOOL_KEY, NOTARYTOOL_KEY_ID, and NOTARYTOOL_ISSUER_ID." >&2
         echo "Or set SKIP_NOTARIZE=1 to skip (not recommended for production releases)." >&2
         exit 1
     fi
@@ -474,7 +481,9 @@ else
         echo -e "${YELLOW}gh-pages appcast already matches v$VERSION; nothing to push.${NC}"
     else
         git -C "$REPO_ROOT" add appcast.xml
-        git -C "$REPO_ROOT" commit -m "Update appcast for v$VERSION"
+        # Release automation runs non-interactively; avoid SSH signing helpers
+        # blocking the gh-pages appcast publish step.
+        git -C "$REPO_ROOT" -c commit.gpgsign=false commit -m "Update appcast for v$VERSION"
         git -C "$REPO_ROOT" push origin gh-pages
         echo -e "${GREEN}✓ gh-pages appcast pushed${NC}"
     fi
