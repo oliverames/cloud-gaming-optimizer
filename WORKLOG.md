@@ -12,6 +12,9 @@
 - Fixed release preflight so `release.sh` accepts App Store Connect API-key
   notarization credentials, matching `notarize.sh`, when the keychain profile
   is not present.
+- Added a GitHub release preflight and explicit `--target` so future release
+  tags cannot silently point at the stale remote default branch when the local
+  release commit has not been pushed.
 - Verified with `swift test`, unsigned Release Xcode build, and manual
   computer-control testing of first launch, Settings Dashboard scroll, Add
   Server cancel, Automation, and Advanced.

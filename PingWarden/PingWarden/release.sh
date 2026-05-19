@@ -128,6 +128,18 @@ if [ "$PLIST_VERSION" != "$VERSION" ]; then
     exit 1
 fi
 
+CURRENT_SHA=$(git -C "$REPO_ROOT" rev-parse HEAD)
+if command -v gh >/dev/null 2>&1; then
+    # `gh release create` defaults new tags to the remote default branch.
+    # If the release commit exists only locally, GitHub can otherwise tag an
+    # older commit while the DMG was built from the local tree.
+    if ! gh api "repos/$GITHUB_USER/$REPO_NAME/commits/$CURRENT_SHA" >/dev/null 2>&1; then
+        echo -e "${RED}Error: current commit is not reachable on GitHub:${NC} $CURRENT_SHA" >&2
+        echo "Push the release commit before running release.sh so v$VERSION tags the built source." >&2
+        exit 1
+    fi
+fi
+
 echo ""
 echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
 echo -e "  ${BLUE}Ping Warden Release Automation v${VERSION}${NC}"
@@ -344,11 +356,13 @@ else
         gh release create "v$VERSION" \
             "$DMG_PATH" \
             --title "Ping Warden v$VERSION" \
+            --target "$CURRENT_SHA" \
             --notes-file "$RELEASE_NOTES_PATH"
     else
         gh release create "v$VERSION" \
             "$DMG_PATH" \
             --title "Ping Warden v$VERSION" \
+            --target "$CURRENT_SHA" \
             --notes "See CHANGELOG for details"
     fi
     
