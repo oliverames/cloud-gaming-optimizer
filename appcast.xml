@@ -55,13 +55,13 @@ hr { border: 0; border-top: 1px solid #e5e5ea; margin: 16px 0; }
 <p>Post-release stability and polish pass from manual macOS app testing.</p>
 <h2>UX</h2>
 <ul>
-<li><strong>Ping Protection language</strong> — Settings, Dashboard, and the Control Center widget now consistently use "Ping Protection" and "protection events" in primary UI instead of implementation-level AWDL labels.</li>
-<li><strong>Dashboard state copy</strong> — The interventions panel now reflects the actual protection state instead of saying protection is active when it is off or not set up.</li>
+<li><strong>Ping Protection language</strong>: Settings, Dashboard, and the Control Center widget now consistently use "Ping Protection" and "protection events" in primary UI instead of implementation-level AWDL labels.</li>
+<li><strong>Dashboard state copy</strong>: The interventions panel now reflects the actual protection state instead of saying protection is active when it is off or not set up.</li>
 </ul>
 <h2>Packaging</h2>
 <ul>
-<li><strong>Leaner app bundle</strong> — Release automation scripts are excluded from the shipped app resources.</li>
-<li><strong>macOS metadata</strong> — The app now declares the Utilities category in its Info.plist.</li>
+<li><strong>Leaner app bundle</strong>: Release automation scripts are excluded from the shipped app resources.</li>
+<li><strong>macOS metadata</strong>: The app now declares the Utilities category in its Info.plist.</li>
 </ul>
       ]]></description>
       <pubDate>Tue, 19 May 2026 16:25:05 UTC</pubDate>
