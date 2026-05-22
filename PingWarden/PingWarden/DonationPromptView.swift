@@ -11,7 +11,7 @@
 import SwiftUI
 
 struct DonationPromptView: View {
-    static let donationURL = URL(string: "https://www.buymeacoffee.com/oliverames")!
+    static let donationURL = URL(string: "https://buymeacoffee.com/oliverames")!
 
     let onSupport: () -> Void
     let onMaybeLater: () -> Void

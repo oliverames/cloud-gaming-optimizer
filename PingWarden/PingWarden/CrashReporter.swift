@@ -2,7 +2,7 @@
 //  CrashReporter.swift
 //  PingWarden
 //
-//  Opt-in crash reporting via Sentry. The Sentry SDK is added as an SPM
+//  Anonymous crash reporting via Sentry. The Sentry SDK is added as an SPM
 //  dependency; this file is inert (no-op) until the package is linked,
 //  thanks to the `#if canImport(Sentry)` guards.
 //

@@ -85,8 +85,8 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSMenuDele
     func applicationDidFinishLaunching(_ notification: Notification) {
         log.info("Ping Warden launching...")
 
-        // Opt-in crash reporting (Sentry). No-op unless the user has enabled
-        // it in Settings; safe to call before Sparkle init.
+        // Anonymous crash reporting (Sentry). Defaults on but stays limited to
+        // crashes only; the Settings privacy toggle is checked before startup.
         CrashReporter.startIfEnabled()
 
         // Clear any cached Settings window state from prior builds that may have

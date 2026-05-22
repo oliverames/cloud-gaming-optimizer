@@ -184,50 +184,65 @@ struct StatusCard: View {
         VStack(alignment: .leading, spacing: 14) {
             Text("Network Quality")
                 .font(.headline)
-            
-            HStack(alignment: .top, spacing: 24) {
-                // Current Ping - Main display
-                VStack(alignment: .leading, spacing: 8) {
-                    HStack(alignment: .firstTextBaseline, spacing: 4) {
-                        Text(String(format: "%.0f", viewModel.stats.currentPing))
-                            .font(.system(size: 48, weight: .bold, design: .rounded))
-                            .foregroundStyle(colorForQuality(viewModel.stats.quality))
-                            .contentTransition(.numericText())
-                        Text("ms")
-                            .font(.title2)
-                            .foregroundStyle(.secondary)
-                    }
-                    
-                    Label(viewModel.stats.qualityDescription, systemImage: qualityIcon(viewModel.stats.quality))
-                        .font(.subheadline)
-                        .foregroundStyle(colorForQuality(viewModel.stats.quality))
-                }
-                .frame(minWidth: 120)
-                
-                Divider()
-                    .frame(height: 80)
-                
-                HStack(alignment: .top, spacing: 28) {
-                    VStack(alignment: .leading, spacing: 10) {
-                        MetricRow(label: "Average", value: String(format: "%.0f ms", viewModel.stats.averagePing))
-                        MetricRow(label: "Best", value: String(format: "%.0f ms", viewModel.stats.minimumPing))
-                        MetricRow(label: "Worst", value: String(format: "%.0f ms", viewModel.stats.maximumPing))
-                    }
 
-                    VStack(alignment: .leading, spacing: 10) {
-                        MetricRow(label: "Jitter", value: String(format: "%.1f ms", viewModel.stats.jitter))
-                        MetricRow(label: "Packet Loss", value: String(format: "%.1f%%", viewModel.stats.packetLoss))
-                        MetricRow(
-                            label: "Protection",
-                            value: viewModel.isAWDLBlocking ? "Active" : "Off",
-                            tint: viewModel.isAWDLBlocking ? .green : .orange,
-                            useMonospacedValue: false
-                        )
-                    }
+            ViewThatFits(in: .horizontal) {
+                HStack(alignment: .top, spacing: 24) {
+                    currentPingBlock
+                        .frame(minWidth: 120, alignment: .leading)
+
+                    Divider()
+                        .frame(height: 80)
+
+                    metricGrid
+                }
+
+                VStack(alignment: .leading, spacing: 16) {
+                    currentPingBlock
+                    Divider()
+                    metricGrid
                 }
             }
         }
         .dashboardCardStyle()
+    }
+
+    private var currentPingBlock: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            HStack(alignment: .firstTextBaseline, spacing: 4) {
+                Text(String(format: "%.0f", viewModel.stats.currentPing))
+                    .font(.system(size: 48, weight: .bold, design: .rounded))
+                    .foregroundStyle(colorForQuality(viewModel.stats.quality))
+                    .contentTransition(.numericText())
+                Text("ms")
+                    .font(.title2)
+                    .foregroundStyle(.secondary)
+            }
+
+            Label(viewModel.stats.qualityDescription, systemImage: qualityIcon(viewModel.stats.quality))
+                .font(.subheadline)
+                .foregroundStyle(colorForQuality(viewModel.stats.quality))
+        }
+    }
+
+    private var metricGrid: some View {
+        HStack(alignment: .top, spacing: 28) {
+            VStack(alignment: .leading, spacing: 10) {
+                MetricRow(label: "Average", value: String(format: "%.0f ms", viewModel.stats.averagePing))
+                MetricRow(label: "Best", value: String(format: "%.0f ms", viewModel.stats.minimumPing))
+                MetricRow(label: "Worst", value: String(format: "%.0f ms", viewModel.stats.maximumPing))
+            }
+
+            VStack(alignment: .leading, spacing: 10) {
+                MetricRow(label: "Jitter", value: String(format: "%.1f ms", viewModel.stats.jitter))
+                MetricRow(label: "Packet Loss", value: String(format: "%.1f%%", viewModel.stats.packetLoss))
+                MetricRow(
+                    label: "Protection",
+                    value: viewModel.isAWDLBlocking ? "Active" : "Off",
+                    tint: viewModel.isAWDLBlocking ? .green : .orange,
+                    useMonospacedValue: false
+                )
+            }
+        }
     }
     
     private func colorForQuality(_ quality: PingMonitor.Quality) -> Color {
@@ -289,30 +304,24 @@ struct PingGraphCard: View {
         let xDomain = windowStart...windowEnd
 
         VStack(alignment: .leading, spacing: 14) {
-            HStack(alignment: .center, spacing: 12) {
-                Text("Ping History")
-                    .font(.headline)
-                
-                Spacer()
-                
-                Picker(
-                    "Timeframe",
-                    selection: Binding(
-                        get: { viewModel.selectedTimeframe },
-                        set: { newTimeframe in
-                            withAnimation(.easeInOut(duration: 0.2)) {
-                                viewModel.selectedTimeframe = newTimeframe
-                            }
-                        }
-                    )
-                ) {
-                    ForEach(timeframeOptions, id: \.minutes) { option in
-                        Text(option.label).tag(option.minutes)
-                    }
+            ViewThatFits(in: .horizontal) {
+                HStack(alignment: .center, spacing: 12) {
+                    Text("Ping History")
+                        .font(.headline)
+
+                    Spacer(minLength: 12)
+
+                    timeframePicker
+                        .frame(maxWidth: 390)
                 }
-                .pickerStyle(.segmented)
-                .frame(width: 390)
-                .accessibilityLabel("Ping history timeframe")
+
+                VStack(alignment: .leading, spacing: 8) {
+                    Text("Ping History")
+                        .font(.headline)
+
+                    timeframePicker
+                        .frame(maxWidth: 390)
+                }
             }
 
             Text("Zoom: last \(timeframeLabel(for: viewModel.selectedTimeframe))")
@@ -436,6 +445,26 @@ struct PingGraphCard: View {
         }
         return 5
     }
+
+    private var timeframePicker: some View {
+        Picker(
+            "Timeframe",
+            selection: Binding(
+                get: { viewModel.selectedTimeframe },
+                set: { newTimeframe in
+                    withAnimation(.easeInOut(duration: 0.2)) {
+                        viewModel.selectedTimeframe = newTimeframe
+                    }
+                }
+            )
+        ) {
+            ForEach(timeframeOptions, id: \.minutes) { option in
+                Text(option.label).tag(option.minutes)
+            }
+        }
+        .pickerStyle(.segmented)
+        .accessibilityLabel("Ping history timeframe")
+    }
     
     private func colorForLatency(_ latency: Double) -> Color {
         LatencyPalette.forLatency(latency)
@@ -513,58 +542,72 @@ struct InterventionsCard: View {
         VStack(alignment: .leading, spacing: 14) {
             Text("Ping Protection")
                 .font(.headline)
-            
-            HStack(alignment: .center, spacing: 24) {
-                VStack(alignment: .leading, spacing: 8) {
-                    Text("Interventions Today")
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                    
-                    HStack(alignment: .firstTextBaseline, spacing: 8) {
-                        Text("\(viewModel.interventionCount)")
-                            .font(.system(size: 48, weight: .bold, design: .rounded))
-                            .foregroundStyle(.green)
-                            .contentTransition(.numericText())
-                        
-                        VStack(alignment: .leading, spacing: 2) {
-                            Text("lag spikes")
-                            Text("prevented")
-                        }
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                    }
-                }
-                
-                Spacer()
-                
-                VStack(alignment: .leading, spacing: 8) {
-                    if viewModel.interventionCount > 0 {
-                        Label("Wireless interference blocked", systemImage: "exclamationmark.triangle.fill")
-                            .font(.subheadline)
-                            .foregroundStyle(.orange)
-                        
-                        Text("Ping Warden blocked it \(viewModel.interventionCount) times to keep your connection stable.")
-                            .font(.caption)
-                            .foregroundStyle(.secondary)
-                            .fixedSize(horizontal: false, vertical: true)
-                    } else {
-                        Label(
-                            viewModel.isAWDLBlocking ? "No interference detected" : "Protection is off",
-                            systemImage: viewModel.isAWDLBlocking ? "checkmark.shield" : "pause.circle"
-                        )
-                        .font(.subheadline)
-                        .foregroundStyle(viewModel.isAWDLBlocking ? .green : .orange)
 
-                        Text(viewModel.isAWDLBlocking ? "Protection is active and your connection is stable." : "Enable Ping Protection to block wireless interruptions.")
-                            .font(.caption)
-                            .foregroundStyle(.secondary)
-                    }
+            ViewThatFits(in: .horizontal) {
+                HStack(alignment: .center, spacing: 24) {
+                    interventionCountBlock
+                    Spacer(minLength: 12)
+                    interventionStatusBlock
                 }
-                .padding(12)
-                .background(.quaternary.opacity(0.28), in: RoundedRectangle(cornerRadius: 8))
+
+                VStack(alignment: .leading, spacing: 14) {
+                    interventionCountBlock
+                    interventionStatusBlock
+                }
             }
         }
         .dashboardCardStyle()
+    }
+
+    private var interventionCountBlock: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Text("Interventions Today")
+                .font(.caption)
+                .foregroundStyle(.secondary)
+
+            HStack(alignment: .firstTextBaseline, spacing: 8) {
+                Text("\(viewModel.interventionCount)")
+                    .font(.system(size: 48, weight: .bold, design: .rounded))
+                    .foregroundStyle(.green)
+                    .contentTransition(.numericText())
+
+                VStack(alignment: .leading, spacing: 2) {
+                    Text("lag spikes")
+                    Text("prevented")
+                }
+                .font(.caption)
+                .foregroundStyle(.secondary)
+            }
+        }
+    }
+
+    private var interventionStatusBlock: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            if viewModel.interventionCount > 0 {
+                Label("Wireless interference blocked", systemImage: "exclamationmark.triangle.fill")
+                    .font(.subheadline)
+                    .foregroundStyle(.orange)
+
+                Text("Ping Warden blocked it \(viewModel.interventionCount) times to keep your connection stable.")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+            } else {
+                Label(
+                    viewModel.isAWDLBlocking ? "No interference detected" : "Protection is off",
+                    systemImage: viewModel.isAWDLBlocking ? "checkmark.shield" : "pause.circle"
+                )
+                .font(.subheadline)
+                .foregroundStyle(viewModel.isAWDLBlocking ? .green : .orange)
+
+                Text(viewModel.isAWDLBlocking ? "Protection is active and your connection is stable." : "Enable Ping Protection to block wireless interruptions.")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
+        }
+        .padding(12)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(.quaternary.opacity(0.28), in: RoundedRectangle(cornerRadius: 8))
     }
 }
 
@@ -581,51 +624,51 @@ struct ServerSelectionCard: View {
             VStack(spacing: 0) {
                 DashboardControlRow("Ping Server", description: "Target used for latency measurements") {
                     VStack(alignment: .leading, spacing: 8) {
-                    Picker("Server", selection: $viewModel.selectedTargetID) {
-                        ForEach(viewModel.targets) { target in
-                            Text(target.displayName).tag(target.id)
-                        }
-                    }
-                    .pickerStyle(.menu)
-                    .frame(width: 360, alignment: .leading)
-                    .disabled(viewModel.targets.isEmpty)
-                    .onTapGesture {
-                        viewModel.refreshGeForceNOWTargetsOnDemand()
-                    }
-
-                    if let selectedTarget = viewModel.selectedTarget {
-                        Text("\(selectedTarget.host):\(selectedTarget.port)")
-                            .font(.caption2)
-                            .foregroundStyle(.secondary)
-                    }
-
-                    if viewModel.isRefreshingGFNServers {
-                        Text("Refreshing GeForce NOW zones...")
-                            .font(.caption2)
-                            .foregroundStyle(.secondary)
-                    }
-
-                    HStack(spacing: 8) {
-                        Button {
-                            viewModel.autoSelectNearestEndpoint()
-                        } label: {
-                            if viewModel.isAutoSelectingTarget {
-                                ProgressView()
-                                    .controlSize(.small)
-                            } else {
-                                Text("Auto-Select Nearest")
+                        Picker("Server", selection: $viewModel.selectedTargetID) {
+                            ForEach(viewModel.targets) { target in
+                                Text(target.displayName).tag(target.id)
                             }
                         }
-                        .buttonStyle(.bordered)
-                        .disabled(viewModel.isAutoSelectingTarget || viewModel.targets.isEmpty)
+                        .pickerStyle(.menu)
+                        .frame(maxWidth: 360, alignment: .leading)
+                        .disabled(viewModel.targets.isEmpty)
+                        .onTapGesture {
+                            viewModel.refreshGeForceNOWTargetsOnDemand()
+                        }
 
-                        if let selectedTarget = viewModel.selectedTarget,
-                           let baseline = viewModel.baselineLatencyResults[selectedTarget.id] {
-                            Text(String(format: "Baseline %.0f ms", baseline))
+                        if let selectedTarget = viewModel.selectedTarget {
+                            Text("\(selectedTarget.host):\(selectedTarget.port)")
                                 .font(.caption2)
                                 .foregroundStyle(.secondary)
                         }
-                    }
+
+                        if viewModel.isRefreshingGFNServers {
+                            Text("Refreshing GeForce NOW zones...")
+                                .font(.caption2)
+                                .foregroundStyle(.secondary)
+                        }
+
+                        HStack(spacing: 8) {
+                            Button {
+                                viewModel.autoSelectNearestEndpoint()
+                            } label: {
+                                if viewModel.isAutoSelectingTarget {
+                                    ProgressView()
+                                        .controlSize(.small)
+                                } else {
+                                    Text("Auto-Select Nearest")
+                                }
+                            }
+                            .buttonStyle(.bordered)
+                            .disabled(viewModel.isAutoSelectingTarget || viewModel.targets.isEmpty)
+
+                            if let selectedTarget = viewModel.selectedTarget,
+                               let baseline = viewModel.baselineLatencyResults[selectedTarget.id] {
+                                Text(String(format: "Baseline %.0f ms", baseline))
+                                    .font(.caption2)
+                                    .foregroundStyle(.secondary)
+                            }
+                        }
                     }
                 }
                 
@@ -639,7 +682,7 @@ struct ServerSelectionCard: View {
                         Text("10 seconds").tag(TimeInterval(10))
                     }
                     .pickerStyle(.menu)
-                    .frame(width: 150, alignment: .leading)
+                    .frame(maxWidth: 150, alignment: .leading)
                 }
             }
         }
@@ -798,22 +841,34 @@ struct DashboardControlRow<Content: View>: View {
     }
 
     var body: some View {
-        HStack(alignment: .top, spacing: 24) {
-            VStack(alignment: .leading, spacing: 3) {
-                Text(title)
-                    .font(.body)
-                if let description {
-                    Text(description)
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                }
-            }
-            .frame(width: 160, alignment: .leading)
+        ViewThatFits(in: .horizontal) {
+            HStack(alignment: .top, spacing: 24) {
+                labelColumn
+                    .frame(width: 160, alignment: .leading)
 
-            content
-                .frame(maxWidth: .infinity, alignment: .leading)
+                content
+                    .frame(maxWidth: .infinity, alignment: .leading)
+            }
+
+            VStack(alignment: .leading, spacing: 8) {
+                labelColumn
+                content
+                    .frame(maxWidth: .infinity, alignment: .leading)
+            }
         }
         .padding(.vertical, 10)
+    }
+
+    private var labelColumn: some View {
+        VStack(alignment: .leading, spacing: 3) {
+            Text(title)
+                .font(.body)
+            if let description {
+                Text(description)
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
+        }
     }
 }
 
