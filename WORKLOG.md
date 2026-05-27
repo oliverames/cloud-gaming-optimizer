@@ -1,5 +1,100 @@
 # Ping Warden Worklog
 
+## 2026-05-27 - 2.4.0 cycle: accessibility, Liquid Glass, beta channel
+
+**What changed**:
+- Accessibility audit pass across Dashboard, Settings, Welcome, About,
+  and Donation surfaces. `LatencyPalette` now uses adaptive light/dark
+  variants (light variants pass WCAG AA against `.regularMaterial`;
+  previous palette scored 1.62–3.94:1 in light mode). Seven hero font
+  sizes wrapped in `@ScaledMetric` so they scale with system Dynamic
+  Type; decorative icons marked `.accessibilityHidden(true)`.
+  `StatusBadge` extracted to replace three identical 1.71:1 inline
+  pills. `PingGraphCard` now exposes both a summary `accessibilityValue`
+  and a full `AXChartDescriptor` for rotor navigation. `MetricRow`,
+  `LatencyTimelineCard` rows, `CustomServersCard` `TextField`s, and the
+  trash button all got combined accessibility labels (placeholders are
+  NOT labels in VoiceOver).
+- Liquid Glass adoption gated on `@available(macOS 26, *)`.
+  `dashboardCardStyle()` switches from `.regularMaterial` to
+  `glassEffect(.regular, in: shape)` on macOS 26; the six dashboard
+  cards are wrapped in a single `GlassEffectContainer` so they sample
+  each other's refraction correctly (scattering across multiple
+  containers produces inconsistent visuals). Inner `.quaternary`
+  chrome on InterventionsCard and the Welcome info banner moved to a
+  shared `InnerCalloutBackground` ViewModifier. SettingsView's
+  manual NSToolbar config drops `showsBaselineSeparator` on macOS 26.
+- Sparkle beta channel infrastructure. `PingWardenPreferences.betaChannelEnabled`
+  (default false) routes Sparkle to `appcast-beta.xml` via a new
+  `SPUUpdaterDelegate.feedURLString(for:)` override. Toggle lives in
+  Settings → Advanced → Updates. `release.sh` accepts `BETA_CHANNEL=1`
+  (matching the existing `CRITICAL_UPDATE=1` env-flag pattern) and
+  writes to `appcast-beta.xml` instead of the stable appcast. Empty
+  `appcast-beta.xml` pre-created on `gh-pages` (commit 137ed68) so
+  opted-in users don't 404 before the first beta ships.
+- AX5 defense-in-depth: `MetricRow`'s label column uses
+  `@ScaledMetric(relativeTo: .caption)` so "Packet Loss"/"Average"
+  don't truncate at large sizes; StatusCard's `currentPingBlock` and
+  InterventionsCard's `interventionCountBlock` wrap their hero HStacks
+  in `ViewThatFits` so the unit drops below when the card can't fit
+  horizontally.
+- General + Automation settings migrated from custom
+  `SettingsGroup`/`Row`/`Divider`/`SectionHeader` infrastructure to
+  native `Form { Section { Toggle / LabeledContent } }` (matches
+  AdvancedSettingsContent's pattern from 2.3.x). Deleted the four
+  unused custom components — net -77 lines.
+- MARKETING_VERSION bumped 2.3.4 → 2.4.0 across 4 pbxproj entries
+  and 3 Info.plist files (main app, helper, widget).
+- CLAUDE.md Release Process section documents `BETA_CHANNEL=1`.
+- Added `#Preview`s for Dashboard at AX5 and forced-light so future
+  layout/contrast regressions are visible in Xcode's preview canvas.
+
+**Decisions made**:
+- Hero fonts treated as **content** (scaling) rather than decoration
+  (fixed) — content-bearing 48pt numbers scale with `@ScaledMetric`;
+  decorative 56/64/44pt icons scale too but are
+  `.accessibilityHidden(true)`. Decision recorded via AskUserQuestion.
+- `GlassEffectContainer` wrapping the six dashboard cards on macOS 26
+  is in scope for 2.4.0 (not deferred). The morphing effect is the
+  signature Liquid Glass visual.
+- macOS 13 deployment target stays. `@available(macOS 26, *)` gates
+  for everything Liquid Glass-specific. Bumping the floor would have
+  cut off a meaningful chunk of the ~300-install base.
+- For chart accessibility, both summary `accessibilityValue` AND
+  `AXChartDescriptor` are provided. The summary is for "quick read";
+  the descriptor enables rotor navigation through individual samples.
+
+**Left off at**:
+- All code committed and pushed across 7 commits (6 on `main`, 1 on
+  `gh-pages`). Working tree clean.
+- `MARKETING_VERSION = 2.4.0` in source but no release artifact yet.
+- Next planned ship: `BETA_CHANNEL=1 bash release.sh 2.4.0-beta.1 …`
+  (after archiving via Xcode UI per the standing archive blocker
+  workaround).
+
+**Open questions**:
+- Visual verification on macOS 26 — needed before promoting any 2.4.0
+  build to the stable appcast. Specifically the morphing glass effect
+  between cards and the adaptive light palette against the new glass.
+- Whether the new `#Preview("Dashboard — Dynamic Type AX5")` shows
+  any layout overflow on macOS 26's renderer. Math says it fits in
+  typical Settings widths but the canvas closes the loop cheaply.
+- README user-facing mention of the beta channel — defer until the
+  first 2.4.0 build actually ships, otherwise the docs are ahead of
+  the user-visible feature.
+
+**Verified**:
+- `xcodebuild Debug` against MacOSX26.5.sdk: BUILD SUCCEEDED at every
+  commit boundary, zero warnings in PingWarden code.
+- `swift test`: 33/33 passing at every commit boundary.
+- WCAG contrast math verified with python: all four
+  `LatencyPalette` colors plus both `StatusBadge` variants pass AA
+  (≥4.5:1) against light/dark × material/glass backgrounds.
+- `grep` confirmed the four deleted custom Settings components had
+  zero call sites before deletion.
+
+---
+
 # 2026-05-19 - v2.3.4 release polish and packaging cleanup
 
 - Removed `notarize.sh` and `release.sh` from the main app target's shipped
