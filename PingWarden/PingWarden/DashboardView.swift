@@ -135,21 +135,29 @@ private enum LatencyPalette {
 }
 
 private extension View {
-    /// Card chrome used by every dashboard card. Uses `.regularMaterial`
-    /// instead of an opaque `unemphasizedSelectedContentBackgroundColor`
-    /// fill so the cards render as translucent system material on macOS
-    /// 13+ and inherit Liquid Glass treatment automatically on macOS 26+.
-    /// One source of truth → applies to StatusCard, PingGraphCard,
-    /// LatencyTimelineCard, InterventionsCard, ServerSelectionCard, and
-    /// CustomServersCard simultaneously.
+    /// Card chrome used by every dashboard card. On macOS 26+ we use
+    /// `glassEffect` so the cards participate in the dashboard's
+    /// `GlassEffectContainer` and visually morph between each other.
+    /// On macOS 13-25 we fall back to `.regularMaterial`, the closest
+    /// pre-Liquid-Glass equivalent. One source of truth → applies to
+    /// StatusCard, PingGraphCard, LatencyTimelineCard, InterventionsCard,
+    /// ServerSelectionCard, and CustomServersCard simultaneously.
     func dashboardCardStyle() -> some View {
         self
             .padding(DashboardLayout.cardPadding)
             .frame(maxWidth: .infinity, alignment: .leading)
-            .background(
-                .regularMaterial,
-                in: RoundedRectangle(cornerRadius: DashboardLayout.cardCornerRadius, style: .continuous)
-            )
+            .modifier(DashboardCardBackground())
+    }
+}
+
+private struct DashboardCardBackground: ViewModifier {
+    func body(content: Content) -> some View {
+        let shape = RoundedRectangle(cornerRadius: DashboardLayout.cardCornerRadius, style: .continuous)
+        if #available(macOS 26, *) {
+            content.glassEffect(.regular, in: shape)
+        } else {
+            content.background(.regularMaterial, in: shape)
+        }
     }
 }
 
@@ -157,8 +165,32 @@ private extension View {
 
 struct DashboardSettingsContent: View {
     @StateObject private var viewModel = DashboardViewModel()
-    
+
     var body: some View {
+        Group {
+            if #available(macOS 26, *) {
+                // Wrap all glass cards in one container so they sample each
+                // other's refraction and morph cleanly when scrolled or laid out.
+                // Per Liquid Glass guidance, scattering glass across multiple
+                // containers produces inconsistent visual results.
+                GlassEffectContainer {
+                    cardStack
+                }
+            } else {
+                cardStack
+            }
+        }
+        .padding(20)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .onAppear {
+            viewModel.start()
+        }
+        .onDisappear {
+            viewModel.stop()
+        }
+    }
+
+    private var cardStack: some View {
         VStack(alignment: .leading, spacing: DashboardLayout.sectionSpacing) {
             // Current Status Card
             StatusCard(viewModel: viewModel)
@@ -177,14 +209,6 @@ struct DashboardSettingsContent: View {
 
             // User-defined servers (issue #29)
             CustomServersCard(viewModel: viewModel)
-        }
-        .padding(20)
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .onAppear {
-            viewModel.start()
-        }
-        .onDisappear {
-            viewModel.stop()
         }
     }
 }
@@ -711,7 +735,24 @@ struct InterventionsCard: View {
         }
         .padding(12)
         .frame(maxWidth: .infinity, alignment: .leading)
-        .background(.quaternary.opacity(0.28), in: RoundedRectangle(cornerRadius: 8))
+        .modifier(InnerCalloutBackground(cornerRadius: 8, fallbackOpacity: 0.28))
+    }
+}
+
+/// Subtle inner-callout chrome inside dashboard cards. On macOS 26+ we use
+/// `glassEffect` so the inner surface samples the same Liquid Glass refraction
+/// as the rest of the card (it sits inside the dashboard's `GlassEffectContainer`).
+/// On macOS 13-25 we fall back to the previous `.quaternary` opacity tint.
+struct InnerCalloutBackground: ViewModifier {
+    let cornerRadius: CGFloat
+    let fallbackOpacity: Double
+
+    func body(content: Content) -> some View {
+        if #available(macOS 26, *) {
+            content.glassEffect(.regular, in: RoundedRectangle(cornerRadius: cornerRadius, style: .continuous))
+        } else {
+            content.background(.quaternary.opacity(fallbackOpacity), in: RoundedRectangle(cornerRadius: cornerRadius, style: .continuous))
+        }
     }
 }
 

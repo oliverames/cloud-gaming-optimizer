@@ -1102,6 +1102,7 @@ struct WelcomeView: View {
             HStack(spacing: 12) {
                 Image(systemName: "info.circle.fill")
                     .foregroundStyle(.secondary)
+                    .accessibilityHidden(true)
 
                 Text("Setup requires a one-time system approval in System Settings.")
                     .font(.callout)
@@ -1109,8 +1110,7 @@ struct WelcomeView: View {
             }
             .padding()
             .frame(maxWidth: .infinity)
-            .background(.quaternary.opacity(0.5))
-            .clipShape(RoundedRectangle(cornerRadius: 8))
+            .modifier(InnerCalloutBackground(cornerRadius: 8, fallbackOpacity: 0.5))
             .padding(.horizontal, 32)
 
             HStack(spacing: 12) {
@@ -1190,7 +1190,13 @@ struct SettingsView: View {
                     toolbar.displayMode = .iconOnly
                     window.toolbar = toolbar
                 }
-                window.toolbar?.showsBaselineSeparator = true
+                // macOS 26 Liquid Glass toolbars float above the content;
+                // a baseline separator fights that floating appearance.
+                if #available(macOS 26, *) {
+                    window.toolbar?.showsBaselineSeparator = false
+                } else {
+                    window.toolbar?.showsBaselineSeparator = true
+                }
             }
         }
     }
