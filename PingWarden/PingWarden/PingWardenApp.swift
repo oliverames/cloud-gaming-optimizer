@@ -1279,86 +1279,6 @@ struct SettingsContentView: View {
 
 private let settingsLog = Logger(subsystem: "com.amesvt.pingwarden", category: "Settings")
 
-struct SettingsGroup<Content: View>: View {
-    let content: Content
-
-    init(@ViewBuilder content: () -> Content) {
-        self.content = content()
-    }
-
-    var body: some View {
-        VStack(spacing: 0) {
-            content
-        }
-        .frame(maxWidth: .infinity, alignment: .leading)
-        // Use system material (translucent on macOS 13+, Liquid Glass on
-        // macOS 26+) instead of an opaque unemphasizedSelectedContent fill.
-        // Single line cascades through every SettingsGroup that General
-        // and Automation still use until those views migrate to Form/Section.
-        .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 10, style: .continuous))
-        .padding(.horizontal, 20)
-    }
-}
-
-struct SettingsRow<Content: View>: View {
-    let title: String
-    let description: String?
-    let content: Content
-
-    init(_ title: String, description: String? = nil, @ViewBuilder content: () -> Content) {
-        self.title = title
-        self.description = description
-        self.content = content()
-    }
-
-    var body: some View {
-        let accessibilityText = if let description {
-            "\(title), \(description)"
-        } else {
-            title
-        }
-        
-        HStack(alignment: .center, spacing: 12) {
-            VStack(alignment: .leading, spacing: 2) {
-                Text(title)
-                    .font(.body)
-                if let description = description {
-                    Text(description)
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                }
-            }
-            Spacer()
-            content
-        }
-        .padding(.horizontal, 12)
-        .padding(.vertical, 10)
-        .accessibilityElement(children: .combine)
-        .accessibilityLabel(accessibilityText)
-    }
-}
-
-struct SettingsDivider: View {
-    var body: some View {
-        Divider()
-            .padding(.leading, 12)
-    }
-}
-
-struct SettingsSectionHeader: View {
-    let title: String
-
-    var body: some View {
-        Text(title)
-            .font(.caption)
-            .fontWeight(.medium)
-            .foregroundStyle(.tertiary)
-            .padding(.horizontal, 20)
-            .padding(.top, 20)
-            .padding(.bottom, 6)
-    }
-}
-
 /// Small pill badge ("Beta", "Unavailable", etc.) with WCAG AA contrast.
 /// White text on a darker-tinted fill passes >=4.5:1 in both light and dark
 /// mode without depending on the parent background. Replaces the previous
@@ -1408,41 +1328,40 @@ struct GeneralSettingsContent: View {
     @State private var showMenuDropdownMetrics = PingWardenPreferences.shared.showMenuDropdownMetrics
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 0) {
-            // AWDL Status Group
-            SettingsGroup {
-                SettingsRow("Ping Protection", description: "Block wireless interference that causes lag spikes") {
-                    Toggle("", isOn: Binding(
-                        get: { monitorState.isMonitoring },
-                        set: { newValue in
-                            if newValue {
-                                PingWardenMonitor.shared.startMonitoring()
-                            } else {
-                                PingWardenMonitor.shared.stopMonitoring()
-                            }
+        Form {
+            Section("Protection") {
+                Toggle(isOn: Binding(
+                    get: { monitorState.isMonitoring },
+                    set: { newValue in
+                        if newValue {
+                            PingWardenMonitor.shared.startMonitoring()
+                        } else {
+                            PingWardenMonitor.shared.stopMonitoring()
                         }
-                    ))
-                    .toggleStyle(.switch)
-                    .controlSize(.small)
-                    .disabled(!monitorState.isHelperRegistered)
+                    }
+                )) {
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text("Ping Protection")
+                        Text("Block wireless interference that causes lag spikes")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                    }
                 }
+                .disabled(!monitorState.isHelperRegistered)
 
-                SettingsDivider()
-
-                SettingsRow("Status") {
+                LabeledContent("Status") {
                     HStack(spacing: 6) {
                         Circle()
                             .fill(statusColor)
                             .frame(width: 8, height: 8)
+                            .accessibilityHidden(true)
                         Text(statusText)
                             .foregroundStyle(.secondary)
                     }
                 }
-                
+
                 if monitorState.isMonitoring && monitorState.interventionCount > 0 {
-                    SettingsDivider()
-                    
-                    SettingsRow("Lag Spikes Blocked") {
+                    LabeledContent("Lag Spikes Blocked") {
                         HStack(spacing: 8) {
                             Text("\(monitorState.interventionCount)")
                                 .font(.headline)
@@ -1450,7 +1369,7 @@ struct GeneralSettingsContent: View {
                             Text("blocked")
                                 .font(.caption)
                                 .foregroundStyle(.secondary)
-                            
+
                             Button {
                                 PingWardenMonitor.shared.resetInterventionCount { success in
                                     if success {
@@ -1463,74 +1382,73 @@ struct GeneralSettingsContent: View {
                             }
                             .buttonStyle(.plain)
                             .foregroundStyle(.secondary)
+                            .accessibilityLabel("Reset intervention counter")
                             .help("Reset counter")
                         }
                     }
                 }
             }
 
-            SettingsSectionHeader(title: "APP")
-
-            SettingsGroup {
-                SettingsRow("Launch at Login", description: "Start Ping Warden when you log in") {
-                    Toggle("", isOn: Binding(
-                        get: { launchAtLogin },
-                        set: { newValue in
-                            do {
-                                if newValue {
-                                    try SMAppService.mainApp.register()
-                                } else {
-                                    try SMAppService.mainApp.unregister()
-                                }
-                                launchAtLogin = newValue
-                            } catch {
-                                settingsLog.error("Failed to update login item: \(error.localizedDescription)")
+            Section("App") {
+                Toggle(isOn: Binding(
+                    get: { launchAtLogin },
+                    set: { newValue in
+                        do {
+                            if newValue {
+                                try SMAppService.mainApp.register()
+                            } else {
+                                try SMAppService.mainApp.unregister()
                             }
+                            launchAtLogin = newValue
+                        } catch {
+                            settingsLog.error("Failed to update login item: \(error.localizedDescription)")
                         }
-                    ))
-                    .toggleStyle(.switch)
-                    .controlSize(.small)
+                    }
+                )) {
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text("Launch at Login")
+                        Text("Start Ping Warden when you log in")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                    }
                 }
 
-                SettingsDivider()
-
-                SettingsRow("Show Dock Icon", description: "Display app icon in the Dock") {
-                    Toggle("", isOn: $showDockIcon)
-                        .toggleStyle(.switch)
-                        .controlSize(.small)
-                        .onChangeCompat(of: showDockIcon) { newValue in
-                            PingWardenPreferences.shared.showDockIcon = newValue
-                        }
+                Toggle(isOn: $showDockIcon) {
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text("Show Dock Icon")
+                        Text("Display app icon in the Dock")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                    }
+                }
+                .onChangeCompat(of: showDockIcon) { newValue in
+                    PingWardenPreferences.shared.showDockIcon = newValue
                 }
 
-                SettingsDivider()
-
-                SettingsRow("Menu Dropdown Metrics", description: "Show current ping and protection events in the menu") {
-                    Toggle("", isOn: $showMenuDropdownMetrics)
-                        .toggleStyle(.switch)
-                        .controlSize(.small)
-                        .onChangeCompat(of: showMenuDropdownMetrics) { newValue in
-                            PingWardenPreferences.shared.showMenuDropdownMetrics = newValue
-                        }
+                Toggle(isOn: $showMenuDropdownMetrics) {
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text("Menu Dropdown Metrics")
+                        Text("Show current ping and protection events in the menu")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                    }
+                }
+                .onChangeCompat(of: showMenuDropdownMetrics) { newValue in
+                    PingWardenPreferences.shared.showMenuDropdownMetrics = newValue
                 }
             }
 
-            SettingsSectionHeader(title: "HOW IT WORKS")
-
-            SettingsGroup {
-                VStack(alignment: .leading, spacing: 8) {
-                    Label("No Password Prompts", systemImage: "checkmark.shield")
-                        .font(.subheadline)
-                        .fontWeight(.medium)
-
-                    Text("AWDL (Apple Wireless Direct Link) powers AirDrop, AirPlay, and Handoff. When it activates, it briefly takes over your Wi-Fi radio, causing lag spikes. Ping Warden uses a background helper to block these interruptions. The helper requires a one-time system approval and runs while the app is open.")
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                        .fixedSize(horizontal: false, vertical: true)
-                }
-                .padding(12)
+            Section {
+                Label("No Password Prompts", systemImage: "checkmark.shield")
+                    .font(.subheadline)
+                    .fontWeight(.medium)
+            } header: {
+                Text("How It Works")
+            } footer: {
+                Text("AWDL (Apple Wireless Direct Link) powers AirDrop, AirPlay, and Handoff. When it activates, it briefly takes over your Wi-Fi radio, causing lag spikes. Ping Warden uses a background helper to block these interruptions. The helper requires a one-time system approval and runs while the app is open.")
             }
         }
+        .formStyle(.grouped)
         .onAppear {
             monitorState.startObserving()
         }
@@ -1562,63 +1480,68 @@ struct AutomationSettingsContent: View {
     }
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 0) {
-            SettingsGroup {
-                SettingsRow("Game Mode Auto-Detect", description: "Automatically enable blocking when a game is fullscreen") {
-                    HStack(spacing: 8) {
-                        StatusBadge(text: "Beta", tint: .beta)
-                        Toggle("", isOn: $gameModeAutoDetect)
-                            .toggleStyle(.switch)
-                            .controlSize(.small)
-                            .onChangeCompat(of: gameModeAutoDetect) { newValue in
-                                PingWardenPreferences.shared.gameModeAutoDetect = newValue
-                            }
-                    }
-                }
-            }
-
-            SettingsSectionHeader(title: "INTERFACE")
-
-            SettingsGroup {
-                SettingsRow("Control Center Widget", description: isControlCenterAvailable ? "Use Control Center instead of menu bar" : "Requires code-signed app (Developer ID)") {
-                    HStack(spacing: 8) {
-                        if isControlCenterAvailable {
+        Form {
+            Section("Game Mode") {
+                Toggle(isOn: $gameModeAutoDetect) {
+                    VStack(alignment: .leading, spacing: 2) {
+                        HStack(spacing: 8) {
+                            Text("Game Mode Auto-Detect")
                             StatusBadge(text: "Beta", tint: .beta)
-                        } else {
-                            StatusBadge(text: "Unavailable", tint: .unavailable)
                         }
-                        Toggle("", isOn: $controlCenterEnabled)
-                            .toggleStyle(.switch)
-                            .controlSize(.small)
-                            .disabled(!isControlCenterAvailable)
-                            .onChangeCompat(of: controlCenterEnabled) { newValue in
-                                if newValue {
-                                    showingControlCenterConfirm = true
-                                } else {
-                                    PingWardenPreferences.shared.controlCenterWidgetEnabled = false
-                                }
-                            }
+                        Text("Automatically enable blocking when a game is fullscreen")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
                     }
+                }
+                .onChangeCompat(of: gameModeAutoDetect) { newValue in
+                    PingWardenPreferences.shared.gameModeAutoDetect = newValue
                 }
             }
 
-            if isControlCenterAvailable && controlCenterEnabled {
-                VStack(alignment: .leading, spacing: 4) {
-                    Text("To add the widget: System Settings → Control Center → scroll to Ping Warden")
-                    Text("To access settings later, search for \"Ping Warden\" in Spotlight (Cmd+Space) or find it in your Applications folder.")
+            Section {
+                Toggle(isOn: $controlCenterEnabled) {
+                    VStack(alignment: .leading, spacing: 2) {
+                        HStack(spacing: 8) {
+                            Text("Control Center Widget")
+                            if isControlCenterAvailable {
+                                StatusBadge(text: "Beta", tint: .beta)
+                            } else {
+                                StatusBadge(text: "Unavailable", tint: .unavailable)
+                            }
+                        }
+                        Text(isControlCenterAvailable
+                             ? "Use Control Center instead of menu bar"
+                             : "Requires code-signed app (Developer ID)")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                    }
                 }
-                .font(.caption)
-                .foregroundStyle(.secondary)
-                .padding(.horizontal, 24)
-                .padding(.top, 8)
-            } else if !isControlCenterAvailable {
-                Text("Control Center widgets require the app to be signed with a Developer ID certificate.")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-                    .padding(.horizontal, 24)
-                    .padding(.top, 8)
+                .disabled(!isControlCenterAvailable)
+                .onChangeCompat(of: controlCenterEnabled) { newValue in
+                    if newValue {
+                        showingControlCenterConfirm = true
+                    } else {
+                        PingWardenPreferences.shared.controlCenterWidgetEnabled = false
+                    }
+                }
+            } header: {
+                Text("Interface")
+            } footer: {
+                // Section footer carries the conditional help text. EmptyView()
+                // collapses the footer when there's nothing relevant to say.
+                if isControlCenterAvailable && controlCenterEnabled {
+                    VStack(alignment: .leading, spacing: 4) {
+                        Text("To add the widget: System Settings → Control Center → scroll to Ping Warden")
+                        Text("To access settings later, search for \"Ping Warden\" in Spotlight (Cmd+Space) or find it in your Applications folder.")
+                    }
+                } else if !isControlCenterAvailable {
+                    Text("Control Center widgets require the app to be signed with a Developer ID certificate.")
+                } else {
+                    EmptyView()
+                }
             }
         }
+        .formStyle(.grouped)
         .confirmationDialog(
             "Hide Menu Bar Icon?",
             isPresented: $showingControlCenterConfirm,
