@@ -17,11 +17,14 @@ struct DonationPromptView: View {
     let onMaybeLater: () -> Void
     let onDontAskAgain: () -> Void
 
+    @ScaledMetric(relativeTo: .largeTitle) private var heroIconSize: CGFloat = 44
+
     var body: some View {
         VStack(spacing: 24) {
             Image(systemName: "cup.and.saucer.fill")
-                .font(.system(size: 44, weight: .light))
+                .font(.system(size: heroIconSize, weight: .light))
                 .foregroundStyle(.tint)
+                .accessibilityHidden(true)
                 .padding(.top, 28)
 
             VStack(spacing: 12) {

@@ -1050,21 +1050,24 @@ struct WelcomeView: View {
     let onSetup: () -> Void
     let onDismiss: () -> Void
 
+    @ScaledMetric(relativeTo: .largeTitle) private var heroIconSize: CGFloat = 56
+
     var body: some View {
         VStack(spacing: 0) {
             VStack(spacing: 16) {
                 Group {
                     if #available(macOS 14.0, *) {
                         Image(systemName: "antenna.radiowaves.left.and.right.slash")
-                            .font(.system(size: 56, weight: .thin))
+                            .font(.system(size: heroIconSize, weight: .thin))
                             .foregroundStyle(.tint)
                             .symbolEffect(.pulse, options: .repeating)
                     } else {
                         Image(systemName: "antenna.radiowaves.left.and.right.slash")
-                            .font(.system(size: 56, weight: .thin))
+                            .font(.system(size: heroIconSize, weight: .thin))
                             .foregroundStyle(.tint)
                     }
                 }
+                .accessibilityHidden(true)
 
                 Text("Welcome to Ping Warden")
                     .font(.largeTitle)
@@ -1338,6 +1341,46 @@ struct SettingsSectionHeader: View {
     }
 }
 
+/// Small pill badge ("Beta", "Unavailable", etc.) with WCAG AA contrast.
+/// White text on a darker-tinted fill passes >=4.5:1 in both light and dark
+/// mode without depending on the parent background. Replaces the previous
+/// `.opacity(0.2)` pattern which scored 1.71:1 in light mode (text was nearly
+/// invisible to low-vision users).
+struct StatusBadge: View {
+    enum Tint {
+        case beta
+        case unavailable
+    }
+
+    let text: String
+    let tint: Tint
+
+    var body: some View {
+        Text(text)
+            .font(.caption2)
+            .fontWeight(.semibold)
+            .foregroundStyle(.white)
+            .padding(.horizontal, 8)
+            .padding(.vertical, 3)
+            .background(fillColor, in: Capsule())
+            .accessibilityLabel(voiceOverLabel)
+    }
+
+    private var fillColor: Color {
+        switch tint {
+        case .beta: return Color(red: 0.65, green: 0.35, blue: 0.0)
+        case .unavailable: return Color(red: 0.40, green: 0.40, blue: 0.40)
+        }
+    }
+
+    private var voiceOverLabel: String {
+        switch tint {
+        case .beta: return "\(text) — beta feature"
+        case .unavailable: return "\(text)"
+        }
+    }
+}
+
 // MARK: - General Settings Content
 
 struct GeneralSettingsContent: View {
@@ -1505,14 +1548,7 @@ struct AutomationSettingsContent: View {
             SettingsGroup {
                 SettingsRow("Game Mode Auto-Detect", description: "Automatically enable blocking when a game is fullscreen") {
                     HStack(spacing: 8) {
-                        Text("Beta")
-                            .font(.caption2)
-                            .fontWeight(.medium)
-                            .padding(.horizontal, 6)
-                            .padding(.vertical, 2)
-                            .background(.orange.opacity(0.2))
-                            .foregroundStyle(.orange)
-                            .clipShape(Capsule())
+                        StatusBadge(text: "Beta", tint: .beta)
                         Toggle("", isOn: $gameModeAutoDetect)
                             .toggleStyle(.switch)
                             .controlSize(.small)
@@ -1529,23 +1565,9 @@ struct AutomationSettingsContent: View {
                 SettingsRow("Control Center Widget", description: isControlCenterAvailable ? "Use Control Center instead of menu bar" : "Requires code-signed app (Developer ID)") {
                     HStack(spacing: 8) {
                         if isControlCenterAvailable {
-                            Text("Beta")
-                                .font(.caption2)
-                                .fontWeight(.medium)
-                                .padding(.horizontal, 6)
-                                .padding(.vertical, 2)
-                                .background(.orange.opacity(0.2))
-                                .foregroundStyle(.orange)
-                                .clipShape(Capsule())
+                            StatusBadge(text: "Beta", tint: .beta)
                         } else {
-                            Text("Unavailable")
-                                .font(.caption2)
-                                .fontWeight(.medium)
-                                .padding(.horizontal, 6)
-                                .padding(.vertical, 2)
-                                .background(.gray.opacity(0.2))
-                                .foregroundStyle(.gray)
-                                .clipShape(Capsule())
+                            StatusBadge(text: "Unavailable", tint: .unavailable)
                         }
                         Toggle("", isOn: $controlCenterEnabled)
                             .toggleStyle(.switch)
@@ -1873,6 +1895,8 @@ struct AdvancedSettingsContent: View {
 struct AboutView: View {
     @Environment(\.openURL) private var openURL
 
+    @ScaledMetric(relativeTo: .largeTitle) private var heroIconSize: CGFloat = 64
+
     private var version: String {
         Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "1.0.0"
     }
@@ -1886,8 +1910,9 @@ struct AboutView: View {
             Spacer()
 
             Image(systemName: "antenna.radiowaves.left.and.right.slash")
-                .font(.system(size: 64, weight: .thin))
+                .font(.system(size: heroIconSize, weight: .thin))
                 .foregroundStyle(.tint)
+                .accessibilityHidden(true)
 
             Text("Ping Warden")
                 .font(.title)
