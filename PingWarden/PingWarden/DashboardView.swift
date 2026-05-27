@@ -247,14 +247,18 @@ struct StatusCard: View {
 
     private var currentPingBlock: some View {
         VStack(alignment: .leading, spacing: 8) {
-            HStack(alignment: .firstTextBaseline, spacing: 4) {
-                Text(String(format: "%.0f", viewModel.stats.currentPing))
-                    .font(.system(size: heroPingSize, weight: .bold, design: .rounded))
-                    .foregroundStyle(colorForQuality(viewModel.stats.quality))
-                    .contentTransition(.numericText())
-                Text("ms")
-                    .font(.title2)
-                    .foregroundStyle(.secondary)
+            // ViewThatFits falls back to stacking the unit below the number
+            // when the @ScaledMetric hero font grows past the card width
+            // (AX5 + narrow Settings windows).
+            ViewThatFits(in: .horizontal) {
+                HStack(alignment: .firstTextBaseline, spacing: 4) {
+                    pingValueText
+                    pingUnitText
+                }
+                VStack(alignment: .leading, spacing: 0) {
+                    pingValueText
+                    pingUnitText
+                }
             }
 
             Label(viewModel.stats.qualityDescription, systemImage: qualityIcon(viewModel.stats.quality))
@@ -263,6 +267,19 @@ struct StatusCard: View {
         }
         .accessibilityElement(children: .combine)
         .accessibilityLabel("Current ping \(Int(viewModel.stats.currentPing.rounded())) milliseconds, network quality \(viewModel.stats.qualityDescription)")
+    }
+
+    private var pingValueText: some View {
+        Text(String(format: "%.0f", viewModel.stats.currentPing))
+            .font(.system(size: heroPingSize, weight: .bold, design: .rounded))
+            .foregroundStyle(colorForQuality(viewModel.stats.quality))
+            .contentTransition(.numericText())
+    }
+
+    private var pingUnitText: some View {
+        Text("ms")
+            .font(.title2)
+            .foregroundStyle(.secondary)
     }
 
     private var metricGrid: some View {
@@ -306,12 +323,17 @@ struct MetricRow: View {
     var tint: Color = .primary
     var useMonospacedValue: Bool = true
 
+    /// Label-column width tracks the .caption font's Dynamic Type. At AX5
+    /// the labels ("Packet Loss", "Average") need roughly 2x the room they
+    /// do at default size; the previous fixed 74pt truncated long ones.
+    @ScaledMetric(relativeTo: .caption) private var labelColumnWidth: CGFloat = 74
+
     var body: some View {
         HStack(spacing: 12) {
             Text(label)
                 .font(.caption)
                 .foregroundStyle(.secondary)
-                .frame(width: 74, alignment: .leading)
+                .frame(width: labelColumnWidth, alignment: .leading)
 
             if useMonospacedValue {
                 Text(value)
@@ -691,22 +713,38 @@ struct InterventionsCard: View {
                 .font(.caption)
                 .foregroundStyle(.secondary)
 
-            HStack(alignment: .firstTextBaseline, spacing: 8) {
-                Text("\(viewModel.interventionCount)")
-                    .font(.system(size: heroCountSize, weight: .bold, design: .rounded))
-                    .foregroundStyle(.green)
-                    .contentTransition(.numericText())
-
-                VStack(alignment: .leading, spacing: 2) {
-                    Text("lag spikes")
-                    Text("prevented")
+            // ViewThatFits drops the "lag spikes / prevented" caption below
+            // the hero count when the @ScaledMetric font + caption width
+            // would overflow the card (AX5 + narrow windows).
+            ViewThatFits(in: .horizontal) {
+                HStack(alignment: .firstTextBaseline, spacing: 8) {
+                    interventionCountText
+                    interventionUnitStack
                 }
-                .font(.caption)
-                .foregroundStyle(.secondary)
+                VStack(alignment: .leading, spacing: 4) {
+                    interventionCountText
+                    interventionUnitStack
+                }
             }
         }
         .accessibilityElement(children: .combine)
         .accessibilityLabel("Interventions today: \(viewModel.interventionCount) lag spikes prevented")
+    }
+
+    private var interventionCountText: some View {
+        Text("\(viewModel.interventionCount)")
+            .font(.system(size: heroCountSize, weight: .bold, design: .rounded))
+            .foregroundStyle(.green)
+            .contentTransition(.numericText())
+    }
+
+    private var interventionUnitStack: some View {
+        VStack(alignment: .leading, spacing: 2) {
+            Text("lag spikes")
+            Text("prevented")
+        }
+        .font(.caption)
+        .foregroundStyle(.secondary)
     }
 
     private var interventionStatusBlock: some View {
