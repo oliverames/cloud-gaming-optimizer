@@ -166,10 +166,7 @@ class PingWardenPreferences {
     /// `SPUUpdaterDelegate.feedURLString(for:)` callback fires every check).
     var betaChannelEnabled: Bool {
         get { defaults.bool(forKey: betaChannelEnabledKey) }
-        set {
-            defaults.set(newValue, forKey: betaChannelEnabledKey)
-            NotificationCenter.default.post(name: .betaChannelChanged, object: nil)
-        }
+        set { defaults.set(newValue, forKey: betaChannelEnabledKey) }
     }
 }
 
@@ -182,5 +179,4 @@ extension Notification.Name {
     static let gameModeAutoDetectChanged = Notification.Name("com.amesvt.pingwarden.notification.GameModeAutoDetectChanged")
     static let dockIconVisibilityChanged = Notification.Name("com.amesvt.pingwarden.notification.DockIconVisibilityChanged")
     static let menuDropdownMetricsChanged = Notification.Name("com.amesvt.pingwarden.notification.MenuDropdownMetricsChanged")
-    static let betaChannelChanged = Notification.Name("com.amesvt.pingwarden.notification.BetaChannelChanged")
 }

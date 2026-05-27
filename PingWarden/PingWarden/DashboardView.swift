@@ -1028,3 +1028,15 @@ struct DashboardControlRow<Content: View>: View {
     DashboardSettingsContent()
         .frame(width: 500, height: 700)
 }
+
+#Preview("Dashboard — Dynamic Type AX5") {
+    DashboardSettingsContent()
+        .frame(width: 500, height: 700)
+        .environment(\.dynamicTypeSize, .accessibility5)
+}
+
+#Preview("Dashboard — Light mode") {
+    DashboardSettingsContent()
+        .frame(width: 500, height: 700)
+        .preferredColorScheme(.light)
+}
