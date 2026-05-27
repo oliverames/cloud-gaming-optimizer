@@ -83,6 +83,11 @@ xcrun notarytool store-credentials "notarytool-profile"
 4. `bash release.sh X.Y.Z ../../RELEASE_NOTES.md`
 5. Push appcast: `git checkout gh-pages && git add appcast.xml && git commit -m "Update appcast for vX.Y.Z" && git push && git checkout main`
 
+**Beta releases:** prefix step 4 with `BETA_CHANNEL=1` (same env-flag pattern as the existing `CRITICAL_UPDATE=1`). The script writes to `appcast-beta.xml` on `gh-pages` instead of `appcast.xml`, uses distinct channel metadata, and writes a different commit message. Same EdDSA signing, same DMG packaging, same GitHub release flow — beta is a Sparkle-layer concept only. Users opted into the beta channel via Settings → Advanced → Updates get routed there by `SPUUpdaterDelegate.feedURLString(for:)`.
+```bash
+BETA_CHANNEL=1 bash release.sh 2.4.0-beta.1 ../../RELEASE_NOTES.md
+```
+
 Sparkle EdDSA key is in keychain account `"ed25519"`. Notarytool profile: `"notarytool-profile"`.
 
 ## Distribution
