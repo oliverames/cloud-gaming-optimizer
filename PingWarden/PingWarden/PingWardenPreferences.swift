@@ -28,6 +28,7 @@ class PingWardenPreferences {
     private let donationLastSeenVersionKey = "DonationPromptLastSeenVersion"
     private let donationDismissedPermanentlyKey = "DonationPromptDismissedPermanently"
     private let crashReportingEnabledKey = "CrashReportingEnabled"
+    private let betaChannelEnabledKey = "BetaChannelEnabled"
 
     /// Shared App Group defaults handle, exposed so non-singleton consumers
     /// (CustomPingTargetStore, tests, future widget targets) can re-use the
@@ -157,6 +158,19 @@ class PingWardenPreferences {
         get { defaults.bool(forKey: crashReportingEnabledKey) }
         set { defaults.set(newValue, forKey: crashReportingEnabledKey) }
     }
+
+    /// Opt-in beta channel for Sparkle updates. Default `false` — when
+    /// enabled, Sparkle pulls from `appcast-beta.xml` instead of the stable
+    /// `appcast.xml`. Toggled in Settings → Advanced → Updates; takes effect
+    /// on the next update check (no restart required because the
+    /// `SPUUpdaterDelegate.feedURLString(for:)` callback fires every check).
+    var betaChannelEnabled: Bool {
+        get { defaults.bool(forKey: betaChannelEnabledKey) }
+        set {
+            defaults.set(newValue, forKey: betaChannelEnabledKey)
+            NotificationCenter.default.post(name: .betaChannelChanged, object: nil)
+        }
+    }
 }
 
 extension Notification.Name {
@@ -168,4 +182,5 @@ extension Notification.Name {
     static let gameModeAutoDetectChanged = Notification.Name("com.amesvt.pingwarden.notification.GameModeAutoDetectChanged")
     static let dockIconVisibilityChanged = Notification.Name("com.amesvt.pingwarden.notification.DockIconVisibilityChanged")
     static let menuDropdownMetricsChanged = Notification.Name("com.amesvt.pingwarden.notification.MenuDropdownMetricsChanged")
+    static let betaChannelChanged = Notification.Name("com.amesvt.pingwarden.notification.BetaChannelChanged")
 }

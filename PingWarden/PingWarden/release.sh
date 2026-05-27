@@ -6,6 +6,12 @@
 #  Usage: ./release.sh [version] [release-notes-file]
 #  Example: ./release.sh 2.1.1 release_notes_2.1.1.txt
 #
+#  Beta releases: prefix the invocation with BETA_CHANNEL=1 to publish to
+#  appcast-beta.xml instead of the stable appcast.xml. Use semver beta tags
+#  in the version (e.g. 2.4.0-beta.1). The beta appcast lives on the same
+#  gh-pages branch and is signed with the same EdDSA key.
+#  Example: BETA_CHANNEL=1 ./release.sh 2.4.0-beta.1 release_notes_2.4.0-beta.1.md
+#
 #  Copyright (c) 2025-2026 Oliver Ames. All rights reserved.
 #  Licensed under the MIT License.
 #
@@ -31,7 +37,21 @@ KEYCHAIN_PROFILE="${KEYCHAIN_PROFILE:-notarytool-profile}"
 GITHUB_USER="oliverames"
 REPO_NAME="ping-warden"
 NOTARIZE_SCRIPT="$SCRIPT_DIR/notarize.sh"
-APPCAST_FILE="$REPO_ROOT/appcast.xml"
+
+# Beta-channel branching: BETA_CHANNEL=1 writes to appcast-beta.xml and uses
+# distinct channel metadata in the appcast skeleton. The DMG/GitHub release
+# path is identical; only the appcast target file changes. Sparkle picks the
+# right channel at runtime via SPUUpdaterDelegate.feedURLString(for:).
+if [ "${BETA_CHANNEL:-0}" = "1" ]; then
+    APPCAST_BASENAME="appcast-beta.xml"
+    APPCAST_CHANNEL_TITLE="Ping Warden Beta Updates"
+    APPCAST_CHANNEL_DESCRIPTION="Pre-release updates for Ping Warden"
+else
+    APPCAST_BASENAME="appcast.xml"
+    APPCAST_CHANNEL_TITLE="Ping Warden Updates"
+    APPCAST_CHANNEL_DESCRIPTION="Updates for Ping Warden"
+fi
+APPCAST_FILE="$REPO_ROOT/$APPCAST_BASENAME"
 APP_INFO_PLIST="$PROJECT_ROOT/PingWarden/Info.plist"
 NOTARYTOOL_ARGS=()
 
@@ -234,21 +254,18 @@ echo -e "${GREEN}Step 4: Updating appcast.xml...${NC}"
 
 # Check if appcast exists
 if [ ! -f "$APPCAST_FILE" ]; then
-    echo "Creating new appcast.xml"
-    cat > "$APPCAST_FILE" << 'EOF'
+    echo "Creating new $APPCAST_BASENAME"
+    cat > "$APPCAST_FILE" << EOF
 <?xml version="1.0" encoding="utf-8"?>
 <rss version="2.0" xmlns:sparkle="http://www.andymatuschak.org/xml-namespaces/sparkle" xmlns:dc="http://purl.org/dc/elements/1.1/">
   <channel>
-    <title>Ping Warden Updates</title>
-    <link>https://GITHUB_USER.github.io/REPO_NAME/appcast.xml</link>
-    <description>Updates for Ping Warden</description>
+    <title>$APPCAST_CHANNEL_TITLE</title>
+    <link>https://$GITHUB_USER.github.io/$REPO_NAME/$APPCAST_BASENAME</link>
+    <description>$APPCAST_CHANNEL_DESCRIPTION</description>
     <language>en</language>
   </channel>
 </rss>
 EOF
-    # Replace placeholders
-    sed -i "" "s/GITHUB_USER/$GITHUB_USER/g" "$APPCAST_FILE"
-    sed -i "" "s/REPO_NAME/$REPO_NAME/g" "$APPCAST_FILE"
 fi
 
 # Render release notes from RELEASE_NOTES.md to styled HTML for the Sparkle
@@ -488,18 +505,22 @@ else
     git -C "$REPO_ROOT" checkout --quiet gh-pages
     git -C "$REPO_ROOT" pull --quiet --ff-only origin gh-pages || true
 
-    cp "$APPCAST_SNAPSHOT" "$REPO_ROOT/appcast.xml"
+    cp "$APPCAST_SNAPSHOT" "$REPO_ROOT/$APPCAST_BASENAME"
     rm -f "$APPCAST_SNAPSHOT"
 
-    if git -C "$REPO_ROOT" diff --quiet -- appcast.xml; then
-        echo -e "${YELLOW}gh-pages appcast already matches v$VERSION; nothing to push.${NC}"
+    if git -C "$REPO_ROOT" diff --quiet -- "$APPCAST_BASENAME"; then
+        echo -e "${YELLOW}gh-pages $APPCAST_BASENAME already matches v$VERSION; nothing to push.${NC}"
     else
-        git -C "$REPO_ROOT" add appcast.xml
+        git -C "$REPO_ROOT" add "$APPCAST_BASENAME"
         # Release automation runs non-interactively; avoid SSH signing helpers
         # blocking the gh-pages appcast publish step.
-        git -C "$REPO_ROOT" -c commit.gpgsign=false commit -m "Update appcast for v$VERSION"
+        if [ "${BETA_CHANNEL:-0}" = "1" ]; then
+            git -C "$REPO_ROOT" -c commit.gpgsign=false commit -m "Update $APPCAST_BASENAME for v$VERSION (beta)"
+        else
+            git -C "$REPO_ROOT" -c commit.gpgsign=false commit -m "Update appcast for v$VERSION"
+        fi
         git -C "$REPO_ROOT" push origin gh-pages
-        echo -e "${GREEN}✓ gh-pages appcast pushed${NC}"
+        echo -e "${GREEN}✓ gh-pages $APPCAST_BASENAME pushed${NC}"
     fi
 
     # Trap fires on EXIT to restore branch + stash.

@@ -736,6 +736,18 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSMenuDele
         alert.runModal()
     }
 
+    /// Sparkle calls this on every update check. Returning nil falls back to
+    /// the `SUFeedURL` in Info.plist (stable channel). Returning the beta URL
+    /// makes Sparkle pull `appcast-beta.xml` for opted-in users. The beta
+    /// appcast is on the same gh-pages branch, signed with the same EdDSA
+    /// key, just a separate XML file.
+    func feedURLString(for updater: SPUUpdater) -> String? {
+        guard PingWardenPreferences.shared.betaChannelEnabled else {
+            return nil
+        }
+        return "https://oliverames.github.io/ping-warden/appcast-beta.xml"
+    }
+
     func updater(_ updater: SPUUpdater, didAbortWithError error: any Error) {
         let nsError = error as NSError
         log.error("Sparkle update cycle aborted: [\(nsError.domain, privacy: .public):\(nsError.code)] \(nsError.localizedDescription, privacy: .public)")
@@ -1634,6 +1646,7 @@ struct AdvancedSettingsContent: View {
     @State private var showingDiagnosticsExportResult = false
     @State private var diagnosticsExportMessage = ""
     @State private var crashReportingEnabled = PingWardenPreferences.shared.isCrashReportingEnabled
+    @State private var betaChannelEnabled = PingWardenPreferences.shared.betaChannelEnabled
 
     var body: some View {
         Form {
@@ -1648,6 +1661,20 @@ struct AdvancedSettingsContent: View {
                 }
                 .onChangeCompat(of: crashReportingEnabled) { newValue in
                     PingWardenPreferences.shared.isCrashReportingEnabled = newValue
+                }
+            }
+
+            Section("Updates") {
+                Toggle(isOn: $betaChannelEnabled) {
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text("Receive Beta Updates")
+                        Text("Opt in to pre-release builds. Betas may have bugs and are released ahead of the stable channel. Takes effect at the next update check.")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                    }
+                }
+                .onChangeCompat(of: betaChannelEnabled) { newValue in
+                    PingWardenPreferences.shared.betaChannelEnabled = newValue
                 }
             }
 
@@ -1876,6 +1903,9 @@ struct AdvancedSettingsContent: View {
         // Crash reporting key is cleared (not set false) so that on
         // reinstall the registered default (true) re-applies.
         prefs.defaults.removeObject(forKey: "CrashReportingEnabled")
+        // Beta channel resets to off on uninstall — a fresh install should
+        // start on the stable track until the user opts back in.
+        prefs.defaults.removeObject(forKey: "BetaChannelEnabled")
 
         // Drop any user-defined ping servers so a reinstall starts clean.
         CustomPingTargetStore(userDefaults: prefs.defaults).save([])
