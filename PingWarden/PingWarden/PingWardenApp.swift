@@ -1336,14 +1336,13 @@ struct SettingsContentView: View {
 
 private let settingsLog = Logger(subsystem: "com.amesvt.pingwarden", category: "Settings")
 
-/// Small pill badge ("Beta", "Unavailable", etc.) with WCAG AA contrast.
+/// Small pill badge ("Unavailable", "Needs Permission", etc.) with WCAG AA contrast.
 /// White text on a darker-tinted fill passes >=4.5:1 in both light and dark
 /// mode without depending on the parent background. Replaces the previous
 /// `.opacity(0.2)` pattern which scored 1.71:1 in light mode (text was nearly
 /// invisible to low-vision users).
 struct StatusBadge: View {
     enum Tint {
-        case beta
         case unavailable
     }
 
@@ -1363,14 +1362,12 @@ struct StatusBadge: View {
 
     private var fillColor: Color {
         switch tint {
-        case .beta: return Color(red: 0.65, green: 0.35, blue: 0.0)
         case .unavailable: return Color(red: 0.40, green: 0.40, blue: 0.40)
         }
     }
 
     private var voiceOverLabel: String {
         switch tint {
-        case .beta: return "\(text) — beta feature"
         case .unavailable: return "\(text)"
         }
     }
@@ -1564,11 +1561,10 @@ struct GeneralSettingsContent: View {
 struct AutomationSettingsContent: View {
     @State private var gameModeAutoDetect = PingWardenPreferences.shared.gameModeAutoDetect
     @State private var controlCenterEnabled = PingWardenPreferences.shared.controlCenterWidgetEnabled
+    @State private var controlCenterAvailability = ControlCenterSupport.availabilityForCurrentApp()
+    @State private var screenRecordingPermissionGranted = GameModeDetector.hasScreenRecordingPermission()
     @State private var showingControlCenterConfirm = false
-
-    private var isControlCenterAvailable: Bool {
-        ControlCenterSupport.isAvailableForCurrentApp()
-    }
+    @State private var showingScreenRecordingPermissionAlert = false
 
     var body: some View {
         Form {
@@ -1577,7 +1573,9 @@ struct AutomationSettingsContent: View {
                     VStack(alignment: .leading, spacing: 2) {
                         HStack(spacing: 8) {
                             Text("Game Mode Auto-Detect")
-                            StatusBadge(text: "Beta", tint: .beta)
+                            if !screenRecordingPermissionGranted {
+                                StatusBadge(text: "Needs Permission", tint: .unavailable)
+                            }
                         }
                         Text("Automatically enable blocking when a game is fullscreen")
                             .font(.caption)
@@ -1585,6 +1583,13 @@ struct AutomationSettingsContent: View {
                     }
                 }
                 .onChangeCompat(of: gameModeAutoDetect) { newValue in
+                    screenRecordingPermissionGranted = GameModeDetector.hasScreenRecordingPermission()
+                    guard !newValue || screenRecordingPermissionGranted else {
+                        gameModeAutoDetect = false
+                        PingWardenPreferences.shared.gameModeAutoDetect = false
+                        showingScreenRecordingPermissionAlert = true
+                        return
+                    }
                     PingWardenPreferences.shared.gameModeAutoDetect = newValue
                 }
             }
@@ -1594,20 +1599,16 @@ struct AutomationSettingsContent: View {
                     VStack(alignment: .leading, spacing: 2) {
                         HStack(spacing: 8) {
                             Text("Control Center Widget")
-                            if isControlCenterAvailable {
-                                StatusBadge(text: "Beta", tint: .beta)
-                            } else {
-                                StatusBadge(text: "Unavailable", tint: .unavailable)
+                            if !controlCenterAvailability.isAvailable {
+                                StatusBadge(text: controlCenterAvailability.statusText, tint: .unavailable)
                             }
                         }
-                        Text(isControlCenterAvailable
-                             ? "Use Control Center instead of menu bar"
-                             : "Requires code-signed app (Developer ID)")
+                        Text(controlCenterAvailability.detailText)
                             .font(.caption)
                             .foregroundStyle(.secondary)
                     }
                 }
-                .disabled(!isControlCenterAvailable)
+                .disabled(!controlCenterAvailability.isAvailable)
                 .onChangeCompat(of: controlCenterEnabled) { newValue in
                     if newValue {
                         showingControlCenterConfirm = true
@@ -1620,19 +1621,33 @@ struct AutomationSettingsContent: View {
             } footer: {
                 // Section footer carries the conditional help text. EmptyView()
                 // collapses the footer when there's nothing relevant to say.
-                if isControlCenterAvailable && controlCenterEnabled {
+                if controlCenterAvailability.isAvailable && controlCenterEnabled {
                     VStack(alignment: .leading, spacing: 4) {
-                        Text("To add the widget: System Settings → Control Center → scroll to Ping Warden")
+                        Text(controlCenterAvailability.footerText)
                         Text("To access settings later, search for \"Ping Warden\" in Spotlight (Cmd+Space) or find it in your Applications folder.")
                     }
-                } else if !isControlCenterAvailable {
-                    Text("Control Center widgets require the app to be signed with a Developer ID certificate.")
+                } else if !controlCenterAvailability.isAvailable {
+                    Text(controlCenterAvailability.footerText)
                 } else {
                     EmptyView()
                 }
             }
         }
         .formStyle(.grouped)
+        .onAppear {
+            refreshAvailability()
+        }
+        .onReceive(NotificationCenter.default.publisher(for: NSApplication.didBecomeActiveNotification)) { _ in
+            refreshAvailability()
+        }
+        .alert("Screen Recording Permission Needed", isPresented: $showingScreenRecordingPermissionAlert) {
+            Button("Open System Settings") {
+                GameModeDetector.openScreenRecordingSettings()
+            }
+            Button("Cancel", role: .cancel) {}
+        } message: {
+            Text("Game Mode auto-detect needs Screen Recording permission to inspect on-screen windows and identify fullscreen games.")
+        }
         .confirmationDialog(
             "Hide Menu Bar Icon?",
             isPresented: $showingControlCenterConfirm,
@@ -1647,6 +1662,11 @@ struct AutomationSettingsContent: View {
         } message: {
             Text("The menu bar icon will be hidden. To access settings later, search for \"Ping Warden\" in Spotlight (Cmd+Space) or find it in your Applications folder.")
         }
+    }
+
+    private func refreshAvailability() {
+        controlCenterAvailability = ControlCenterSupport.availabilityForCurrentApp()
+        screenRecordingPermissionGranted = GameModeDetector.hasScreenRecordingPermission()
     }
 }
 
@@ -2042,6 +2062,18 @@ class GameModeDetector {
     /// outgrow the set of currently-running apps for the session.
     private var gameCheckCache: [pid_t: Bool] = [:]
     private var appDidTerminateObserver: NSObjectProtocol?
+    private var appDidActivateObserver: NSObjectProtocol?
+    private var screenParametersObserver: NSObjectProtocol?
+    private var inactiveFullscreenSamples = 0
+
+    private static let ignoredFullscreenOwners: Set<String> = [
+        "Finder",
+        "Dock",
+        "Window Server",
+        "SystemUIServer",
+        "Control Center",
+        "Notification Center"
+    ]
 
     var onGameModeChange: ((Bool) -> Void)?
 
@@ -2058,8 +2090,11 @@ class GameModeDetector {
             return
         }
 
+        timer?.invalidate()
+        timer = nil
+
         // Check for Screen Recording permission on first start
-        if !hasScreenRecordingPermission() {
+        if !Self.hasScreenRecordingPermission() {
             log.warning("Screen Recording permission not granted - Game Mode detection may not work correctly")
             if !hasLoggedPermissionWarning {
                 hasLoggedPermissionWarning = true
@@ -2095,16 +2130,47 @@ class GameModeDetector {
                 self?.gameCheckCache.removeValue(forKey: pid)
             }
         }
+
+        if appDidActivateObserver == nil {
+            appDidActivateObserver = NSWorkspace.shared.notificationCenter.addObserver(
+                forName: NSWorkspace.didActivateApplicationNotification,
+                object: nil,
+                queue: .main
+            ) { [weak self] _ in
+                self?.scheduleGameModeStatusCheck()
+            }
+        }
+
+        if screenParametersObserver == nil {
+            screenParametersObserver = NotificationCenter.default.addObserver(
+                forName: NSApplication.didChangeScreenParametersNotification,
+                object: nil,
+                queue: .main
+            ) { [weak self] _ in
+                self?.scheduleGameModeStatusCheck()
+            }
+        }
     }
 
     func stop() {
         timer?.invalidate()
         timer = nil
         gameCheckCache.removeAll()
+        inactiveFullscreenSamples = 0
 
         if let observer = appDidTerminateObserver {
             NSWorkspace.shared.notificationCenter.removeObserver(observer)
             appDidTerminateObserver = nil
+        }
+
+        if let observer = appDidActivateObserver {
+            NSWorkspace.shared.notificationCenter.removeObserver(observer)
+            appDidActivateObserver = nil
+        }
+
+        if let observer = screenParametersObserver {
+            NotificationCenter.default.removeObserver(observer)
+            screenParametersObserver = nil
         }
 
         // Reset state
@@ -2116,11 +2182,18 @@ class GameModeDetector {
 
     /// Check if Screen Recording permission is granted
     /// CGWindowListCopyWindowInfo requires this permission on macOS 10.15+ to get window names
-    private func hasScreenRecordingPermission() -> Bool {
+    static func hasScreenRecordingPermission() -> Bool {
         if #available(macOS 10.15, *) {
             return CGPreflightScreenCaptureAccess()
         }
         return true
+    }
+
+    static func openScreenRecordingSettings() {
+        guard let url = URL(string: "x-apple.systempreferences:com.apple.preference.security?Privacy_ScreenCapture") else {
+            return
+        }
+        NSWorkspace.shared.open(url)
     }
 
     /// Show alert explaining Screen Recording permission is needed
@@ -2135,28 +2208,49 @@ class GameModeDetector {
 
             let response = alert.runModal()
             if response == .alertFirstButtonReturn {
-                // Open System Preferences/Settings to Screen Recording
-                if let url = URL(string: "x-apple.systempreferences:com.apple.preference.security?Privacy_ScreenCapture") {
-                    NSWorkspace.shared.open(url)
-                }
+                Self.openScreenRecordingSettings()
             }
+        }
+    }
+
+    private func scheduleGameModeStatusCheck() {
+        DispatchQueue.main.async { [weak self] in
+            self?.checkGameModeStatus()
         }
     }
 
     private func checkGameModeStatus() {
         let isFullscreen = isAnyAppFullscreen()
 
-        if isFullscreen != isGameModeActive {
-            isGameModeActive = isFullscreen
-            log.info("Game Mode detected: \(isFullscreen)")
-            onGameModeChange?(isFullscreen)
+        if isFullscreen {
+            inactiveFullscreenSamples = 0
+            if !isGameModeActive {
+                isGameModeActive = true
+                log.info("Game Mode detected: true")
+                onGameModeChange?(true)
+            }
+            return
         }
+
+        guard isGameModeActive else {
+            inactiveFullscreenSamples = 0
+            return
+        }
+
+        inactiveFullscreenSamples += 1
+        guard inactiveFullscreenSamples >= 2 else {
+            return
+        }
+
+        inactiveFullscreenSamples = 0
+        isGameModeActive = false
+        log.info("Game Mode detected: false")
+        onGameModeChange?(false)
     }
 
     private func isAnyAppFullscreen() -> Bool {
-        // Get the main display bounds
-        guard let mainScreen = NSScreen.main else { return false }
-        let screenFrame = mainScreen.frame
+        let displayBounds = Self.activeDisplayBounds()
+        guard !displayBounds.isEmpty else { return false }
 
         // Get list of windows on screen
         guard let windowList = CGWindowListCopyWindowInfo([.optionOnScreenOnly, .excludeDesktopElements], kCGNullWindowID) as? [[String: Any]] else {
@@ -2164,9 +2258,10 @@ class GameModeDetector {
         }
 
         for window in windowList {
-            // Skip windows that aren't at the standard window level or above
+            // Fullscreen app content should be a normal app window. Higher
+            // layers are menu extras, overlays, panels, or system UI.
             guard let layer = window[kCGWindowLayer as String] as? Int32,
-                  layer >= 0 else {
+                  layer == 0 else {
                 continue
             }
 
@@ -2181,17 +2276,20 @@ class GameModeDetector {
 
             let windowFrame = CGRect(x: x, y: y, width: width, height: height)
 
-            // Check if window covers the full screen
-            if windowFrame.width >= screenFrame.width && windowFrame.height >= screenFrame.height {
+            // Check if window covers an active display.
+            if Self.windowFrameCoversAnyDisplay(windowFrame, displayBounds: displayBounds) {
                 // Get owner name and PID
                 guard let ownerName = window[kCGWindowOwnerName as String] as? String,
                       let ownerPID = window[kCGWindowOwnerPID as String] as? pid_t else {
                     continue
                 }
 
+                guard ownerPID != ProcessInfo.processInfo.processIdentifier else {
+                    continue
+                }
+
                 // Skip system apps that commonly go fullscreen
-                let systemApps = ["Finder", "Dock", "Window Server", "SystemUIServer", "Control Center", "Notification Center"]
-                if systemApps.contains(ownerName) {
+                if Self.ignoredFullscreenOwners.contains(ownerName) {
                     continue
                 }
 
@@ -2206,6 +2304,31 @@ class GameModeDetector {
         }
 
         return false
+    }
+
+    private static func activeDisplayBounds() -> [CGRect] {
+        var displayCount: UInt32 = 0
+        guard CGGetActiveDisplayList(0, nil, &displayCount) == .success, displayCount > 0 else {
+            return NSScreen.screens.map(\.frame)
+        }
+
+        var displays = [CGDirectDisplayID](repeating: 0, count: Int(displayCount))
+        guard CGGetActiveDisplayList(displayCount, &displays, &displayCount) == .success else {
+            return NSScreen.screens.map(\.frame)
+        }
+
+        return displays.prefix(Int(displayCount)).map { CGDisplayBounds($0) }
+    }
+
+    private static func windowFrameCoversAnyDisplay(_ windowFrame: CGRect, displayBounds: [CGRect]) -> Bool {
+        displayBounds.contains { displayFrame in
+            let intersection = windowFrame.intersection(displayFrame)
+            guard !intersection.isNull, !intersection.isEmpty else {
+                return false
+            }
+            return intersection.width >= displayFrame.width * 0.95 &&
+                   intersection.height >= displayFrame.height * 0.95
+        }
     }
 
     /// Checks if an app is categorized as a game by examining its Info.plist.

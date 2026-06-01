@@ -16,7 +16,33 @@ import WidgetKit
 
 private let log = Logger(subsystem: "com.amesvt.pingwarden", category: "WidgetIntent")
 
-/// App Intent to toggle AWDL monitoring (used by Control Widget button)
+/// App Intent to set Ping Protection from a Control Center toggle.
+/// When enabled, continuously monitors and keeps AWDL down.
+///
+/// Note: This intent updates the shared preference and sends a distributed notification.
+/// If enabling while the app is not running, the app is launched in the background
+/// so helper control can be applied.
+struct SetPingProtectionIntent: SetValueIntent {
+    static var title: LocalizedStringResource = "Set Ping Protection"
+    static var description = IntentDescription("Turns Ping Protection on or off")
+    static var supportedModes: IntentModes { .background }
+
+    @Parameter(title: "Enabled")
+    var value: Bool
+
+    init() {}
+
+    init(value: Bool) {
+        self.value = value
+    }
+
+    func perform() async throws -> some IntentResult {
+        try await PingProtectionIntentHandler.apply(desiredState: value)
+        return .result()
+    }
+}
+
+/// App Intent to toggle AWDL monitoring.
 /// When enabled, continuously monitors and keeps AWDL down.
 ///
 /// Note: This intent updates the shared preference and sends a distributed notification.
@@ -25,45 +51,49 @@ private let log = Logger(subsystem: "com.amesvt.pingwarden", category: "WidgetIn
 struct ToggleAWDLMonitoringIntent: AppIntent {
     static var title: LocalizedStringResource = "Toggle Ping Protection"
     static var description = IntentDescription("Toggles Ping Protection on or off")
-
-    /// Opens the main app when the intent is performed
-    static var openAppWhenRun: Bool = false
+    static var supportedModes: IntentModes { .background }
 
     func perform() async throws -> some IntentResult {
-        // Toggle the current state
         let currentState = PingWardenPreferences.shared.isMonitoringEnabled
-        let newState = !currentState
-        log.info("Toggling monitoring from \(currentState) to \(newState)")
+        try await PingProtectionIntentHandler.apply(desiredState: !currentState)
+        return .result()
+    }
+}
 
-        // Update shared preference and broadcast intent change.
-        PingWardenPreferences.shared.isMonitoringEnabled = newState
-        postMonitoringIntentNotification()
-        WidgetCenter.shared.reloadAllTimelines()
+private enum PingProtectionIntentHandler {
+    static func apply(desiredState: Bool) async throws {
+        let preferences = PingWardenPreferences.shared
+        let previousIntentState = preferences.isMonitoringEnabled
+        let previousEffectiveState = preferences.effectiveMonitoringEnabled
+        log.info("Setting monitoring intent from \(previousIntentState) to \(desiredState)")
 
-        // Verify the change was applied
-        let verifiedState = PingWardenPreferences.shared.isMonitoringEnabled
-        if verifiedState != newState {
-            log.error("Failed to toggle monitoring - state mismatch")
+        preferences.isMonitoringEnabled = desiredState
+        ControlCenter.shared.reloadControls(ofKind: PingWardenControlKind.pingProtection)
+
+        let verifiedState = preferences.isMonitoringEnabled
+        if verifiedState != desiredState {
+            log.error("Failed to set monitoring intent - state mismatch")
             throw AWDLError.toggleFailed
         }
 
-        // Launch app when enabling and app is not already running so monitoring can start.
-        let launchRequired = newState
+        // Enabling always needs the main app to apply helper state. Disabling
+        // also needs the app if the last effective state says protection is active.
+        let launchRequired = desiredState || previousEffectiveState != desiredState
         let didLaunch = launchRequired ? await launchMainAppIfNeeded() : false
 
         if didLaunch {
             // Give the app a brief moment to finish launch and process intent signal.
             try? await Task.sleep(nanoseconds: 700_000_000)
             postMonitoringIntentNotification()
+            ControlCenter.shared.reloadControls(ofKind: PingWardenControlKind.pingProtection)
         }
 
-        log.info("Successfully toggled monitoring to \(newState)")
-        return .result()
+        log.info("Successfully set monitoring intent to \(desiredState)")
     }
 
     /// Launch the main app if it's not already running
     @discardableResult
-    private func launchMainAppIfNeeded() async -> Bool {
+    private static func launchMainAppIfNeeded() async -> Bool {
         let bundleIdentifier = "com.amesvt.pingwarden"
 
         // Check if app is already running
@@ -93,11 +123,11 @@ struct ToggleAWDLMonitoringIntent: AppIntent {
         return false
     }
 
-    private func isMainAppRunning(bundleIdentifier: String) -> Bool {
+    private static func isMainAppRunning(bundleIdentifier: String) -> Bool {
         NSWorkspace.shared.runningApplications.contains { $0.bundleIdentifier == bundleIdentifier }
     }
 
-    private func postMonitoringIntentNotification() {
+    private static func postMonitoringIntentNotification() {
         DistributedNotificationCenter.default().postNotificationName(
             .awdlMonitoringStateChanged,
             object: nil,

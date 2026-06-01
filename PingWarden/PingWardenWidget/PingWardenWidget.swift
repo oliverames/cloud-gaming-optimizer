@@ -12,20 +12,26 @@ import SwiftUI
 import WidgetKit
 import AppIntents
 
+enum PingWardenControlKind {
+    static let pingProtection = "PingWardenWidget"
+}
+
 /// Control Widget for managing AWDL interface from Control Center
 /// Shows current state and allows toggling AWDL monitoring on/off
 @main
 struct PingWardenWidget: ControlWidget {
-    static let kind: String = "PingWardenWidget"
+    static let kind: String = PingWardenControlKind.pingProtection
 
     var body: some ControlWidgetConfiguration {
         StaticControlConfiguration(kind: Self.kind) {
-            ControlWidgetButton(action: ToggleAWDLMonitoringIntent()) {
-                let isOn = PingWardenPreferences.shared.effectiveMonitoringEnabled || PingWardenPreferences.shared.isMonitoringEnabled
+            let isOn = PingWardenPreferences.shared.effectiveMonitoringEnabled || PingWardenPreferences.shared.isMonitoringEnabled
+            ControlWidgetToggle(isOn: isOn, action: SetPingProtectionIntent()) {
                 Label(
                     isOn ? "Protection On" : "Protection Off",
                     systemImage: isOn ? "antenna.radiowaves.left.and.right.slash" : "antenna.radiowaves.left.and.right"
                 )
+            } valueLabel: { isOn in
+                Text(isOn ? "On" : "Off")
             }
             .tint(.blue)
         }

@@ -52,6 +52,8 @@ For quick toggle from Control Center:
 3. Scroll to "Ping Warden"
 4. Add to menu bar or Control Center
 
+Requires macOS 26 or newer and a signed Ping Warden release build.
+
 ---
 
 ## 📊 Verify It's Working
@@ -90,7 +92,7 @@ ping -c 10 8.8.8.8
 
 1. **Launch at login** - Settings → General → Enable "Launch at Login"
 2. **Hide dock icon** - Settings → General → Disable "Show Dock Icon"
-3. **Manual toggle** - Better than Game Mode for most users
+3. **Manual toggle** - Useful when a fullscreen app is not marked as a game
 4. **Check status** - Menu bar icon shows current state at a glance
 
 ---

@@ -132,9 +132,8 @@ If tests fail:
 ### ❌ Game Mode auto-detect not working
 
 **Requirements:**
-- macOS 15.0 or later
 - Screen Recording permission granted
-- App must be categorized as a game in its Info.plist
+- The fullscreen app must declare Apple's game metadata in its Info.plist
 
 **Solutions:**
 
@@ -145,16 +144,18 @@ If tests fail:
 
 2. **Check if game is detected as a game**:
    - Not all fullscreen apps trigger Game Mode
-   - Only apps with `LSApplicationCategoryType = games` or `LSSupportsGameMode = true`
+   - Only apps with a game `LSApplicationCategoryType` or `LSSupportsGameMode = true`
    - Use manual toggle for non-game fullscreen apps
 
 3. **Test with known games**:
    - Try with Steam games
    - Try with Mac App Store games
 
-**Note:** This feature is marked as Beta for a reason. Manual toggle is more reliable.
-
 ### ❌ Control Center widget not appearing
+
+**Requirements:**
+- macOS 26 or newer
+- Signed Ping Warden release build with the widget extension embedded
 
 **Solutions:**
 
@@ -163,6 +164,8 @@ If tests fail:
 3. Go to System Settings → Control Center
 4. Scroll to find "Ping Warden"
 5. Add it to Control Center or menu bar
+
+If Settings shows "Unavailable," install a signed release build from the project release page. Local debug builds do not satisfy the Developer ID signing check used before Ping Warden hides the menu bar icon.
 
 ---
 
@@ -301,9 +304,10 @@ Note: Ping Warden focuses specifically on AWDL because it's the most common and 
 
 1. **Game Mode detection** - Only works with apps marked as games
 2. **Screen Recording permission** - Required for Game Mode detection
-3. **macOS 13.0+** - Older macOS versions not supported (SMAppService requirement)
-4. **AWDL availability** - Some Mac models may not have AWDL interface
-5. **Location Services** - Ping Warden does not currently block Location Services WiFi scans (see above for manual mitigations)
+3. **Control Center widget** - Requires macOS 26 or newer and a signed release build
+4. **macOS 13.0+** - Older macOS versions not supported (SMAppService requirement)
+5. **AWDL availability** - Some Mac models may not have AWDL interface
+6. **Location Services** - Ping Warden does not currently block Location Services WiFi scans (see above for manual mitigations)
 
 ---
 

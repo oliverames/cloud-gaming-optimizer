@@ -180,8 +180,8 @@ Status block:
 
 Controls:
 
-- Game Mode Auto-Detect (beta).
-- Control Center Widget mode (beta, supported systems/signing only).
+- Game Mode Auto-Detect.
+- Control Center Widget mode (macOS 26+, signed release builds only).
 
 ### 8.4 Advanced
 
@@ -313,7 +313,7 @@ Behavioral tradeoff while blocking AWDL:
 
 Other practical limits:
 
-- Some automation features are beta and environment-dependent.
+- Automation features depend on system permissions, game metadata, and signed-release packaging.
 - Game mode detection depends on permissions and app/game behavior.
 - Network conditions and endpoint choice still influence baseline latency.
 
