@@ -368,6 +368,7 @@ struct PingGraphCard: View {
         let windowEnd = Date()
         let windowStart = windowEnd.addingTimeInterval(-TimeInterval(viewModel.selectedTimeframe * 60))
         let xDomain = windowStart...windowEnd
+        let yDomain = 0...chartYUpperBound
 
         VStack(alignment: .leading, spacing: 14) {
             ViewThatFits(in: .horizontal) {
@@ -408,13 +409,19 @@ struct PingGraphCard: View {
                 .frame(maxWidth: .infinity)
             } else {
                 Chart {
+                    ForEach(latencyThresholds, id: \.value) { threshold in
+                        RuleMark(y: .value(threshold.label, threshold.value))
+                            .foregroundStyle(threshold.color.opacity(0.28))
+                            .lineStyle(StrokeStyle(lineWidth: 1, dash: [4, 4]))
+                    }
+
                     ForEach(viewModel.filteredHistory) { dataPoint in
                         LineMark(
                             x: .value("Time", dataPoint.timestamp),
                             y: .value("Ping", dataPoint.latencyMs)
                         )
-                        .foregroundStyle(colorForLatency(dataPoint.latencyMs))
-                        .lineStyle(StrokeStyle(lineWidth: 2))
+                        .foregroundStyle(seriesColor)
+                        .lineStyle(StrokeStyle(lineWidth: 2.5, lineCap: .round, lineJoin: .round))
 
                         AreaMark(
                             x: .value("Time", dataPoint.timestamp),
@@ -422,18 +429,37 @@ struct PingGraphCard: View {
                         )
                         .foregroundStyle(
                             LinearGradient(
-                                colors: [colorForLatency(dataPoint.latencyMs).opacity(0.3), .clear],
+                                colors: [seriesColor.opacity(0.22), .clear],
                                 startPoint: .top,
                                 endPoint: .bottom
                             )
                         )
+                    }
 
+                    ForEach(spikePoints) { dataPoint in
                         PointMark(
                             x: .value("Time", dataPoint.timestamp),
                             y: .value("Ping", dataPoint.latencyMs)
                         )
                         .foregroundStyle(colorForLatency(dataPoint.latencyMs))
-                        .symbolSize(14)
+                        .symbolSize(18)
+                    }
+
+                    if let latestPoint {
+                        PointMark(
+                            x: .value("Latest Time", latestPoint.timestamp),
+                            y: .value("Latest Ping", latestPoint.latencyMs)
+                        )
+                        .foregroundStyle(seriesColor)
+                        .symbolSize(42)
+                        .annotation(position: .top, alignment: .trailing) {
+                            Text("\(Int(latestPoint.latencyMs.rounded())) ms")
+                                .font(.caption2.monospacedDigit())
+                                .foregroundStyle(.secondary)
+                                .padding(.horizontal, 6)
+                                .padding(.vertical, 3)
+                                .background(.quaternary.opacity(0.35), in: Capsule())
+                        }
                     }
 
                     ForEach(viewModel.filteredTimelineEvents) { event in
@@ -443,9 +469,13 @@ struct PingGraphCard: View {
                     }
                 }
                 .chartXScale(domain: xDomain)
-                .chartYScale(domain: 0...max(100, viewModel.maxPingInView))
+                .chartYScale(domain: yDomain)
+                .chartPlotStyle { plotArea in
+                    plotArea
+                        .padding(.trailing, 34)
+                }
                 .chartXAxis {
-                    AxisMarks(values: .automatic(desiredCount: xAxisTickCount)) { value in
+                    AxisMarks(values: xAxisTickDates(windowStart: windowStart, windowEnd: windowEnd)) { value in
                         AxisGridLine()
                         AxisTick()
                         if let date = value.as(Date.self) {
@@ -462,7 +492,7 @@ struct PingGraphCard: View {
                     }
                 }
                 .chartYAxis {
-                    AxisMarks(position: .leading) { value in
+                    AxisMarks(position: .leading, values: .automatic(desiredCount: 5)) { value in
                         AxisGridLine()
                         AxisTick()
                         AxisValueLabel {
@@ -485,13 +515,7 @@ struct PingGraphCard: View {
             }
             
             // Legend
-            HStack(spacing: 14) {
-                LegendItem(color: LatencyPalette.excellent, label: "Excellent", range: "<20ms")
-                LegendItem(color: LatencyPalette.good, label: "Good", range: "20-50ms")
-                LegendItem(color: LatencyPalette.fair, label: "Fair", range: "50-100ms")
-                LegendItem(color: LatencyPalette.poor, label: "Poor", range: ">100ms")
-            }
-            .font(.caption)
+            legend
         }
         .dashboardCardStyle()
     }
@@ -540,6 +564,64 @@ struct PingGraphCard: View {
             return 4
         }
         return 5
+    }
+
+    private func xAxisTickDates(windowStart: Date, windowEnd: Date) -> [Date] {
+        let duration = windowEnd.timeIntervalSince(windowStart)
+        guard duration > 0 else { return [] }
+
+        return (1...xAxisTickCount).map { index in
+            windowStart.addingTimeInterval(duration * Double(index) / Double(xAxisTickCount + 1))
+        }
+    }
+
+    private var chartYUpperBound: Double {
+        let padded = max(125, viewModel.maxPingInView * 1.15)
+        return (padded / 25).rounded(.up) * 25
+    }
+
+    private var seriesColor: Color {
+        if let latestPoint {
+            return colorForLatency(latestPoint.latencyMs)
+        }
+        return LatencyPalette.excellent
+    }
+
+    private var latestPoint: PingMonitor.PingResult? {
+        viewModel.filteredHistory.last
+    }
+
+    private var spikePoints: [PingMonitor.PingResult] {
+        viewModel.filteredHistory.filter { $0.latencyMs >= 100 }
+    }
+
+    private var latencyThresholds: [(value: Double, label: String, color: Color)] {
+        [
+            (20, "Good", LatencyPalette.good),
+            (50, "Fair", LatencyPalette.fair),
+            (100, "Poor", LatencyPalette.poor)
+        ]
+    }
+
+    private var legend: some View {
+        ViewThatFits(in: .horizontal) {
+            HStack(spacing: 14) {
+                legendItems
+            }
+
+            LazyVGrid(columns: [GridItem(.adaptive(minimum: 126), spacing: 10, alignment: .leading)], alignment: .leading, spacing: 6) {
+                legendItems
+            }
+        }
+        .font(.caption)
+    }
+
+    @ViewBuilder
+    private var legendItems: some View {
+        LegendItem(color: LatencyPalette.excellent, label: "Excellent", range: "<20ms")
+        LegendItem(color: LatencyPalette.good, label: "Good", range: "20-50ms")
+        LegendItem(color: LatencyPalette.fair, label: "Fair", range: "50-100ms")
+        LegendItem(color: LatencyPalette.poor, label: "Poor", range: ">100ms")
     }
 
     private var timeframePicker: some View {
@@ -692,10 +774,15 @@ struct InterventionsCard: View {
                 .font(.headline)
 
             ViewThatFits(in: .horizontal) {
-                HStack(alignment: .center, spacing: 24) {
+                HStack(alignment: .center, spacing: 32) {
                     interventionCountBlock
-                    Spacer(minLength: 12)
+                        .frame(width: 245, alignment: .leading)
+
                     interventionStatusBlock
+                        .frame(minWidth: 320, maxWidth: 560, alignment: .leading)
+                        .layoutPriority(1)
+
+                    Spacer(minLength: 0)
                 }
 
                 VStack(alignment: .leading, spacing: 14) {
@@ -719,11 +806,11 @@ struct InterventionsCard: View {
             ViewThatFits(in: .horizontal) {
                 HStack(alignment: .firstTextBaseline, spacing: 8) {
                     interventionCountText
-                    interventionUnitStack
+                    interventionUnitText
                 }
                 VStack(alignment: .leading, spacing: 4) {
                     interventionCountText
-                    interventionUnitStack
+                    interventionUnitText
                 }
             }
         }
@@ -738,13 +825,11 @@ struct InterventionsCard: View {
             .contentTransition(.numericText())
     }
 
-    private var interventionUnitStack: some View {
-        VStack(alignment: .leading, spacing: 2) {
-            Text("lag spikes")
-            Text("prevented")
-        }
-        .font(.caption)
-        .foregroundStyle(.secondary)
+    private var interventionUnitText: some View {
+        Text("lag spikes prevented")
+            .font(.caption)
+            .foregroundStyle(.secondary)
+            .fixedSize(horizontal: false, vertical: true)
     }
 
     private var interventionStatusBlock: some View {
@@ -814,6 +899,8 @@ struct ServerSelectionCard: View {
                             }
                         }
                         .pickerStyle(.menu)
+                        .labelsHidden()
+                        .accessibilityLabel("Ping server")
                         .frame(maxWidth: 360, alignment: .leading)
                         .disabled(viewModel.targets.isEmpty)
 
@@ -863,6 +950,8 @@ struct ServerSelectionCard: View {
                         Text("10 seconds").tag(TimeInterval(10))
                     }
                     .pickerStyle(.menu)
+                    .labelsHidden()
+                    .accessibilityLabel("Update interval")
                     .frame(maxWidth: 150, alignment: .leading)
                 }
             }
@@ -1019,6 +1108,7 @@ struct DashboardControlRow<Content: View>: View {
     let title: String
     let description: String?
     let content: Content
+    @ScaledMetric(relativeTo: .body) private var labelColumnWidth: CGFloat = 220
 
     init(_ title: String, description: String? = nil, @ViewBuilder content: () -> Content) {
         self.title = title
@@ -1028,12 +1118,13 @@ struct DashboardControlRow<Content: View>: View {
 
     var body: some View {
         ViewThatFits(in: .horizontal) {
-            HStack(alignment: .top, spacing: 24) {
+            HStack(alignment: .top, spacing: 28) {
                 labelColumn
-                    .frame(width: 160, alignment: .leading)
+                    .frame(width: labelColumnWidth, alignment: .leading)
 
                 content
                     .frame(maxWidth: .infinity, alignment: .leading)
+                    .layoutPriority(1)
             }
 
             VStack(alignment: .leading, spacing: 8) {
@@ -1053,6 +1144,7 @@ struct DashboardControlRow<Content: View>: View {
                 Text(description)
                     .font(.caption)
                     .foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
             }
         }
     }
