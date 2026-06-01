@@ -529,6 +529,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSMenuDele
             keyEquivalent: ""
         )
         toggleItem.target = self
+        toggleItem.image = protectionMenuImage()
         statusMenu?.addItem(toggleItem)
 
         let pauseItem = NSMenuItem(
@@ -537,6 +538,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSMenuDele
             keyEquivalent: ""
         )
         pauseItem.target = self
+        pauseItem.image = menuSymbol("pause.circle")
         pauseItem.tag = 150
         statusMenu?.addItem(pauseItem)
 
@@ -546,6 +548,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSMenuDele
             keyEquivalent: ""
         )
         resumeItem.target = self
+        resumeItem.image = menuSymbol("play.circle")
         resumeItem.tag = 151
         statusMenu?.addItem(resumeItem)
 
@@ -573,6 +576,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSMenuDele
         )
         showMetricsItem.tag = 160
         showMetricsItem.target = self
+        showMetricsItem.image = menuSymbol("chart.xyaxis.line")
         statusMenu?.addItem(showMetricsItem)
 
         updateStatusMenuItem()
@@ -589,6 +593,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSMenuDele
             keyEquivalent: ","
         )
         settingsItem.target = self
+        settingsItem.image = menuSymbol("gearshape")
         statusMenu?.addItem(settingsItem)
 
         // Check for Updates (Sparkle)
@@ -598,6 +603,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSMenuDele
             keyEquivalent: ""
         )
         updateItem.target = self
+        updateItem.image = menuSymbol("arrow.trianglehead.2.clockwise.rotate.90")
         statusMenu?.addItem(updateItem)
 
         // About
@@ -607,6 +613,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSMenuDele
             keyEquivalent: ""
         )
         aboutItem.target = self
+        aboutItem.image = menuSymbol("info.circle")
         statusMenu?.addItem(aboutItem)
 
         statusMenu?.addItem(NSMenuItem.separator())
@@ -616,9 +623,23 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSMenuDele
             action: #selector(NSApplication.terminate(_:)),
             keyEquivalent: "q"
         )
+        quitItem.image = menuSymbol("xmark.square")
         statusMenu?.addItem(quitItem)
 
         self.statusItem?.menu = statusMenu
+    }
+
+    private func menuSymbol(_ symbolName: String, accessibilityDescription: String? = nil) -> NSImage? {
+        let image = NSImage(systemSymbolName: symbolName, accessibilityDescription: accessibilityDescription)
+        image?.isTemplate = true
+        return image
+    }
+
+    private func protectionMenuImage() -> NSImage? {
+        let isMonitoring = PingWardenMonitor.shared.isMonitoringActive
+        let symbolName = isMonitoring ? "antenna.radiowaves.left.and.right.slash" : "antenna.radiowaves.left.and.right"
+        let description = isMonitoring ? "Disable Ping Protection" : "Enable Ping Protection"
+        return menuSymbol(symbolName, accessibilityDescription: description)
     }
 
     private func removeMenuBar() {
@@ -859,6 +880,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSMenuDele
 
         let newTitle = PingWardenMonitor.shared.isMonitoringActive ? "Disable Ping Protection" : "Enable Ping Protection"
         menu.items.first?.title = newTitle
+        menu.items.first?.image = protectionMenuImage()
 
         updateStatusMenuItem()
         updateMenuMetricsMenuItems()
