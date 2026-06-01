@@ -82,6 +82,24 @@ final class MonitoringStateStore: ObservableObject {
         interventionTimer = nil
     }
 
+    deinit {
+        // Backstop in case onDisappear -> stopObserving() is ever skipped
+        // (e.g. a future refactor that drops the callback). Observer removal,
+        // registry-token removal, and timer invalidation are all safe off the
+        // main actor; @StateObject deallocation happens on the main thread in
+        // practice.
+        if let observer = monitoringIntentObserver {
+            DistributedNotificationCenter.default().removeObserver(observer)
+        }
+        if let observer = monitoringEffectiveObserver {
+            DistributedNotificationCenter.default().removeObserver(observer)
+        }
+        if let token = monitorStateObserverToken {
+            PingWardenMonitor.shared.removeStateObserver(token)
+        }
+        interventionTimer?.invalidate()
+    }
+
     func refresh() {
         isMonitoring = PingWardenMonitor.shared.isMonitoringActive
         isHelperRegistered = PingWardenMonitor.shared.isHelperRegistered

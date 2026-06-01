@@ -777,20 +777,21 @@ struct InterventionsCard: View {
     }
 }
 
-/// Subtle inner-callout chrome inside dashboard cards. On macOS 26+ we use
-/// `glassEffect` so the inner surface samples the same Liquid Glass refraction
-/// as the rest of the card (it sits inside the dashboard's `GlassEffectContainer`).
-/// On macOS 13-25 we fall back to the previous `.quaternary` opacity tint.
+/// Subtle inner-callout chrome for recessed panels *inside* dashboard cards
+/// (the interventions status block, the Welcome info banner). These sit on top
+/// of a surface that is itself glass on macOS 26 (see `DashboardCardBackground`),
+/// so they use a plain quaternary fill on every OS version rather than a second
+/// glass layer. Glass-over-glass reads as muddy frost-on-frost and isn't what
+/// the material is for — Liquid Glass floats over *content*, not over more glass.
 struct InnerCalloutBackground: ViewModifier {
     let cornerRadius: CGFloat
     let fallbackOpacity: Double
 
     func body(content: Content) -> some View {
-        if #available(macOS 26, *) {
-            content.glassEffect(.regular, in: RoundedRectangle(cornerRadius: cornerRadius, style: .continuous))
-        } else {
-            content.background(.quaternary.opacity(fallbackOpacity), in: RoundedRectangle(cornerRadius: cornerRadius, style: .continuous))
-        }
+        content.background(
+            .quaternary.opacity(fallbackOpacity),
+            in: RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
+        )
     }
 }
 
@@ -815,9 +816,6 @@ struct ServerSelectionCard: View {
                         .pickerStyle(.menu)
                         .frame(maxWidth: 360, alignment: .leading)
                         .disabled(viewModel.targets.isEmpty)
-                        .onTapGesture {
-                            viewModel.refreshGeForceNOWTargetsOnDemand()
-                        }
 
                         if let selectedTarget = viewModel.selectedTarget {
                             Text("\(selectedTarget.host):\(selectedTarget.port)")

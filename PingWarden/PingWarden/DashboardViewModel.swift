@@ -204,6 +204,11 @@ class DashboardViewModel: ObservableObject {
         // Update AWDL status
         updateAWDLStatus()
 
+        // Populate GeForce NOW zones up front so they're already in the picker
+        // when the user opens it. (Previously a Picker .onTapGesture tried to
+        // do this on open, but Pickers swallow the tap so it rarely fired.)
+        refreshGeForceNOWTargets(force: false)
+
         // Start intervention counter updates
         updateInterventionCount()
         interventionTimer = Timer.scheduledTimer(withTimeInterval: 5.0, repeats: true) { [weak self] _ in
@@ -227,6 +232,15 @@ class DashboardViewModel: ObservableObject {
         baselineSelectionTask = nil
         isRefreshingGFNServers = false
         isAutoSelectingTarget = false
+    }
+
+    deinit {
+        // Backstop in case onDisappear -> stop() is ever skipped. Timer
+        // invalidation and Task cancellation are safe off the main actor;
+        // @StateObject deallocation happens on the main thread in practice.
+        interventionTimer?.invalidate()
+        gfnRefreshTask?.cancel()
+        baselineSelectionTask?.cancel()
     }
 
     private func restartMonitoring() {

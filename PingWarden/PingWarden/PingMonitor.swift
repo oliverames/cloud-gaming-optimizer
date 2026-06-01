@@ -72,7 +72,7 @@ class PingMonitor {
     /// Current server to ping
     var server: String = "8.8.8.8"
     
-    /// Port to use for TCP ping (80 = HTTP, usually open)
+    /// Port to use for TCP ping (53 = DNS, usually reachable and low-latency)
     var port: UInt16 = 53
     
     /// Interval between pings (in seconds)
@@ -143,6 +143,14 @@ class PingMonitor {
         }
         endSession()
     }
+
+    deinit {
+        // Backstop: owners (DashboardViewModel, AppDelegate) call stop() before
+        // releasing their PingMonitor, which is the reliable teardown path.
+        // @StateObject / AppDelegate releases happen on the main thread in
+        // practice, where the timer was scheduled, so invalidating here is safe.
+        timer?.invalidate()
+    }
     
     /// Get current network statistics
     func getStatistics() -> NetworkStatistics {
@@ -187,19 +195,29 @@ class PingMonitor {
             return
         }
 
+        // Capture the configuration on the calling thread (always main, where
+        // `start()` also writes these). Reading server/port/interval inside
+        // `queue.async` would race with a concurrent `start()` that rewrites
+        // them while an older probe is still in flight after a target switch —
+        // a torn String read on `server` is undefined behavior. The session-ID
+        // guard prevents stale *results* but not the concurrent memory access.
+        let host = self.server
+        let probePort = self.port
+        let timeoutSeconds = self.connectionTimeoutSeconds
+        let configuredInterval = self.interval
+
         queue.async { [weak self] in
             guard let self = self else { return }
             defer { self.markProbeFinished(sessionID: sessionID) }
 
             let timestamp = Date()
             let measuredLatencyMs = TCPProbe.measureLatency(
-                host: self.server,
-                port: self.port,
-                timeoutSeconds: self.connectionTimeoutSeconds
+                host: host,
+                port: probePort,
+                timeoutSeconds: timeoutSeconds
             )
             let success = measuredLatencyMs != nil
-            let latency = success ? (measuredLatencyMs ?? 0) / 1000.0 : TimeInterval(self.connectionTimeoutSeconds)
-            let configuredInterval = self.interval
+            let latency = success ? (measuredLatencyMs ?? 0) / 1000.0 : TimeInterval(timeoutSeconds)
 
             let result = PingResult(
                 latency: latency,
@@ -211,20 +229,20 @@ class PingMonitor {
                 log.debug("Dropping stale ping result from an old monitor session")
                 return
             }
-            
+
             // Store in history
             self.addToHistory(result, interval: configuredInterval)
-            
+
             // Notify callbacks on main thread
             DispatchQueue.main.async {
                 self.onPingResult?(result)
                 self.onStatsUpdate?(self.getStatistics())
             }
-            
+
             if success {
-                log.debug("Ping to \(self.server): \(String(format: "%.1f", result.latencyMs))ms")
+                log.debug("Ping to \(host): \(String(format: "%.1f", result.latencyMs))ms")
             } else {
-                log.warning("Ping to \(self.server) failed")
+                log.warning("Ping to \(host) failed")
             }
         }
     }

@@ -18,7 +18,9 @@
 #import "PingWardenMonitor.h"
 
 #define LOG OS_LOG_DEFAULT
-#define HELPER_VERSION @"2.3.4"
+// Fallback only — the live version is read from the embedded Info.plist by
+// helperVersionString(). Kept current so the fallback is never stale.
+#define HELPER_VERSION @"2.4.0"
 
 // Team ID for code signing validation
 #define TEAM_ID @"PV3W52NDZ3"
@@ -31,6 +33,23 @@
 static NSInteger activeConnectionCount = 0;
 static dispatch_queue_t connectionCountQueue;
 static dispatch_source_t exitTimer = nil;
+
+#pragma mark - Version
+
+/// Resolve the helper's own version string. Prefer the bundle's
+/// CFBundleShortVersionString — the helper embeds its Info.plist via
+/// CREATE_INFOPLIST_SECTION_IN_BINARY, and release.sh keeps it in lockstep
+/// with the app — and fall back to the compiled-in constant only if the
+/// embedded value is somehow unavailable. This keeps the version reported over
+/// XPC (health check, diagnostics export) honest instead of frozen at whatever
+/// the macro last said.
+static NSString *helperVersionString(void) {
+    NSString *bundleVersion = [[NSBundle mainBundle] objectForInfoDictionaryKey:@"CFBundleShortVersionString"];
+    if ([bundleVersion isKindOfClass:[NSString class]] && bundleVersion.length > 0) {
+        return bundleVersion;
+    }
+    return HELPER_VERSION;
+}
 
 #pragma mark - Code Signing Helpers
 
@@ -111,8 +130,9 @@ static BOOL isProperlyCodeSigned(void) {
 }
 
 - (void)getVersionWithReply:(void (^)(NSString *))reply {
-    os_log_debug(LOG, "getVersion: %{public}@", HELPER_VERSION);
-    reply(HELPER_VERSION);
+    NSString *version = helperVersionString();
+    os_log_debug(LOG, "getVersion: %{public}@", version);
+    reply(version);
 }
 
 - (void)getAWDLInterventionCountWithReply:(void (^)(NSInteger))reply {
@@ -292,7 +312,7 @@ int main(int argc, const char * argv[]) {
     @autoreleasepool {
         BOOL isSigned = isProperlyCodeSigned();
         os_log(LOG, "PingWardenHelper v%{public}@ starting (%{public}s)",
-               HELPER_VERSION, isSigned ? "signed" : "unsigned/ad-hoc");
+               helperVersionString(), isSigned ? "signed" : "unsigned/ad-hoc");
 
         // Initialize thread-safe queue for connection counting
         connectionCountQueue = dispatch_queue_create("com.amesvt.pingwarden.helper.connectionCount",

@@ -91,8 +91,8 @@ class PingWardenMonitor {
         }
         set {
             stateLock.lock()
+            defer { stateLock.unlock() }
             _isRegisteringHelper = newValue
-            stateLock.unlock()
         }
     }
 
@@ -105,8 +105,8 @@ class PingWardenMonitor {
         }
         set {
             stateLock.lock()
+            defer { stateLock.unlock() }
             _xpcRetryCount = newValue
-            stateLock.unlock()
         }
     }
 
@@ -119,8 +119,8 @@ class PingWardenMonitor {
         }
         set {
             stateLock.lock()
+            defer { stateLock.unlock() }
             _isMonitoring = newValue
-            stateLock.unlock()
         }
     }
 
@@ -318,7 +318,8 @@ class PingWardenMonitor {
             }
 
             isRegisteringHelper = true
-            registerHelper { success in
+            registerHelper { [weak self] success in
+                guard let self else { return }
                 self.isRegisteringHelper = false
                 if success && self.isHelperRegistered {
                     // Reset attempts on success
@@ -348,8 +349,9 @@ class PingWardenMonitor {
 
         log.info("Sending setAWDLEnabled(false) via XPC...")
 
-        proxy.setAWDLEnabled(false, reply: { success in
+        proxy.setAWDLEnabled(false, reply: { [weak self] success in
             DispatchQueue.main.async {
+                guard let self else { return }
                 if success {
                     self.isMonitoring = true
                     if persistUserPreference {
@@ -391,8 +393,9 @@ class PingWardenMonitor {
 
         log.info("Sending setAWDLEnabled(true) via XPC...")
 
-        proxy.setAWDLEnabled(true, reply: { success in
+        proxy.setAWDLEnabled(true, reply: { [weak self] success in
             DispatchQueue.main.async {
+                guard let self else { return }
                 if success {
                     self.stateLock.lock()
                     self._isMonitoring = false
@@ -577,7 +580,8 @@ class PingWardenMonitor {
     /// Legacy method - redirects to registerHelper
     func installAndStartMonitoring() {
         log.info("installAndStartMonitoring() called - redirecting to registerHelper()")
-        registerHelper { success in
+        registerHelper { [weak self] success in
+            guard let self else { return }
             if success {
                 self.startMonitoring()
 
@@ -711,8 +715,9 @@ class PingWardenMonitor {
         }
 
         log.info("Reasserting AWDL blocking state after XPC reconnect")
-        proxy.setAWDLEnabled(false, reply: { success in
+        proxy.setAWDLEnabled(false, reply: { [weak self] success in
             DispatchQueue.main.async {
+                guard let self else { return }
                 if success {
                     PingWardenPreferences.shared.effectiveMonitoringEnabled = true
                     PingWardenPreferences.shared.lastKnownState = "down"
@@ -734,6 +739,18 @@ class PingWardenMonitor {
     private func handleXPCInvalidation(for invalidatedConnection: NSXPCConnection? = nil) {
         // Prevent re-entrant handling
         stateLock.lock()
+        // Idempotency: a single helper drop fires BOTH the connection's
+        // invalidationHandler and any in-flight remoteObjectProxyWithErrorHandler.
+        // Each arrives as its own main-queue block, so `_isHandlingInvalidation`
+        // (reset via defer before the second block runs) cannot dedupe across
+        // them. If the connection was already torn down by the first handler,
+        // the second must not run again and burn a second XPC retry slot —
+        // which would surface "Lost connection" after 2 drops instead of 3.
+        if invalidatedConnection != nil, _xpcConnection == nil {
+            stateLock.unlock()
+            log.debug("Ignoring duplicate XPC invalidation; connection already torn down")
+            return
+        }
         if let invalidatedConnection,
            let currentConnection = _xpcConnection,
            currentConnection !== invalidatedConnection {
