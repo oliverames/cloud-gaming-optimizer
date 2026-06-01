@@ -40,7 +40,16 @@ struct PingWardenApp: App {
 
     var body: some Scene {
         Settings {
-            SettingsView()
+            EmptyView()
+                .frame(width: 1, height: 1)
+        }
+        .commands {
+            CommandGroup(replacing: .appSettings) {
+                Button("Settings...") {
+                    appDelegate.openSettings()
+                }
+                .keyboardShortcut(",", modifiers: .command)
+            }
         }
     }
 }
@@ -65,8 +74,10 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSMenuDele
     private var gameModeObserver: NSObjectProtocol?
     private var menuMetricsObserver: NSObjectProtocol?
     private var windowObserver: NSObjectProtocol?
+    private var settingsShortcutMonitor: Any?
     private var statusItem: NSStatusItem?
     private var statusMenu: NSMenu?
+    private var settingsWindow: NSWindow?
     private var aboutWindow: NSWindow?
     private var welcomeWindow: NSWindow?
     private var donationWindow: NSWindow?
@@ -208,9 +219,10 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSMenuDele
 
         handleMenuMetricsPreferenceChange()
         ensureApplicationMenuItems()
+        installSettingsShortcutMonitor()
 
         // Observe all window close events so we can update dock icon visibility
-        // when the Settings scene window (which we don't own) closes.
+        // when any foreground utility window closes.
         windowObserver = NotificationCenter.default.addObserver(
             forName: NSWindow.willCloseNotification,
             object: nil,
@@ -272,6 +284,10 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSMenuDele
         if let observer = windowObserver {
             NotificationCenter.default.removeObserver(observer)
         }
+        if let settingsShortcutMonitor {
+            NSEvent.removeMonitor(settingsShortcutMonitor)
+            self.settingsShortcutMonitor = nil
+        }
 
         menuMetricsTimer?.invalidate()
         menuMetricsTimer = nil
@@ -280,18 +296,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSMenuDele
     }
 
     private func updateDockIconVisibility() {
-        // The Settings window is owned by the SwiftUI Settings scene. Its title may be
-        // "Settings" or the current section name (from .navigationTitle), so we check
-        // for any visible titled window that isn't one of our other managed windows.
-        let settingsVisible = NSApp.windows.contains { window in
-            window.isVisible
-                && window !== aboutWindow
-                && window !== welcomeWindow
-                && window !== donationWindow
-                && window.styleMask.contains(.titled)
-                && window.level == .normal
-                && !(window.className.contains("StatusBar"))
-        }
+        let settingsVisible = settingsWindow?.isVisible ?? false
         let aboutVisible = aboutWindow?.isVisible ?? false
         let welcomeVisible = welcomeWindow?.isVisible ?? false
         let donationVisible = donationWindow?.isVisible ?? false
@@ -310,8 +315,10 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSMenuDele
         guard let window = notification.object as? NSWindow else { return }
 
         // Update dock icon visibility when a managed window closes.
-        // The Settings window is handled by the global windowObserver.
-        if window === aboutWindow || window === welcomeWindow || window === donationWindow {
+        if window === settingsWindow || window === aboutWindow || window === welcomeWindow || window === donationWindow {
+            if window === settingsWindow {
+                settingsWindow = nil
+            }
             if window === donationWindow {
                 // The user closed the prompt via the window control rather
                 // than a button. Treat it as "Maybe later" so we don't
@@ -623,12 +630,65 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSMenuDele
         stopMenuMetricsMonitoring()
     }
 
-    @objc private func openSettings() {
+    @objc func openSettings() {
         log.info("openSettings called")
         NSApp.setActivationPolicy(.regular)
-        NSApp.sendAction(Selector(("showSettingsWindow:")), to: nil, from: nil)
+        showSettingsWindow()
         NSApp.activate(ignoringOtherApps: true)
         ensureApplicationMenuItems()
+    }
+
+    private func installSettingsShortcutMonitor() {
+        settingsShortcutMonitor = NSEvent.addLocalMonitorForEvents(matching: .keyDown) { [weak self] event in
+            guard event.modifierFlags.intersection(.deviceIndependentFlagsMask).contains(.command),
+                  event.charactersIgnoringModifiers == "," else {
+                return event
+            }
+
+            self?.openSettings()
+            return nil
+        }
+    }
+
+    private func showSettingsWindow() {
+        if let settingsWindow {
+            settingsWindow.makeKeyAndOrderFront(nil)
+            updateDockIconVisibility()
+            return
+        }
+
+        let settingsView = SettingsView { [weak self] in
+            self?.checkForUpdates()
+        }
+        let hostingController = NSHostingController(rootView: settingsView)
+        let initialSize = NSSize(width: 980, height: 700)
+        hostingController.view.frame = NSRect(origin: .zero, size: initialSize)
+
+        if #available(macOS 14.0, *) {
+            hostingController.sceneBridgingOptions = .all
+        }
+
+        let window = NSWindow(
+            contentRect: NSRect(origin: .zero, size: initialSize),
+            styleMask: [.titled, .closable, .miniaturizable, .resizable, .fullSizeContentView],
+            backing: .buffered,
+            defer: false
+        )
+        window.identifier = NSUserInterfaceItemIdentifier("settings")
+        window.title = "Settings"
+        window.contentViewController = hostingController
+        window.minSize = NSSize(width: 760, height: 520)
+        window.isReleasedWhenClosed = false
+        window.delegate = self
+        window.toolbarStyle = .unified
+        window.titlebarAppearsTransparent = true
+        window.toolbar?.showsBaselineSeparator = false
+        window.setFrameAutosaveName("PingWardenSettings")
+        window.center()
+
+        settingsWindow = window
+        window.makeKeyAndOrderFront(nil)
+        updateDockIconVisibility()
     }
 
     @objc private func showAbout() {
@@ -696,6 +756,21 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSMenuDele
               let mainMenu = NSApp.mainMenu,
               let appMenu = mainMenu.items.first?.submenu else {
             return
+        }
+
+        if let settingsItem = appMenu.items.first(where: { $0.keyEquivalent == "," || $0.title == "Settings..." }) {
+            settingsItem.title = "Settings..."
+            settingsItem.target = self
+            settingsItem.action = #selector(openSettings)
+            settingsItem.keyEquivalent = ","
+        } else if let aboutIndex = appMenu.items.firstIndex(where: { $0.title.hasPrefix("About ") }) {
+            let settingsItem = NSMenuItem(
+                title: "Settings...",
+                action: #selector(openSettings),
+                keyEquivalent: ","
+            )
+            settingsItem.target = self
+            appMenu.insertItem(settingsItem, at: aboutIndex + 1)
         }
 
         if let existingItem = appMenu.items.first(where: { $0.title == "Check for Updates..." }) {
@@ -1173,7 +1248,12 @@ struct FeatureRow: View {
 // MARK: - Settings View
 
 struct SettingsView: View {
+    let onCheckForUpdates: () -> Void
     @State private var selectedSection: SettingsSection = .general
+
+    init(onCheckForUpdates: @escaping () -> Void = {}) {
+        self.onCheckForUpdates = onCheckForUpdates
+    }
 
     var body: some View {
         NavigationSplitView {
@@ -1181,36 +1261,17 @@ struct SettingsView: View {
                 Label(section.rawValue, systemImage: section.icon)
                     .tag(section)
             }
+            .listStyle(.sidebar)
             .navigationSplitViewColumnWidth(min: 180, ideal: 200, max: 220)
         } detail: {
-            SettingsContentView(section: selectedSection)
+            SettingsContentView(
+                section: selectedSection,
+                onCheckForUpdates: onCheckForUpdates
+            )
+            .navigationTitle(selectedSection.rawValue)
         }
         .navigationSplitViewStyle(.prominentDetail)
-        .frame(minWidth: 600, minHeight: 450)
-        .onAppear {
-            DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
-                guard let window = NSApp.windows.first(where: {
-                    $0.title.contains("Settings")
-                }) else { return }
-
-                window.titleVisibility = .visible
-                window.titlebarAppearsTransparent = false
-                window.toolbarStyle = .unified
-                window.styleMask.remove(.fullSizeContentView)
-                if window.toolbar == nil {
-                    let toolbar = NSToolbar(identifier: "SettingsToolbar")
-                    toolbar.displayMode = .iconOnly
-                    window.toolbar = toolbar
-                }
-                // macOS 26 Liquid Glass toolbars float above the content;
-                // a baseline separator fights that floating appearance.
-                if #available(macOS 26, *) {
-                    window.toolbar?.showsBaselineSeparator = false
-                } else {
-                    window.toolbar?.showsBaselineSeparator = true
-                }
-            }
-        }
+        .frame(minWidth: 760, minHeight: 520)
     }
 }
 
@@ -1234,39 +1295,35 @@ enum SettingsSection: String, CaseIterable, Identifiable {
 
 struct SettingsContentView: View {
     let section: SettingsSection
+    let onCheckForUpdates: () -> Void
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 0) {
-            Text(section.rawValue)
-                .font(.title3)
-                .fontWeight(.semibold)
-                .padding(.horizontal, 20)
-                .padding(.top, 4)
-                .padding(.bottom, 6)
+        Group {
+            switch section {
+            case .dashboard:
+                dashboardContent
+            case .general:
+                GeneralSettingsContent(onCheckForUpdates: onCheckForUpdates)
+            case .automation:
+                AutomationSettingsContent()
+            case .advanced:
+                AdvancedSettingsContent()
+            }
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+    }
 
-            Divider()
-                .padding(.horizontal, 20)
-
+    private var dashboardContent: some View {
+        Group {
             ScrollView {
                 VStack(alignment: .leading, spacing: 0) {
-                    switch section {
-                    case .dashboard:
-                        DashboardSettingsContent()
-                    case .general:
-                        GeneralSettingsContent()
-                    case .automation:
-                        AutomationSettingsContent()
-                    case .advanced:
-                        AdvancedSettingsContent()
-                    }
+                    DashboardSettingsContent()
                 }
-                .padding(.top, 8)
 
                 Spacer(minLength: 20)
             }
             .scrollContentBackground(.hidden)
         }
-        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
         // No explicit .background here: on macOS 26 the Settings scene
         // already renders with the system Liquid Glass material, and an
         // opaque windowBackgroundColor on top would obscure it. On
@@ -1322,13 +1379,43 @@ struct StatusBadge: View {
 // MARK: - General Settings Content
 
 struct GeneralSettingsContent: View {
+    let onCheckForUpdates: () -> Void
     @StateObject private var monitorState = MonitoringStateStore()
     @State private var launchAtLogin = SMAppService.mainApp.status == .enabled
     @State private var showDockIcon = PingWardenPreferences.shared.showDockIcon
     @State private var showMenuDropdownMetrics = PingWardenPreferences.shared.showMenuDropdownMetrics
 
+    init(onCheckForUpdates: @escaping () -> Void = {}) {
+        self.onCheckForUpdates = onCheckForUpdates
+    }
+
     var body: some View {
         Form {
+            Section {
+                HStack(spacing: 16) {
+                    Image(nsImage: NSApplication.shared.applicationIconImage)
+                        .resizable()
+                        .aspectRatio(contentMode: .fit)
+                        .frame(width: 52, height: 52)
+                        .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
+                        .accessibilityHidden(true)
+
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text("Ping Warden")
+                            .font(.headline)
+                        Text("Version \(appVersion)")
+                            .font(.subheadline)
+                            .foregroundStyle(.secondary)
+                    }
+
+                    Spacer(minLength: 16)
+
+                    Button("Check for Updates...", action: onCheckForUpdates)
+                        .buttonStyle(.bordered)
+                }
+                .padding(.vertical, 8)
+            }
+
             Section("Protection") {
                 Toggle(isOn: Binding(
                     get: { monitorState.isMonitoring },
@@ -1455,6 +1542,10 @@ struct GeneralSettingsContent: View {
         .onDisappear {
             monitorState.stopObserving()
         }
+    }
+
+    private var appVersion: String {
+        Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "Unknown"
     }
 
     private var statusColor: Color {
