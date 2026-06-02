@@ -53,6 +53,7 @@ else
 fi
 APPCAST_FILE="$REPO_ROOT/$APPCAST_BASENAME"
 APP_INFO_PLIST="$PROJECT_ROOT/PingWarden/Info.plist"
+MINIMUM_SYSTEM_VERSION="${MINIMUM_SYSTEM_VERSION:-26.0}"
 NOTARYTOOL_ARGS=()
 
 if [ -n "${NOTARYTOOL_KEY:-}" ] && [ -n "${NOTARYTOOL_KEY_ID:-}" ] && [ -n "${NOTARYTOOL_ISSUER_ID:-}" ]; then
@@ -311,7 +312,7 @@ $RELEASE_NOTES_HTML
         type=\"application/octet-stream\"
         $([ -n "$SIGNATURE" ] && echo "sparkle:edSignature=\"$SIGNATURE\"")
       />
-      <sparkle:minimumSystemVersion>13.0</sparkle:minimumSystemVersion>
+      <sparkle:minimumSystemVersion>$MINIMUM_SYSTEM_VERSION</sparkle:minimumSystemVersion>
     </item>"
 
 # Insert new item after <language>en</language> line (idempotent)

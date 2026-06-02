@@ -272,6 +272,12 @@ if [ -f "$CREATE_DMG_SCRIPT" ]; then
     
     if [ -f "$DMG_NAME" ]; then
         echo ""
+        echo "Signing DMG with Developer ID..."
+        codesign -f -s "$APP_DEVELOPER_IDENTITY" --timestamp "$DMG_NAME"
+        codesign --verify --verbose=2 "$DMG_NAME"
+        echo -e "${GREEN}✓${NC} DMG code signature valid"
+
+        echo ""
         echo "Submitting DMG to Apple for notarization..."
         DMG_SUBMIT_OUTPUT=$(xcrun notarytool submit "$DMG_NAME" \
             "${NOTARYTOOL_ARGS[@]}" \
