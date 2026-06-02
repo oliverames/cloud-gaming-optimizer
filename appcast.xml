@@ -6,6 +6,87 @@
     <description>Updates for Ping Warden - AWDL blocking for cloud gaming</description>
     <language>en</language>
     <item>
+      <title>Version 2.4.0</title>
+      <link>https://github.com/oliverames/ping-warden/releases/tag/v2.4.0</link>
+      <sparkle:version>2.4.0</sparkle:version>
+      <sparkle:shortVersionString>2.4.0</sparkle:shortVersionString>
+      <description><![CDATA[
+<style>
+body {
+    font-family: -apple-system, BlinkMacSystemFont, "Helvetica Neue", Helvetica, Arial, sans-serif;
+    font-size: 13px;
+    line-height: 1.55;
+    color: #1d1d1f;
+    margin: 0;
+    padding: 0;
+}
+h1, h2, h3 { color: #000; font-weight: 600; }
+h1 { font-size: 18px; margin: 0 0 10px 0; }
+h2 {
+    font-size: 11px;
+    text-transform: uppercase;
+    letter-spacing: 0.6px;
+    color: #6e6e73;
+    margin: 18px 0 6px 0;
+}
+h3 { font-size: 13px; margin: 14px 0 6px 0; }
+p { margin: 0 0 10px 0; }
+ul, ol { padding-left: 20px; margin: 0 0 10px 0; }
+li { margin-bottom: 5px; }
+li > strong:first-child { color: #000; }
+code {
+    font-family: ui-monospace, "SF Mono", Menlo, monospace;
+    background: #f2f2f7;
+    padding: 1px 5px;
+    border-radius: 3px;
+    font-size: 12px;
+}
+a { color: #f5a542; text-decoration: none; }
+a:hover { text-decoration: underline; }
+hr { border: 0; border-top: 1px solid #e5e5ea; margin: 16px 0; }
+@media (prefers-color-scheme: dark) {
+    body { color: #f5f5f7; }
+    h1, h2, h3, li > strong:first-child { color: #fff; }
+    h2 { color: #98989d; }
+    code { background: #2c2c2e; }
+    hr { border-top-color: #38383a; }
+}
+</style>
+<p><a href="https://buymeacoffee.com/oliverames" rel="nofollow">Support Ping Warden on Buy Me a Coffee</a></p>
+<p>Ping Warden 2.4.0 is a macOS 26-focused release that brings the app's settings, dashboard, and menu surfaces up to the current Tahoe design direction while tightening the release pipeline and Swift concurrency posture.</p>
+<h2>Changelog</h2>
+<h3>Interface</h3>
+<ul>
+<li><strong>Native settings redesign</strong>: Settings now uses a single native split-view window with macOS sidebar chrome, consistent section spacing, and Tahoe-friendly rounded surfaces.</li>
+<li><strong>Liquid Glass polish</strong>: Settings, dashboard cards, and first-run callouts now use macOS 26 glass materials and concentric corners where appropriate, with older fallback styling kept in place.</li>
+<li><strong>Dashboard layout cleanup</strong>: The Ping Protection and Connection Settings panels have tighter alignment, clearer status states, and a more readable ping graph.</li>
+<li><strong>Menu bar icons</strong>: Status menu actions now include SF Symbols so the dropdown matches the icon-led macOS 26 menu style.</li>
+</ul>
+<h3>Features</h3>
+<ul>
+<li><strong>Game Mode Auto-Detect is production-ready</strong>: The setting is no longer labeled beta and now has steadier fullscreen-game detection behavior.</li>
+<li><strong>Control Center Widget is production-ready</strong>: The widget path is no longer labeled beta. Settings now distinguishes widget availability from signing state without implying the feature is experimental.</li>
+<li><strong>Beta update channel</strong>: Advanced settings include an opt-in Sparkle beta channel for testing pre-release builds.</li>
+</ul>
+<h3>Reliability</h3>
+<ul>
+<li><strong>Swift 6 strict concurrency</strong>: The app target now builds with complete strict-concurrency checking, with sendable observer callbacks, explicit main-actor UI hops, and locked XPC callback state.</li>
+<li><strong>CI fix</strong>: GitHub Actions now runs the maintained SwiftPM test suite instead of the removed smoke-test script.</li>
+<li><strong>Packaging hardening</strong>: Release tooling validates notes, notarization prerequisites, appcast updates, and Sentry symbol upload paths before publishing.</li>
+</ul>
+      ]]></description>
+      <pubDate>Tue, 02 Jun 2026 11:08:09 UTC</pubDate>
+      <enclosure
+        url="https://github.com/oliverames/ping-warden/releases/download/v2.4.0/PingWarden-2.4.0.dmg"
+        sparkle:version="2.4.0"
+        sparkle:shortVersionString="2.4.0"
+        length="5136748"
+        type="application/octet-stream"
+        sparkle:edSignature="qyDrx5j8CwoQPS5HwfyaDmj5z1rVVKlOpHPBCmeczuT8EJ96OHOHV+y+PpjaeSfrsDgCOjF0nYUi2HdUL3OPDA=="
+      />
+      <sparkle:minimumSystemVersion>26.0</sparkle:minimumSystemVersion>
+    </item>
+    <item>
       <title>Version 2.3.4</title>
       <link>https://github.com/oliverames/ping-warden/releases/tag/v2.3.4</link>
       <sparkle:version>2.3.4</sparkle:version>
