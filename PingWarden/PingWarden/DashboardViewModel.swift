@@ -63,7 +63,7 @@ class DashboardViewModel: ObservableObject {
     @Published private(set) var customTargets: [CustomPingTarget] = []
 
     private let pingMonitor = PingMonitor()
-    private var interventionTimer: Timer?
+    nonisolated(unsafe) private var interventionTimer: Timer?
     private var gfnRefreshTask: Task<Void, Never>?
     private var baselineSelectionTask: Task<Void, Never>?
     private var isStarted = false

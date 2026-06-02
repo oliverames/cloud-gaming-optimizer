@@ -142,26 +142,49 @@ final class TCPProbeTests: XCTestCase {
 }
 
 final class StateObserverRegistryTests: XCTestCase {
+    private final class LockedCounter: @unchecked Sendable {
+        private let lock = NSLock()
+        private var value = 0
+
+        func add(_ delta: Int) {
+            lock.lock()
+            value += delta
+            lock.unlock()
+        }
+
+        func reset() {
+            lock.lock()
+            value = 0
+            lock.unlock()
+        }
+
+        var currentValue: Int {
+            lock.lock()
+            defer { lock.unlock() }
+            return value
+        }
+    }
+
     func testFreshRegistryIsEmpty() {
         XCTAssertEqual(StateObserverRegistry().count, 0)
     }
 
     func testAddRemoveLifecycle() {
         let registry = StateObserverRegistry()
-        var fireCount = 0
+        let fireCount = LockedCounter()
 
-        let tokenA = registry.add { fireCount += 1 }
-        let tokenB = registry.add { fireCount += 10 }
+        let tokenA = registry.add { fireCount.add(1) }
+        let tokenB = registry.add { fireCount.add(10) }
         XCTAssertEqual(registry.count, 2)
 
         registry.snapshot().forEach { $0() }
-        XCTAssertEqual(fireCount, 11)
+        XCTAssertEqual(fireCount.currentValue, 11)
 
         registry.remove(tokenA)
         XCTAssertEqual(registry.count, 1)
-        fireCount = 0
+        fireCount.reset()
         registry.snapshot().forEach { $0() }
-        XCTAssertEqual(fireCount, 10)
+        XCTAssertEqual(fireCount.currentValue, 10)
 
         // Removing a stale token must be a no-op, never a crash.
         registry.remove(UUID())

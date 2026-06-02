@@ -53,13 +53,8 @@ jobs:
         fi
         echo "✓ Target versions are consistent ($APP_VERSION)"
 
-    - name: Run core logic smoke tests
-      run: |
-        swiftc PingWarden/PingWarden/Core/PingStatistics.swift \
-               PingWarden/PingWarden/Core/XPCReconnectPolicy.swift \
-               scripts/core_logic_smoke.swift \
-               -o /tmp/core_logic_smoke
-        /tmp/core_logic_smoke
+    - name: Run core logic tests
+      run: swift test
 
     - name: Build Helper (verification only)
       run: |

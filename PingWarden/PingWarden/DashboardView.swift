@@ -872,11 +872,19 @@ struct InnerCalloutBackground: ViewModifier {
     let cornerRadius: CGFloat
     let fallbackOpacity: Double
 
+    @ViewBuilder
     func body(content: Content) -> some View {
-        content.background(
-            .quaternary.opacity(fallbackOpacity),
-            in: RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
-        )
+        if #available(macOS 26, *) {
+            content.background(
+                .quaternary.opacity(fallbackOpacity),
+                in: ConcentricRectangle(corners: .concentric(minimum: .fixed(cornerRadius)), isUniform: true)
+            )
+        } else {
+            content.background(
+                .quaternary.opacity(fallbackOpacity),
+                in: RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
+            )
+        }
     }
 }
 

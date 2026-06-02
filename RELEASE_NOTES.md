@@ -1,3 +1,29 @@
+# Ping Warden 2.4.0
+
+[Support Ping Warden on Buy Me a Coffee](https://buymeacoffee.com/oliverames)
+
+Ping Warden 2.4.0 is a macOS 26-focused release that brings the app's settings, dashboard, and menu surfaces up to the current Tahoe design direction while tightening the release pipeline and Swift concurrency posture.
+
+## Changelog
+
+### Interface
+- **Native settings redesign**: Settings now uses a single native split-view window with macOS sidebar chrome, consistent section spacing, and Tahoe-friendly rounded surfaces.
+- **Liquid Glass polish**: Settings, dashboard cards, and first-run callouts now use macOS 26 glass materials and concentric corners where appropriate, with older fallback styling kept in place.
+- **Dashboard layout cleanup**: The Ping Protection and Connection Settings panels have tighter alignment, clearer status states, and a more readable ping graph.
+- **Menu bar icons**: Status menu actions now include SF Symbols so the dropdown matches the icon-led macOS 26 menu style.
+
+### Features
+- **Game Mode Auto-Detect is production-ready**: The setting is no longer labeled beta and now has steadier fullscreen-game detection behavior.
+- **Control Center Widget is production-ready**: The widget path is no longer labeled beta. Settings now distinguishes widget availability from signing state without implying the feature is experimental.
+- **Beta update channel**: Advanced settings include an opt-in Sparkle beta channel for testing pre-release builds.
+
+### Reliability
+- **Swift 6 strict concurrency**: The app target now builds with complete strict-concurrency checking, with sendable observer callbacks, explicit main-actor UI hops, and locked XPC callback state.
+- **CI fix**: GitHub Actions now runs the maintained SwiftPM test suite instead of the removed smoke-test script.
+- **Packaging hardening**: Release tooling validates notes, notarization prerequisites, appcast updates, and Sentry symbol upload paths before publishing.
+
+---
+
 # Ping Warden 2.3.4
 
 Post-release stability and polish pass from manual macOS app testing.

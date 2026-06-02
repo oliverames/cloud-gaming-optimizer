@@ -16,7 +16,7 @@ private let log = Logger(subsystem: "com.amesvt.pingwarden", category: "PingMoni
 
 /// Monitors network latency in real-time using TCP connection timing
 /// Designed for cloud gaming - shows current ping, jitter, packet loss
-class PingMonitor {
+class PingMonitor: @unchecked Sendable {
     
     // MARK: - Types
     

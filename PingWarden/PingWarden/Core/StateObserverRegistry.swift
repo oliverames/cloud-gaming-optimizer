@@ -13,10 +13,10 @@ import Foundation
 /// notifications outside any internal lock.
 final class StateObserverRegistry {
     private let lock = NSLock()
-    private var observers: [UUID: () -> Void] = [:]
+    private var observers: [UUID: @Sendable () -> Void] = [:]
 
     @discardableResult
-    func add(_ observer: @escaping () -> Void) -> UUID {
+    func add(_ observer: @escaping @Sendable () -> Void) -> UUID {
         let token = UUID()
         lock.lock()
         observers[token] = observer
@@ -33,7 +33,7 @@ final class StateObserverRegistry {
     /// Returns a point-in-time snapshot of the registered observers. Callers
     /// should invoke the returned closures outside the registry so observers
     /// cannot deadlock by calling back into add/remove during delivery.
-    func snapshot() -> [() -> Void] {
+    func snapshot() -> [@Sendable () -> Void] {
         lock.lock()
         defer { lock.unlock() }
         return Array(observers.values)

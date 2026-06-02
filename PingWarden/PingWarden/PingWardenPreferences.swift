@@ -14,7 +14,7 @@ import os.log
 private let log = Logger(subsystem: "com.amesvt.pingwarden", category: "Preferences")
 
 /// Manages shared state between app and widget using App Groups
-class PingWardenPreferences {
+final class PingWardenPreferences: @unchecked Sendable {
     static let shared = PingWardenPreferences()
 
     private let appGroupID = "group.com.amesvt.pingwarden"

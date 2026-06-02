@@ -54,6 +54,7 @@ struct PingWardenApp: App {
     }
 }
 
+@MainActor
 class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSMenuDelegate, SPUUpdaterDelegate {
     private static let appMenuCheckForUpdatesTag = 2201
     // Sparkle feed URL is defined in Info.plist (SUFeedURL) as the single source of truth.
@@ -133,8 +134,10 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSMenuDele
 
         // Observe monitor state changes
         monitorStateObserverToken = monitor.addStateObserver { [weak self] in
-            self?.updateMenuBarIcon()
-            self?.updateMenuItem()
+            Task { @MainActor in
+                self?.updateMenuBarIcon()
+                self?.updateMenuItem()
+            }
         }
 
         // Setup menu bar (unless Control Center mode is enabled AND widget is available)
@@ -179,7 +182,9 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSMenuDele
             object: nil,
             queue: .main
         ) { [weak self] _ in
-            self?.handleMonitoringStateChange()
+            Task { @MainActor in
+                self?.handleMonitoringStateChange()
+            }
         }
 
         // Observe Control Center mode changes
@@ -188,7 +193,9 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSMenuDele
             object: nil,
             queue: .main
         ) { [weak self] _ in
-            self?.handleControlCenterModeChange()
+            Task { @MainActor in
+                self?.handleControlCenterModeChange()
+            }
         }
 
         // Observe dock icon visibility changes
@@ -197,7 +204,9 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSMenuDele
             object: nil,
             queue: .main
         ) { [weak self] _ in
-            self?.updateDockIconVisibility()
+            Task { @MainActor in
+                self?.updateDockIconVisibility()
+            }
         }
 
         // Observe Game Mode auto-detect changes
@@ -206,7 +215,9 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSMenuDele
             object: nil,
             queue: .main
         ) { [weak self] _ in
-            self?.handleGameModeAutoDetectChange()
+            Task { @MainActor in
+                self?.handleGameModeAutoDetectChange()
+            }
         }
 
         menuMetricsObserver = NotificationCenter.default.addObserver(
@@ -214,7 +225,9 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSMenuDele
             object: nil,
             queue: .main
         ) { [weak self] _ in
-            self?.handleMenuMetricsPreferenceChange()
+            Task { @MainActor in
+                self?.handleMenuMetricsPreferenceChange()
+            }
         }
 
         handleMenuMetricsPreferenceChange()
@@ -228,7 +241,9 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSMenuDele
             object: nil,
             queue: .main
         ) { [weak self] _ in
-            self?.updateDockIconVisibility()
+            Task { @MainActor in
+                self?.updateDockIconVisibility()
+            }
         }
     }
 
@@ -837,19 +852,19 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSMenuDele
     /// makes Sparkle pull `appcast-beta.xml` for opted-in users. The beta
     /// appcast is on the same gh-pages branch, signed with the same EdDSA
     /// key, just a separate XML file.
-    func feedURLString(for updater: SPUUpdater) -> String? {
+    nonisolated func feedURLString(for updater: SPUUpdater) -> String? {
         guard PingWardenPreferences.shared.betaChannelEnabled else {
             return nil
         }
         return "https://oliverames.github.io/ping-warden/appcast-beta.xml"
     }
 
-    func updater(_ updater: SPUUpdater, didAbortWithError error: any Error) {
+    nonisolated func updater(_ updater: SPUUpdater, didAbortWithError error: any Error) {
         let nsError = error as NSError
         log.error("Sparkle update cycle aborted: [\(nsError.domain, privacy: .public):\(nsError.code)] \(nsError.localizedDescription, privacy: .public)")
     }
     
-    func updater(_ updater: SPUUpdater, didFinishUpdateCycleFor updateCheck: SPUUpdateCheck, error: (any Error)?) {
+    nonisolated func updater(_ updater: SPUUpdater, didFinishUpdateCycleFor updateCheck: SPUUpdateCheck, error: (any Error)?) {
         if let error {
             let nsError = error as NSError
             log.error("Sparkle update cycle finished with error for \(String(describing: updateCheck), privacy: .public): [\(nsError.domain, privacy: .public):\(nsError.code)] \(nsError.localizedDescription, privacy: .public)")
@@ -1004,7 +1019,9 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSMenuDele
         guard let pauseUntil = quickPauseUntil else { return }
 
         quickPauseTimer = Timer.scheduledTimer(withTimeInterval: max(0, pauseUntil.timeIntervalSinceNow), repeats: false) { [weak self] _ in
-            self?.resumeMonitoringAfterQuickPause()
+            Task { @MainActor in
+                self?.resumeMonitoringAfterQuickPause()
+            }
         }
     }
 
@@ -1054,8 +1071,10 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSMenuDele
 
         if menuMetricsTimer == nil {
             menuMetricsTimer = Timer.scheduledTimer(withTimeInterval: 5.0, repeats: true) { [weak self] _ in
-                self?.syncMenuMetricsTargetIfNeeded()
-                self?.refreshMenuInterventionCount()
+                Task { @MainActor in
+                    self?.syncMenuMetricsTargetIfNeeded()
+                    self?.refreshMenuInterventionCount()
+                }
             }
             if let menuMetricsTimer {
                 RunLoop.main.add(menuMetricsTimer, forMode: .common)
@@ -1088,7 +1107,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSMenuDele
         guard PingWardenPreferences.shared.showMenuDropdownMetrics else { return }
 
         PingWardenMonitor.shared.getInterventionCount { [weak self] count in
-            DispatchQueue.main.async {
+            Task { @MainActor in
                 guard let self else { return }
                 self.menuInterventionCount = count
                 self.updateMenuMetricsMenuItems()
@@ -1479,7 +1498,9 @@ struct GeneralSettingsContent: View {
                             Button {
                                 PingWardenMonitor.shared.resetInterventionCount { success in
                                     if success {
-                                        monitorState.refresh()
+                                        Task { @MainActor in
+                                            monitorState.refresh()
+                                        }
                                     }
                                 }
                             } label: {
@@ -2074,7 +2095,7 @@ struct AboutView: View {
 ///
 /// Note: This feature requires Screen Recording permission on macOS 10.15+.
 /// Without this permission, CGWindowListCopyWindowInfo won't return window names or owner info.
-class GameModeDetector {
+final class GameModeDetector: @unchecked Sendable {
     private var timer: Timer?
     private var isGameModeActive = false
     private var hasLoggedPermissionWarning = false

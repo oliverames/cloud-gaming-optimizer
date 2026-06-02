@@ -31,10 +31,10 @@ enum DiagnosticsExporter {
         let osVersion = ProcessInfo.processInfo.operatingSystemVersion
         let osString = "\(osVersion.majorVersion).\(osVersion.minorVersion).\(osVersion.patchVersion)"
 
-        var interventionCount = 0
+        let interventionCount = LockedValue(0)
         let semaphore = DispatchSemaphore(value: 0)
         monitor.getInterventionCount { count in
-            interventionCount = count
+            interventionCount.withValue { $0 = count }
             semaphore.signal()
         }
         _ = semaphore.wait(timeout: .now() + 2.0)
@@ -89,7 +89,7 @@ enum DiagnosticsExporter {
           helper_registered=\(monitor.isHelperRegistered)
           registration_status=\(registrationStatus)
           monitor_active=\(monitor.isMonitoringActive)
-          intervention_count=\(interventionCount)
+          intervention_count=\(interventionCount.withValue { $0 })
           awdl_interface=\(awdlStatus)
           health_ok=\(health.isHealthy)
           health_message=\(health.message)

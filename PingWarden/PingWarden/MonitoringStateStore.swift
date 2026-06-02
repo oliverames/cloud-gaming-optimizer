@@ -13,10 +13,10 @@ final class MonitoringStateStore: ObservableObject {
     @Published private(set) var isHelperRegistered = PingWardenMonitor.shared.isHelperRegistered
     @Published private(set) var interventionCount: Int = 0
 
-    private var monitoringIntentObserver: NSObjectProtocol?
-    private var monitoringEffectiveObserver: NSObjectProtocol?
+    nonisolated(unsafe) private var monitoringIntentObserver: NSObjectProtocol?
+    nonisolated(unsafe) private var monitoringEffectiveObserver: NSObjectProtocol?
     private var monitorStateObserverToken: UUID?
-    private var interventionTimer: Timer?
+    nonisolated(unsafe) private var interventionTimer: Timer?
     private var isObserving = false
 
     func startObserving() {

@@ -19,6 +19,22 @@ private let log = Logger(subsystem: "com.amesvt.pingwarden", category: "Monitor"
 /// Signpost for performance measurement
 private let signposter = OSSignposter(subsystem: "com.amesvt.pingwarden", category: "Performance")
 
+final class LockedValue<Value>: @unchecked Sendable {
+    private let lock = NSLock()
+    private var value: Value
+
+    init(_ value: Value) {
+        self.value = value
+    }
+
+    @discardableResult
+    func withValue<Result>(_ body: (inout Value) -> Result) -> Result {
+        lock.lock()
+        defer { lock.unlock() }
+        return body(&value)
+    }
+}
+
 /// Controls the AWDL helper daemon via SMAppService and XPC
 /// In v2.x, the helper runs as a bundled LaunchDaemon registered via SMAppService
 /// No more password prompts - just one-time system approval
@@ -28,7 +44,7 @@ private let signposter = OSSignposter(subsystem: "com.amesvt.pingwarden", catego
 /// - Plist bundled in Contents/Library/LaunchDaemons/com.amesvt.pingwarden.helper.plist
 /// - Communication via XPC (com.amesvt.pingwarden.xpc)
 /// - Helper exits when app quits (via XPC connection invalidation)
-class PingWardenMonitor {
+class PingWardenMonitor: @unchecked Sendable {
     static let shared = PingWardenMonitor()
 
     /// XPC service name - must match MachServices key in plist
@@ -186,7 +202,7 @@ class PingWardenMonitor {
 
     /// Register for monitor state changes. Returns a token that can be removed later.
     @discardableResult
-    func addStateObserver(_ observer: @escaping () -> Void) -> UUID {
+    func addStateObserver(_ observer: @escaping @Sendable () -> Void) -> UUID {
         stateObservers.add(observer)
     }
 
@@ -214,7 +230,7 @@ class PingWardenMonitor {
 
     /// Register helper with SMAppService
     /// This triggers a one-time system approval prompt (not a password dialog)
-    func registerHelper(completion: ((Bool) -> Void)? = nil) {
+    func registerHelper(completion: (@Sendable (Bool) -> Void)? = nil) {
         log.info("┌─────────────────────────────────────────────────────┐")
         log.info("│ registerHelper() called                             │")
         log.info("└─────────────────────────────────────────────────────┘")
@@ -350,22 +366,22 @@ class PingWardenMonitor {
         log.info("Sending setAWDLEnabled(false) via XPC...")
 
         proxy.setAWDLEnabled(false, reply: { [weak self] success in
+            guard let monitor = self else { return }
             DispatchQueue.main.async {
-                guard let self else { return }
                 if success {
-                    self.isMonitoring = true
+                    monitor.isMonitoring = true
                     if persistUserPreference {
                         PingWardenPreferences.shared.isMonitoringEnabled = true
                     }
                     PingWardenPreferences.shared.effectiveMonitoringEnabled = true
                     PingWardenPreferences.shared.lastKnownState = "down"
-                    self.notifyStateChange()
+                    monitor.notifyStateChange()
                     log.info("✅ AWDL monitoring started")
                 } else {
                     log.error("❌ Failed to disable AWDL")
                     PingWardenPreferences.shared.effectiveMonitoringEnabled = false
-                    self.notifyStateChange()
-                    self.showError("Failed to enable Ping Protection.\n\nThe helper may not be running correctly.")
+                    monitor.notifyStateChange()
+                    monitor.showError("Failed to enable Ping Protection.\n\nThe helper may not be running correctly.")
                 }
             }
         })
@@ -394,18 +410,18 @@ class PingWardenMonitor {
         log.info("Sending setAWDLEnabled(true) via XPC...")
 
         proxy.setAWDLEnabled(true, reply: { [weak self] success in
+            guard let monitor = self else { return }
             DispatchQueue.main.async {
-                guard let self else { return }
                 if success {
-                    self.stateLock.lock()
-                    self._isMonitoring = false
-                    self.stateLock.unlock()
+                    monitor.stateLock.lock()
+                    monitor._isMonitoring = false
+                    monitor.stateLock.unlock()
                     if persistUserPreference {
                         PingWardenPreferences.shared.isMonitoringEnabled = false
                     }
                     PingWardenPreferences.shared.effectiveMonitoringEnabled = false
                     PingWardenPreferences.shared.lastKnownState = "up"
-                    self.notifyStateChange()
+                    monitor.notifyStateChange()
                     log.info("✅ AWDL monitoring stopped - AirDrop/Handoff available")
                 } else {
                     log.error("❌ Failed to enable AWDL")
@@ -437,15 +453,15 @@ class PingWardenMonitor {
         }
 
         // Check 3: Query helper status with proper timeout handling
-        var helperStatus = "Unknown"
-        var helperVersion = "Unknown"
+        let helperStatus = LockedValue("Unknown")
+        let helperVersion = LockedValue("Unknown")
         var statusTimedOut = false
         var versionTimedOut = false
         let statusSemaphore = DispatchSemaphore(value: 0)
         let versionSemaphore = DispatchSemaphore(value: 0)
 
         proxy.getAWDLStatus(reply: { status in
-            helperStatus = status
+            helperStatus.withValue { $0 = status }
             statusSemaphore.signal()
         })
         if statusSemaphore.wait(timeout: .now() + 2.0) == .timedOut {
@@ -454,7 +470,7 @@ class PingWardenMonitor {
         }
 
         proxy.getVersion(reply: { version in
-            helperVersion = version
+            helperVersion.withValue { $0 = version }
             versionSemaphore.signal()
         })
         if versionSemaphore.wait(timeout: .now() + 2.0) == .timedOut {
@@ -480,14 +496,16 @@ class PingWardenMonitor {
             return (false, "Protection active but the wireless interface is still up - helper may not be functioning")
         }
 
-        let message = "Helper healthy: v\(helperVersion), Status: \(helperStatus)"
+        let finalHelperVersion = helperVersion.withValue { $0 }
+        let finalHelperStatus = helperStatus.withValue { $0 }
+        let message = "Helper healthy: v\(finalHelperVersion), Status: \(finalHelperStatus)"
         log.info("Health check: \(message)")
         return (true, message)
     }
     
     /// Get the AWDL intervention count from the helper
     /// Returns the number of times AWDL was blocked from coming up
-    func getInterventionCount(completion: @escaping (Int) -> Void) {
+    func getInterventionCount(completion: @escaping @Sendable (Int) -> Void) {
         guard let proxy = getHelperProxy() else {
             log.warning("Cannot get intervention count: No helper proxy")
             completion(0)
@@ -507,7 +525,7 @@ class PingWardenMonitor {
     }
     
     /// Reset the intervention counter in the helper
-    func resetInterventionCount(completion: @escaping (Bool) -> Void = { _ in }) {
+    func resetInterventionCount(completion: @escaping @Sendable (Bool) -> Void = { _ in }) {
         guard let proxy = getHelperProxy() else {
             log.warning("Cannot reset intervention count: No helper proxy")
             completion(false)
@@ -527,7 +545,7 @@ class PingWardenMonitor {
     /// Test the helper response time (for Testing Mode feature)
     /// Note: This test only works when monitoring is active, as it relies on
     /// the helper bringing AWDL back down after we bring it up.
-    func testHelperResponseTime(iterations: Int = 5, completion: @escaping ([(passed: Bool, responseTime: TimeInterval)]) -> Void) {
+    func testHelperResponseTime(iterations: Int = 5, completion: @escaping @Sendable ([(passed: Bool, responseTime: TimeInterval)]) -> Void) {
         log.info("Testing helper response time (\(iterations) iterations)...")
 
         // Warn if monitoring is not active - test results won't be meaningful
@@ -541,7 +559,7 @@ class PingWardenMonitor {
             return
         }
 
-        var results: [(passed: Bool, responseTime: TimeInterval)] = []
+        let results = LockedValue<[(passed: Bool, responseTime: TimeInterval)]>([])
 
         DispatchQueue.global(qos: .userInitiated).async {
             for i in 0..<iterations {
@@ -560,7 +578,7 @@ class PingWardenMonitor {
                 let responseTime = endTime.timeIntervalSince(startTime)
                 let passed = !status.contains("UP") || status.contains("<DOWN")
 
-                results.append((passed: passed, responseTime: responseTime))
+                results.withValue { $0.append((passed: passed, responseTime: responseTime)) }
                 log.debug("Test \(i + 1): passed=\(passed), time=\(String(format: "%.3f", responseTime * 1000))ms")
 
                 // Small delay between tests
@@ -569,8 +587,9 @@ class PingWardenMonitor {
                 }
             }
 
+            let finalResults = results.withValue { $0 }
             DispatchQueue.main.async {
-                completion(results)
+                completion(finalResults)
             }
         }
     }
@@ -633,15 +652,18 @@ class PingWardenMonitor {
 
         connection.interruptionHandler = { [weak self] in
             log.warning("XPC connection interrupted")
+            let monitor = self
             DispatchQueue.main.async {
-                self?.handleXPCInterruption()
+                monitor?.handleXPCInterruption()
             }
         }
 
-        connection.invalidationHandler = { [weak self, weak connection] in
+        let connectionID = ObjectIdentifier(connection)
+        connection.invalidationHandler = { [weak self] in
             log.warning("XPC connection invalidated")
+            let monitor = self
             DispatchQueue.main.async {
-                self?.handleXPCInvalidation(for: connection)
+                monitor?.handleXPCInvalidation(for: connectionID)
             }
         }
 
@@ -669,21 +691,22 @@ class PingWardenMonitor {
     }
 
     /// Validate XPC connection is actually working
-    private func validateXPCConnection(completion: ((Bool) -> Void)? = nil) {
+    private func validateXPCConnection(completion: (@Sendable (Bool) -> Void)? = nil) {
         guard let proxy = getHelperProxy() else {
             log.warning("XPC validation: No proxy available")
             completion?(false)
             return
         }
 
-        let completionLock = NSLock()
-        var didComplete = false
+        let didComplete = LockedValue(false)
 
-        let finish: (Bool) -> Void = { isValid in
-            completionLock.lock()
-            defer { completionLock.unlock() }
-            guard !didComplete else { return }
-            didComplete = true
+        let finish: @Sendable (Bool) -> Void = { isValid in
+            let shouldFinish = didComplete.withValue { value in
+                guard !value else { return false }
+                value = true
+                return true
+            }
+            guard shouldFinish else { return }
             completion?(isValid)
         }
 
@@ -716,12 +739,12 @@ class PingWardenMonitor {
 
         log.info("Reasserting AWDL blocking state after XPC reconnect")
         proxy.setAWDLEnabled(false, reply: { [weak self] success in
+            guard let monitor = self else { return }
             DispatchQueue.main.async {
-                guard let self else { return }
                 if success {
                     PingWardenPreferences.shared.effectiveMonitoringEnabled = true
                     PingWardenPreferences.shared.lastKnownState = "down"
-                    self.notifyStateChange()
+                    monitor.notifyStateChange()
                 } else {
                     log.error("Failed to reassert AWDL blocking state after reconnect")
                 }
@@ -736,7 +759,7 @@ class PingWardenMonitor {
     }
 
     /// Handle XPC invalidation (permanent disconnect)
-    private func handleXPCInvalidation(for invalidatedConnection: NSXPCConnection? = nil) {
+    private func handleXPCInvalidation(for invalidatedConnectionID: ObjectIdentifier? = nil) {
         // Prevent re-entrant handling
         stateLock.lock()
         // Idempotency: a single helper drop fires BOTH the connection's
@@ -746,14 +769,14 @@ class PingWardenMonitor {
         // them. If the connection was already torn down by the first handler,
         // the second must not run again and burn a second XPC retry slot —
         // which would surface "Lost connection" after 2 drops instead of 3.
-        if invalidatedConnection != nil, _xpcConnection == nil {
+        if invalidatedConnectionID != nil, _xpcConnection == nil {
             stateLock.unlock()
             log.debug("Ignoring duplicate XPC invalidation; connection already torn down")
             return
         }
-        if let invalidatedConnection,
+        if let invalidatedConnectionID,
            let currentConnection = _xpcConnection,
-           currentConnection !== invalidatedConnection {
+           ObjectIdentifier(currentConnection) != invalidatedConnectionID {
             stateLock.unlock()
             log.debug("Ignoring stale XPC invalidation from a replaced connection")
             return
@@ -819,10 +842,12 @@ class PingWardenMonitor {
             return nil
         }
 
-        return xpc.remoteObjectProxyWithErrorHandler { [weak self, weak xpc] error in
+        let xpcID = ObjectIdentifier(xpc)
+        return xpc.remoteObjectProxyWithErrorHandler { [weak self] error in
             log.error("XPC proxy error: \(error.localizedDescription)")
+            let monitor = self
             DispatchQueue.main.async {
-                self?.handleXPCInvalidation(for: xpc)
+                monitor?.handleXPCInvalidation(for: xpcID)
             }
         } as? PingWardenHelperProtocol
     }
@@ -830,7 +855,7 @@ class PingWardenMonitor {
     // MARK: - Registration Polling
 
     /// Poll for registration status change with timeout
-    private func startPollingForRegistration(completion: ((Bool) -> Void)?) {
+    private func startPollingForRegistration(completion: (@Sendable (Bool) -> Void)?) {
         log.debug("Starting registration polling (timeout: \(self.registrationTimeoutSeconds)s)...")
 
         // Cancel any existing timers
