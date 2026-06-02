@@ -16,7 +16,7 @@ jobs:
 
     steps:
     - name: Checkout
-      uses: actions/checkout@v4
+      uses: actions/checkout@v5
 
     - name: Select Xcode
       run: |
@@ -129,7 +129,7 @@ jobs:
     runs-on: macos-14
     steps:
     - name: Checkout
-      uses: actions/checkout@v4
+      uses: actions/checkout@v5
 
     - name: Install shellcheck
       run: brew install shellcheck
