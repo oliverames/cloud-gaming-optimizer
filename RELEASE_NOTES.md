@@ -1,3 +1,14 @@
+# Ping Warden 2.4.1
+
+[Support Ping Warden on Buy Me a Coffee](https://buymeacoffee.com/oliverames)
+
+Patch release for the 2.4 line.
+
+## Reliability
+- **Crash-reporting privacy/noise fix**: Sentry now explicitly disables failed HTTP request capture, so transient GitHub/Sparkle download errors like a 502 from a release asset do not get reported as Ping Warden errors. Crash reporting remains crash-only.
+
+---
+
 # Ping Warden 2.4.0
 
 [Support Ping Warden on Buy Me a Coffee](https://buymeacoffee.com/oliverames)

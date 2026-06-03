@@ -11,8 +11,8 @@
 //      Settings → Advanced → Privacy. The choice persists; only fresh
 //      installs and existing users launching v2.3.1 see the default.
 //    • No IP address (sendDefaultPii = false).
-//    • No network breadcrumbs — would otherwise leak TCP-probe target
-//      hostnames (e.g. user's DNS server) into crash payloads.
+//    • No network breadcrumbs, spans, or failed-request events — those
+//      would otherwise leak updater and TCP-probe URLs into crash payloads.
 //    • No performance tracing or profiling — crashes only.
 //    • No app-lifecycle session tracking (enableAutoSessionTracking = false).
 //    • beforeSend re-checks the preference as defense-in-depth, so a
@@ -76,6 +76,7 @@ enum CrashReporter {
 
             options.enableNetworkTracking = false
             options.enableNetworkBreadcrumbs = false
+            options.enableCaptureFailedRequests = false
             options.enableAppHangTracking = false
             options.enableFileIOTracing = false
 
