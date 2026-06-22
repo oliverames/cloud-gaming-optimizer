@@ -76,12 +76,12 @@ before doing any work). If the profile ever expires, run:
 xcrun notarytool store-credentials "notarytool-profile"
 ```
 
-**Do NOT use `xcodebuild -exportArchive`** — broken in Xcode 26 (IDEDistributionMethodManagerErrorDomain Code=2). Instead:
-1. `xcodebuild archive ... -archivePath /tmp/PingWarden-X.Y.Z.xcarchive`
+**Do NOT use `xcodebuild -exportArchive`** — broken in Xcode 26 (IDEDistributionMethodManagerErrorDomain Code=2). Archive **unsigned** and let `notarize.sh` apply the real Developer ID signature (fully headless, no Xcode UI needed):
+1. `xcodebuild archive -project PingWarden.xcodeproj -scheme PingWarden -configuration Release -archivePath /tmp/PingWarden-X.Y.Z.xcarchive -destination 'generic/platform=macOS' CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO` — the `CODE_SIGNING_ALLOWED=NO` is **required**: the App Groups entitlement otherwise demands a provisioning profile that Xcode only synthesizes through its UI. The app is non-sandboxed, so `notarize.sh` re-signs every component with `codesign --entitlements` (Developer ID, no profile) — the archive's signing is throwaway. The archive yields both the `.app` **and** `dSYMs/` (the latter is needed by `release.sh` for Sentry).
 2. `rsync -a "/tmp/PingWarden-X.Y.Z.xcarchive/Products/Applications/Ping Warden.app/" "PingWarden/build/Ping Warden.app/"`
-3. `cd PingWarden/PingWarden && bash notarize.sh X.Y.Z`
-4. `bash release.sh X.Y.Z ../../RELEASE_NOTES.md`
-5. Push appcast: `git checkout gh-pages && git add appcast.xml && git commit -m "Update appcast for vX.Y.Z" && git push && git checkout main`
+3. `cd PingWarden/PingWarden && bash notarize.sh X.Y.Z` (optional — standalone notarize test; `release.sh` runs it internally)
+4. `bash release.sh X.Y.Z ../../RELEASE_NOTES.md` — runs `notarize.sh` (re-sign + notarize app + DMG + staple), signs the Sparkle update, creates the GitHub release, uploads dSYMs to Sentry, **and pushes the gh-pages `appcast.xml` automatically**.
+5. `release.sh` leaves `appcast.xml` modified on `main` after its gh-pages push; commit the main-side copy too: `git add appcast.xml && git commit -m "Update appcast for vX.Y.Z" && git push`.
 
 Sparkle EdDSA key is in keychain account `"ed25519"`. Notarytool profile: `"notarytool-profile"`.
 

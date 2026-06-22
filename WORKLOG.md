@@ -1,5 +1,53 @@
 # Ping Warden Worklog
 
+## 2026-06-22 - 2.4.3: Settings-scene crash fix + headless release path proven
+
+**What changed**:
+- Fixed a fatal `NSGenericException` ("...more Update Constraints in Window
+  passes than there are views in the window") reported via Sentry (issue
+  7567835289) on macOS 26+/27. Root cause: the `Settings` scene in
+  `PingWardenApp.swift` held `EmptyView().frame(width: 1, height: 1)`. That
+  scene exists only to host the `.appSettings` command group — the real
+  preferences UI is the AppKit-managed `NSWindow` in
+  `AppDelegate.showSettingsWindow` — so its window is a hidden phantom. The
+  hard 1pt-wide content constraint drove the backing `NSHostingView` into a
+  re-entrant Update-Constraints loop. The crash report's window bounds read
+  `{1, 23}` (width 1), matching the frame. Fix: dropped the `.frame()` so the
+  empty content sizes itself; added a comment explaining why it must not
+  return.
+- Bumped to 2.4.3 (Info.plist ×3, pbxproj MARKETING_VERSION ×4) and added a
+  RELEASE_NOTES.md entry.
+- Shipped the full release **fully headless** (no Xcode UI): unsigned
+  `xcodebuild archive CODE_SIGNING_ALLOWED=NO` → `release.sh`. Corrected the
+  release runbook in CLAUDE.md/AGENTS.md/GEMINI.md to add the required flag and
+  reflect that `release.sh` runs `notarize.sh` and pushes the gh-pages appcast
+  itself.
+
+**Decisions made**:
+- The long-standing "can't archive headless" blocker was a misread: the
+  notarized artifact never needs a provisioning profile because `notarize.sh`
+  re-signs each component with `codesign --entitlements` (Developer ID), and
+  App Groups on a non-sandboxed app don't require a profile. So the archive's
+  signing is disposable — disable it and let the release scripts sign.
+- Released to the **stable** channel as a normal patch (not `CRITICAL_UPDATE`),
+  matching the 2.4.1/2.4.2 convention.
+
+**Verification**:
+- `swift test` → 33/33 pass; Release archive built clean against the macOS 26 SDK.
+- App + DMG both notarized (Accepted) and stapled; `stapler validate` passes;
+  release asset returns HTTP 200.
+- GitHub release v2.4.3 targets the fix commit `e681eec`; appcast latest =
+  2.4.3 on gh-pages (`0e60f0d`) and main (`50eaa87`); Sentry release
+  `com.amesvt.pingwarden@2.4.3` finalized with dSYMs uploaded.
+
+**Left off at**: 2.4.3 live on the stable channel. Nothing in flight.
+
+**Open questions**:
+- Still open: Issue #32 (Settings unified-toolbar redesign) — deferred.
+- Watch the GameController crash count per release (see GameController memory).
+
+---
+
 ## 2026-05-27 - 2.4.0 cycle: accessibility, Liquid Glass, beta channel
 
 **What changed**:
