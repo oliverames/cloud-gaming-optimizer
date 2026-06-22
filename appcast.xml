@@ -6,6 +6,73 @@
     <description>Updates for Ping Warden - AWDL blocking for cloud gaming</description>
     <language>en</language>
     <item>
+      <title>Version 2.4.2</title>
+      <link>https://github.com/oliverames/ping-warden/releases/tag/v2.4.2</link>
+      <sparkle:version>2.4.2</sparkle:version>
+      <sparkle:shortVersionString>2.4.2</sparkle:shortVersionString>
+      <description><![CDATA[
+<style>
+body {
+    font-family: -apple-system, BlinkMacSystemFont, "Helvetica Neue", Helvetica, Arial, sans-serif;
+    font-size: 13px;
+    line-height: 1.55;
+    color: #1d1d1f;
+    margin: 0;
+    padding: 0;
+}
+h1, h2, h3 { color: #000; font-weight: 600; }
+h1 { font-size: 18px; margin: 0 0 10px 0; }
+h2 {
+    font-size: 11px;
+    text-transform: uppercase;
+    letter-spacing: 0.6px;
+    color: #6e6e73;
+    margin: 18px 0 6px 0;
+}
+h3 { font-size: 13px; margin: 14px 0 6px 0; }
+p { margin: 0 0 10px 0; }
+ul, ol { padding-left: 20px; margin: 0 0 10px 0; }
+li { margin-bottom: 5px; }
+li > strong:first-child { color: #000; }
+code {
+    font-family: ui-monospace, "SF Mono", Menlo, monospace;
+    background: #f2f2f7;
+    padding: 1px 5px;
+    border-radius: 3px;
+    font-size: 12px;
+}
+a { color: #f5a542; text-decoration: none; }
+a:hover { text-decoration: underline; }
+hr { border: 0; border-top: 1px solid #e5e5ea; margin: 16px 0; }
+@media (prefers-color-scheme: dark) {
+    body { color: #f5f5f7; }
+    h1, h2, h3, li > strong:first-child { color: #fff; }
+    h2 { color: #98989d; }
+    code { background: #2c2c2e; }
+    hr { border-top-color: #38383a; }
+}
+</style>
+<p><a href="https://buymeacoffee.com/oliverames" rel="nofollow">Support Ping Warden on Buy Me a Coffee</a></p>
+<p>Patch release for the 2.4 line.</p>
+<h2>Reliability</h2>
+<ul>
+<li><strong>Donation prompt crash fix</strong>: The support prompt now uses an explicit SwiftUI content size and matching AppKit window content rect. This avoids an unbounded macOS 27 SwiftUI/AppKit button measurement loop that could abort with an AttributeGraph stack overflow.</li>
+<li><strong>Dashboard picker layout fix</strong>: The Ping History timeframe segmented control no longer shows a squeezed visible picker label when the dashboard card is narrow.</li>
+<li><strong>Settings title readability</strong>: Settings section titles now use the native macOS titlebar material and soft scroll-edge treatment so scrolled content fades underneath without muddying the header text.</li>
+</ul>
+      ]]></description>
+      <pubDate>Mon, 22 Jun 2026 13:59:49 UTC</pubDate>
+      <enclosure
+        url="https://github.com/oliverames/ping-warden/releases/download/v2.4.2/PingWarden-2.4.2.dmg"
+        sparkle:version="2.4.2"
+        sparkle:shortVersionString="2.4.2"
+        length="5174486"
+        type="application/octet-stream"
+        sparkle:edSignature="SIIujAEpGZR0wwHkwVKrsQlcgN72auxtTDTK0yWDAte0yFD8F5oTJSjQsfT1bzLtuvMQNl0q7Ab5KPYyojF8DQ=="
+      />
+      <sparkle:minimumSystemVersion>26.0</sparkle:minimumSystemVersion>
+    </item>
+    <item>
       <title>Version 2.4.1</title>
       <link>https://github.com/oliverames/ping-warden/releases/tag/v2.4.1</link>
       <sparkle:version>2.4.1</sparkle:version>
