@@ -40,8 +40,23 @@ struct PingWardenApp: App {
 
     var body: some Scene {
         Settings {
+            // Intentionally empty, and intentionally WITHOUT a fixed .frame().
+            //
+            // This Settings scene exists only to host the app-settings command
+            // group below — the real preferences UI is an AppKit-managed
+            // NSWindow (see AppDelegate.showSettingsWindow), so this scene's
+            // window is a hidden phantom that is never presented.
+            //
+            // The previous `EmptyView().frame(width: 1, height: 1)` pinned that
+            // phantom window's content to a 1pt-wide hard constraint. On
+            // macOS 26+ that degenerate geometry drives the backing
+            // NSHostingView into a re-entrant Update-Constraints-in-Window loop
+            // and crashes with NSGenericException ("...more Update Constraints
+            // in Window passes than there are views in the window"). The crash
+            // report's window bounds literally read width 1, matching the old
+            // frame. Letting the empty content size itself removes the
+            // conflicting constraint and the loop.
             EmptyView()
-                .frame(width: 1, height: 1)
         }
         .commands {
             CommandGroup(replacing: .appSettings) {

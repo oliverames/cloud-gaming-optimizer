@@ -1,3 +1,14 @@
+# Ping Warden 2.4.3
+
+[Support Ping Warden on Buy Me a Coffee](https://buymeacoffee.com/oliverames)
+
+Patch release for the 2.4 line.
+
+## Reliability
+- **Settings crash fix**: Fixed a rare startup crash on macOS 26 and later. The hidden helper window that backs the standard Settings menu command was pinned to a one-pixel-wide size, which on newer macOS could send the layout engine into an endless update loop and abort the app. The window is now left to size itself, removing the loop.
+
+---
+
 # Ping Warden 2.4.2
 
 [Support Ping Warden on Buy Me a Coffee](https://buymeacoffee.com/oliverames)
