@@ -12,6 +12,7 @@ import SwiftUI
 
 struct DonationPromptView: View {
     static let donationURL = URL(string: "https://buymeacoffee.com/oliverames")!
+    static let contentSize = CGSize(width: 420, height: 520)
 
     let onSupport: () -> Void
     let onMaybeLater: () -> Void
@@ -70,7 +71,7 @@ struct DonationPromptView: View {
             .padding(.horizontal, 32)
             .padding(.bottom, 24)
         }
-        .frame(width: 420)
+        .frame(width: Self.contentSize.width, height: Self.contentSize.height)
         .background(.regularMaterial)
         .accessibilityElement(children: .contain)
     }

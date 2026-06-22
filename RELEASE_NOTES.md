@@ -1,3 +1,16 @@
+# Ping Warden 2.4.2
+
+[Support Ping Warden on Buy Me a Coffee](https://buymeacoffee.com/oliverames)
+
+Patch release for the 2.4 line.
+
+## Reliability
+- **Donation prompt crash fix**: The support prompt now uses an explicit SwiftUI content size and matching AppKit window content rect. This avoids an unbounded macOS 27 SwiftUI/AppKit button measurement loop that could abort with an AttributeGraph stack overflow.
+- **Dashboard picker layout fix**: The Ping History timeframe segmented control no longer shows a squeezed visible picker label when the dashboard card is narrow.
+- **Settings title readability**: Settings section titles now use the native macOS titlebar material and soft scroll-edge treatment so scrolled content fades underneath without muddying the header text.
+
+---
+
 # Ping Warden 2.4.1
 
 [Support Ping Warden on Buy Me a Coffee](https://buymeacoffee.com/oliverames)

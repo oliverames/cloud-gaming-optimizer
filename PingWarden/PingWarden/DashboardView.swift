@@ -640,6 +640,7 @@ struct PingGraphCard: View {
                 Text(option.label).tag(option.minutes)
             }
         }
+        .labelsHidden()
         .pickerStyle(.segmented)
         .accessibilityLabel("Ping history timeframe")
     }

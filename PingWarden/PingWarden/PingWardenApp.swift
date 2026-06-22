@@ -497,10 +497,21 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSMenuDele
         )
 
         let hostingController = NSHostingController(rootView: view)
-        let window = NSWindow(contentViewController: hostingController)
+        let contentSize = NSSize(
+            width: DonationPromptView.contentSize.width,
+            height: DonationPromptView.contentSize.height
+        )
+        hostingController.view.frame = NSRect(origin: .zero, size: contentSize)
+
+        let window = NSWindow(
+            contentRect: NSRect(origin: .zero, size: contentSize),
+            styleMask: [.titled, .closable, .fullSizeContentView],
+            backing: .buffered,
+            defer: false
+        )
+        window.contentViewController = hostingController
         window.titlebarAppearsTransparent = true
         window.titleVisibility = .hidden
-        window.styleMask = [.titled, .closable, .fullSizeContentView]
         window.isMovableByWindowBackground = true
         window.backgroundColor = .clear
         window.center()
@@ -717,7 +728,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSMenuDele
         window.isReleasedWhenClosed = false
         window.delegate = self
         window.toolbarStyle = .unified
-        window.titlebarAppearsTransparent = true
+        window.titlebarAppearsTransparent = false
         window.toolbar?.showsBaselineSeparator = false
         window.setFrameAutosaveName("PingWardenSettings")
         window.center()
@@ -1312,7 +1323,32 @@ struct SettingsView: View {
             .navigationTitle(selectedSection.rawValue)
         }
         .navigationSplitViewStyle(.prominentDetail)
+        .settingsToolbarMaterial()
         .frame(minWidth: 760, minHeight: 520)
+    }
+}
+
+private extension View {
+    @ViewBuilder
+    func settingsToolbarMaterial() -> some View {
+        if #available(macOS 15.0, *) {
+            self
+                .toolbarBackground(.bar, for: .windowToolbar)
+                .toolbarBackgroundVisibility(.visible, for: .windowToolbar)
+        } else {
+            self
+                .toolbarBackground(.bar, for: .windowToolbar)
+                .toolbarBackground(.visible, for: .windowToolbar)
+        }
+    }
+
+    @ViewBuilder
+    func settingsScrollEdgeTreatment() -> some View {
+        if #available(macOS 26.0, *) {
+            self.scrollEdgeEffectStyle(.soft, for: .top)
+        } else {
+            self
+        }
     }
 }
 
@@ -1364,6 +1400,7 @@ struct SettingsContentView: View {
                 Spacer(minLength: 20)
             }
             .scrollContentBackground(.hidden)
+            .settingsScrollEdgeTreatment()
         }
         // No explicit .background here: on macOS 26 the Settings scene
         // already renders with the system Liquid Glass material, and an
@@ -1576,6 +1613,7 @@ struct GeneralSettingsContent: View {
             }
         }
         .formStyle(.grouped)
+        .settingsScrollEdgeTreatment()
         .onAppear {
             monitorState.startObserving()
         }
@@ -1677,6 +1715,7 @@ struct AutomationSettingsContent: View {
             }
         }
         .formStyle(.grouped)
+        .settingsScrollEdgeTreatment()
         .onAppear {
             refreshAvailability()
         }
@@ -1821,6 +1860,7 @@ struct AdvancedSettingsContent: View {
             }
         }
         .formStyle(.grouped)
+        .settingsScrollEdgeTreatment()
         .confirmationDialog(
             "Re-register Helper?",
             isPresented: $showingReinstallConfirm,
