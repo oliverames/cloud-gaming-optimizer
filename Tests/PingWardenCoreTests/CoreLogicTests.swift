@@ -6,10 +6,32 @@
 //  PingWarden/PingWarden/Core/. Run with `swift test`.
 //
 
-import Darwin
 import Foundation
 import XCTest
 @testable import PingWardenCore
+
+// POSIX socket calls are referenced through module-qualified constants
+// because inside an XCTestCase subclass `bind`, `listen`, and `close`
+// shadow the global C functions with NSObject's KVO `bind(_:to:withKeyPath:options:)`
+// and friends. The indirection also keeps the suite compiling on Linux,
+// where the symbols live in Glibc instead of Darwin.
+#if canImport(Darwin)
+import Darwin
+private let sysSocket: (Int32, Int32, Int32) -> Int32 = Darwin.socket
+private let sysBind: (Int32, UnsafePointer<sockaddr>?, socklen_t) -> Int32 = Darwin.bind
+private let sysListen: (Int32, Int32) -> Int32 = Darwin.listen
+private let sysClose: (Int32) -> Int32 = Darwin.close
+private let sysGetsockname: (Int32, UnsafeMutablePointer<sockaddr>?, UnsafeMutablePointer<socklen_t>?) -> Int32 = Darwin.getsockname
+private let sysSockStream = SOCK_STREAM
+#elseif canImport(Glibc)
+import Glibc
+private let sysSocket: (Int32, Int32, Int32) -> Int32 = Glibc.socket
+private let sysBind: (Int32, UnsafePointer<sockaddr>?, socklen_t) -> Int32 = Glibc.bind
+private let sysListen: (Int32, Int32) -> Int32 = Glibc.listen
+private let sysClose: (Int32) -> Int32 = Glibc.close
+private let sysGetsockname: (Int32, UnsafeMutablePointer<sockaddr>?, UnsafeMutablePointer<socklen_t>?) -> Int32 = Glibc.getsockname
+private let sysSockStream = Int32(SOCK_STREAM.rawValue)
+#endif
 
 final class PingStatisticsTests: XCTestCase {
     func testEmptySamplesReportZeroAndPoorQuality() {
@@ -56,6 +78,48 @@ final class PingStatisticsTests: XCTestCase {
         let result = PingStatistics.calculate(from: samples)
         XCTAssertEqual(result.quality, .good)
     }
+
+    func testFairQualityBand() {
+        let now = Date()
+        let samples = (0..<5).map { index in
+            PingSample(latencyMs: 75, success: true, timestamp: now.addingTimeInterval(Double(index)))
+        }
+        let result = PingStatistics.calculate(from: samples)
+        XCTAssertEqual(result.quality, .fair)
+    }
+
+    func testMinimumAndMaximumPing() {
+        let now = Date()
+        let samples = [
+            PingSample(latencyMs: 30, success: true, timestamp: now),
+            PingSample(latencyMs: 12, success: true, timestamp: now.addingTimeInterval(1)),
+            PingSample(latencyMs: 44, success: true, timestamp: now.addingTimeInterval(2))
+        ]
+        let result = PingStatistics.calculate(from: samples)
+        XCTAssertEqual(result.minimumPing, 12, accuracy: 0.0001)
+        XCTAssertEqual(result.maximumPing, 44, accuracy: 0.0001)
+    }
+
+    /// Non-empty input where every probe failed: 100% loss, zeroed latency
+    /// stats, poor quality — and no divide-by-zero on the empty success set.
+    func testAllFailuresReportTotalLossAndPoorQuality() {
+        let now = Date()
+        let samples = (0..<3).map { index in
+            PingSample(latencyMs: 1000, success: false, timestamp: now.addingTimeInterval(Double(index)))
+        }
+        let result = PingStatistics.calculate(from: samples)
+        XCTAssertEqual(result.packetLoss, 100, accuracy: 0.0001)
+        XCTAssertEqual(result.currentPing, 0)
+        XCTAssertEqual(result.averagePing, 0)
+        XCTAssertEqual(result.quality, .poor)
+    }
+
+    func testSingleSampleHasZeroJitter() {
+        let result = PingStatistics.calculate(from: [
+            PingSample(latencyMs: 25, success: true, timestamp: Date())
+        ])
+        XCTAssertEqual(result.jitter, 0)
+    }
 }
 
 final class XPCReconnectPolicyTests: XCTestCase {
@@ -67,6 +131,23 @@ final class XPCReconnectPolicyTests: XCTestCase {
 
     func testNonPositiveAttemptReturnsZero() {
         XCTAssertEqual(XPCReconnectPolicy.delayForAttempt(0), 0.0, accuracy: 0.0001)
+    }
+
+    /// The backoff must be capped: uncapped, attempt 31 is ~12 days and
+    /// attempt 1100 overflows pow() to +inf, silently ending retries.
+    func testLargeAttemptsAreCappedAndFinite() {
+        XCTAssertEqual(XPCReconnectPolicy.delayForAttempt(31), XPCReconnectPolicy.maxDelaySeconds)
+        XCTAssertEqual(XPCReconnectPolicy.delayForAttempt(1100), XPCReconnectPolicy.maxDelaySeconds)
+        XCTAssertTrue(XPCReconnectPolicy.delayForAttempt(Int.max).isFinite)
+    }
+
+    func testDelaysAreMonotonicallyNonDecreasing() {
+        var previous: TimeInterval = 0
+        for attempt in 1...40 {
+            let delay = XPCReconnectPolicy.delayForAttempt(attempt)
+            XCTAssertGreaterThanOrEqual(delay, previous)
+            previous = delay
+        }
     }
 }
 
@@ -100,11 +181,7 @@ final class TCPProbeTests: XCTestCase {
     }
 
     private static func startLoopbackListener() -> UInt16? {
-        // POSIX socket calls are qualified with `Darwin.` because inside an
-        // XCTestCase subclass `bind`, `listen`, and `close` shadow the global
-        // C functions with NSObject's KVO `bind(_:to:withKeyPath:options:)`
-        // and friends.
-        let listenerFD = Darwin.socket(AF_INET, SOCK_STREAM, 0)
+        let listenerFD = sysSocket(AF_INET, sysSockStream, 0)
         guard listenerFD >= 0 else { return nil }
 
         var addr = sockaddr_in()
@@ -114,11 +191,11 @@ final class TCPProbeTests: XCTestCase {
 
         let bindResult = withUnsafePointer(to: &addr) { addrPtr -> Int32 in
             addrPtr.withMemoryRebound(to: sockaddr.self, capacity: 1) { sockAddrPtr in
-                Darwin.bind(listenerFD, sockAddrPtr, socklen_t(MemoryLayout<sockaddr_in>.size))
+                sysBind(listenerFD, sockAddrPtr, socklen_t(MemoryLayout<sockaddr_in>.size))
             }
         }
-        guard bindResult == 0, Darwin.listen(listenerFD, 4) == 0 else {
-            Darwin.close(listenerFD)
+        guard bindResult == 0, sysListen(listenerFD, 4) == 0 else {
+            _ = sysClose(listenerFD)
             return nil
         }
 
@@ -126,11 +203,11 @@ final class TCPProbeTests: XCTestCase {
         var len = socklen_t(MemoryLayout<sockaddr_in>.size)
         let nameResult = withUnsafeMutablePointer(to: &boundAddr) { ptr -> Int32 in
             ptr.withMemoryRebound(to: sockaddr.self, capacity: 1) { sockAddrPtr in
-                Darwin.getsockname(listenerFD, sockAddrPtr, &len)
+                sysGetsockname(listenerFD, sockAddrPtr, &len)
             }
         }
         guard nameResult == 0 else {
-            Darwin.close(listenerFD)
+            _ = sysClose(listenerFD)
             return nil
         }
 
@@ -346,6 +423,16 @@ final class VersionPromptPolicyTests: XCTestCase {
             dismissedPermanently: false
         ))
     }
+
+    /// A single-component current version ("3") can't be parsed into
+    /// major.minor — the policy must fail closed rather than prompt.
+    func testSingleComponentCurrentVersionFailsClosed() {
+        XCTAssertFalse(VersionPromptPolicy.shouldPrompt(
+            currentVersion: "3",
+            lastSeenVersion: "2.3.0",
+            dismissedPermanently: false
+        ))
+    }
 }
 
 final class CustomPingTargetStoreTests: XCTestCase {
@@ -421,6 +508,17 @@ final class CustomPingTargetStoreTests: XCTestCase {
         let longHost = String(repeating: "x", count: 300)
         XCTAssertEqual(
             CustomPingTargetStore.validate(displayName: "X", host: longHost, port: 53),
+            .hostTooLong
+        )
+    }
+
+    /// Exactly 255 characters is the RFC 1035 limit and must be accepted;
+    /// 256 must be rejected.
+    func testValidationHostLengthBoundary() {
+        let boundaryHost = String(repeating: "x", count: CustomPingTargetStore.maxHostnameLength)
+        XCTAssertNil(CustomPingTargetStore.validate(displayName: "X", host: boundaryHost, port: 53))
+        XCTAssertEqual(
+            CustomPingTargetStore.validate(displayName: "X", host: boundaryHost + "x", port: 53),
             .hostTooLong
         )
     }

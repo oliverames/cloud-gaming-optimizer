@@ -82,6 +82,52 @@ final class CustomPingTargetStore {
     func load() -> [CustomPingTarget] {
         lock.lock()
         defer { lock.unlock() }
+        return loadLocked()
+    }
+
+    @discardableResult
+    func save(_ targets: [CustomPingTarget]) -> Bool {
+        lock.lock()
+        defer { lock.unlock() }
+        return saveLocked(targets)
+    }
+
+    // Mutations hold the lock across the whole read-modify-write so
+    // concurrent callers cannot interleave and lose writes.
+
+    @discardableResult
+    func add(_ target: CustomPingTarget) -> [CustomPingTarget] {
+        lock.lock()
+        defer { lock.unlock() }
+        var targets = loadLocked()
+        targets.append(target)
+        saveLocked(targets)
+        return targets
+    }
+
+    @discardableResult
+    func remove(id: UUID) -> [CustomPingTarget] {
+        lock.lock()
+        defer { lock.unlock() }
+        var targets = loadLocked()
+        targets.removeAll { $0.id == id }
+        saveLocked(targets)
+        return targets
+    }
+
+    @discardableResult
+    func update(_ target: CustomPingTarget) -> [CustomPingTarget] {
+        lock.lock()
+        defer { lock.unlock() }
+        var targets = loadLocked()
+        if let index = targets.firstIndex(where: { $0.id == target.id }) {
+            targets[index] = target
+            saveLocked(targets)
+        }
+        return targets
+    }
+
+    private func loadLocked() -> [CustomPingTarget] {
         guard let data = userDefaults.data(forKey: storageKey) else {
             return []
         }
@@ -95,9 +141,7 @@ final class CustomPingTargetStore {
     }
 
     @discardableResult
-    func save(_ targets: [CustomPingTarget]) -> Bool {
-        lock.lock()
-        defer { lock.unlock() }
+    private func saveLocked(_ targets: [CustomPingTarget]) -> Bool {
         do {
             let data = try JSONEncoder().encode(targets)
             userDefaults.set(data, forKey: storageKey)
@@ -105,31 +149,5 @@ final class CustomPingTargetStore {
         } catch {
             return false
         }
-    }
-
-    @discardableResult
-    func add(_ target: CustomPingTarget) -> [CustomPingTarget] {
-        var targets = load()
-        targets.append(target)
-        save(targets)
-        return targets
-    }
-
-    @discardableResult
-    func remove(id: UUID) -> [CustomPingTarget] {
-        var targets = load()
-        targets.removeAll { $0.id == id }
-        save(targets)
-        return targets
-    }
-
-    @discardableResult
-    func update(_ target: CustomPingTarget) -> [CustomPingTarget] {
-        var targets = load()
-        if let index = targets.firstIndex(where: { $0.id == target.id }) {
-            targets[index] = target
-            save(targets)
-        }
-        return targets
     }
 }

@@ -32,6 +32,11 @@ NS_ASSUME_NONNULL_BEGIN
 /// Should be called before the helper exits.
 - (void)invalidate;
 
+/// Bring awdl0 back UP with a direct ioctl on the calling thread.
+/// Exit-path safety net: works even if the poll thread is dead or the
+/// control pipe is gone. Call only after `invalidate`.
+- (void)restoreInterfaceUpDirectly;
+
 /// Get the total number of AWDL interventions (how many times we blocked AWDL from coming up)
 /// This counter persists for the lifetime of the helper process
 - (NSInteger)getInterventionCount;

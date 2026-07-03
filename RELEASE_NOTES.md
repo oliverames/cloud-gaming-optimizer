@@ -1,3 +1,45 @@
+# Ping Warden 2.5.0
+
+[Support Ping Warden on Buy Me a Coffee](https://buymeacoffee.com/oliverames)
+
+Ping Warden 2.5.0 is a reliability-focused release: a full audit of the helper daemon, XPC layer, widget sync, monitoring pipeline, and release tooling, with dozens of fixes.
+
+## Changelog
+
+### Protection Reliability
+- **Protection now survives quit + relaunch**: Quitting the app no longer silently turns the Ping Protection preference off. If protection was on when you quit, it turns back on at the next launch.
+- **Helper can never strand your Wi-Fi radio off**: Every helper exit path (grace-period shutdown, system termination) now guarantees the wireless interface is restored via a direct fallback, even if the helper's internal monitoring thread had died.
+- **Honest failure reporting from the helper**: If the helper's kernel-event thread stops, protection commands now fail visibly instead of pretending to succeed while nothing was being enforced.
+- **XPC reconnect fixed**: The reconnect retry counter is now only reset after the helper actually responds, closing an infinite silent reconnect loop when the helper was unregistered mid-session. Abandoned connections are also properly invalidated (fixing a slow resource leak), and a reconnect can no longer overwrite a stop you issued while it was in flight.
+- **Helper setup can no longer wedge**: An interrupted registration flow used to permanently block future "Enable Ping Protection" attempts until app restart; registration polling now always resolves.
+- **Race-free helper shutdown**: The helper's exit decision is now atomic with connection tracking, so an app reconnect can never be dropped mid-shutdown (which previously caused a brief AWDL flap — the exact latency spike the app prevents).
+- **Hardened privileged daemon**: Release builds of the root helper now refuse to run if their code signature fails validation instead of downgrading to weaker checks.
+
+### Game Mode & Quick Pause
+- **Game detection now recognizes most games**: Apps declaring a game *subcategory* (action, RPG, strategy, …) in their Info.plist were never detected as games; now they are.
+- **Pause and Game Mode no longer fight each other**: Pausing during a game session is honored when the game ends; a pause that expires mid-game restores your protection preference instead of leaving protection off permanently.
+- **Pause timer reliability**: The 10-minute auto-resume now fires even while a menu or dialog is open, and the menu's Pause/Resume items enable/disable correctly.
+
+### Control Center Widget
+- **Widget state stays in sync**: The app now tells Control Center to refresh the toggle whenever protection changes from the menu bar, Settings, or Game Mode — the widget no longer displays stale state indefinitely.
+- **Toggling off no longer snaps back to on**: The widget now displays and toggles the same state, fixing both the visual snap-back after disabling and a Shortcuts toggle that could never turn auto-enabled protection off.
+- **Launch failures surface**: If the main app can't be launched to apply a widget toggle, the toggle now reverts and reports an error instead of showing protection as on while nothing happened.
+- **Lockout prevention hardened**: Hiding the dock icon while in Control Center mode (menu bar hidden) is now blocked at all times, not just at the moment Control Center mode is enabled.
+
+### Ping Monitoring & Dashboard
+- **Accurate latency numbers**: Measured ping now excludes DNS resolution time and failed connection attempts — dual-stack hostnames no longer report ~1000 ms "successful" pings that poisoned averages, jitter, spike events, and Auto-Select rankings.
+- **Unresponsive DNS can't freeze monitoring**: Hostname resolution now runs with a bounded deadline, so a hung resolver no longer stalls the entire ping pipeline and dashboard.
+- **Saved server selection survives relaunch**: A selected GeForce NOW zone or local-gateway target is now restored once its source loads, instead of silently falling back to Cloudflare DNS forever.
+- **Transient GFN outages keep your zones**: A failed GeForce NOW server-list refresh no longer wipes previously discovered zones (which reset your selection and erased chart history).
+- **Dashboard chart performance**: Chart data is now memoized and downsampled (spikes always preserved), cutting per-second CPU dramatically on long timeframes — exactly during the gaming sessions the app protects.
+- **Smaller fixes**: duplicate server entries are deduplicated everywhere; protection events that occur while the dashboard is closed no longer appear as one mistimed event; auto-select probes no longer starve the app's async runtime; settings window size/position is remembered again; diagnostics export falls back to a temp folder if Desktop access is denied; the quarantine-fix command now uses the app's real location; automatic update checks start correctly after first-run setup.
+
+### Release Tooling & CI
+- **Cross-platform test suite**: The core logic package now compiles and tests on Linux; CI gained an `ubuntu-latest` `swift test` job (plus 8 new tests) and shellcheck coverage for all scripts.
+- **Release script fixes**: Sentry upload failures can no longer abort a release before the appcast is published; first-ever beta appcasts publish correctly; beta releases are marked as GitHub pre-releases; GitHub release pages now show only that version's notes; notarization failures print their diagnostics instead of dying silently; version arguments are validated against Info.plist.
+
+---
+
 # Ping Warden 2.4.3
 
 [Support Ping Warden on Buy Me a Coffee](https://buymeacoffee.com/oliverames)

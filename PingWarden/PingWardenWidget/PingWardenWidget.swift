@@ -24,7 +24,12 @@ struct PingWardenWidget: ControlWidget {
 
     var body: some ControlWidgetConfiguration {
         StaticControlConfiguration(kind: Self.kind) {
-            let isOn = PingWardenPreferences.shared.effectiveMonitoringEnabled || PingWardenPreferences.shared.isMonitoringEnabled
+            // Display user *intent*, which is exactly what the toggle intent
+            // sets. Mixing in the effective runtime state made the toggle
+            // snap back to On after a disable (effective stayed true until
+            // the app processed the change) and made
+            // ToggleAWDLMonitoringIntent flip a different state than shown.
+            let isOn = PingWardenPreferences.shared.isMonitoringEnabled
             ControlWidgetToggle(isOn: isOn, action: SetPingProtectionIntent()) {
                 Label(
                     isOn ? "Protection On" : "Protection Off",

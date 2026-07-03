@@ -14,7 +14,13 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
 # Configuration
 APP_NAME="Ping Warden"
-VERSION="${1:-2.2.1}"
+VERSION="${1:-}"
+if [ -z "$VERSION" ]; then
+    echo "Error: version argument is required (a stale default here once produced" >&2
+    echo "DMGs whose filename didn't match their contents)." >&2
+    echo "Usage: ./create-dmg.sh <version> [app-path]" >&2
+    exit 1
+fi
 DMG_NAME="PingWarden-${VERSION}"
 BUILD_DIR="$SCRIPT_DIR/build"
 DMG_PATH="$SCRIPT_DIR/${DMG_NAME}.dmg"

@@ -83,6 +83,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSMenuDele
 
     private var updaterController: SPUStandardUpdaterController?
     private var updaterStartupError: Error?
+    private var updaterHasStarted = false
     
     private var monitoringObserver: NSObjectProtocol?
     private var controlCenterObserver: NSObjectProtocol?
@@ -119,8 +120,11 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSMenuDele
         // Clear any cached Settings window state from prior builds that may have
         // injected fullSizeContentView or other window customizations via onAppear.
         // The SwiftUI Settings scene persists window frames under these keys.
+        // Exclude our own AppKit settings window's autosave frame
+        // ("PingWardenSettings") — deleting it every launch would throw away
+        // the user's window size/position.
         for key in UserDefaults.standard.dictionaryRepresentation().keys {
-            if key.contains("NSWindow Frame") && key.contains("Settings") {
+            if key.contains("NSWindow Frame") && key.contains("Settings") && !key.contains("PingWardenSettings") {
                 UserDefaults.standard.removeObject(forKey: key)
             }
         }
@@ -150,8 +154,15 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSMenuDele
         // Observe monitor state changes
         monitorStateObserverToken = monitor.addStateObserver { [weak self] in
             Task { @MainActor in
-                self?.updateMenuBarIcon()
-                self?.updateMenuItem()
+                guard let self else { return }
+                self.updateMenuBarIcon()
+                self.updateMenuItem()
+                // If Sparkle was deferred during first-run setup, start it as
+                // soon as the helper registration completes — otherwise
+                // automatic update checks stay silently disabled all session.
+                if PingWardenMonitor.shared.isHelperRegistered {
+                    self.startUpdaterIfNeeded()
+                }
             }
         }
 
@@ -174,9 +185,10 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSMenuDele
             }
         } else {
             log.info("Helper already registered")
-            if PingWardenPreferences.shared.isMonitoringEnabled && !monitor.isMonitoringActive {
-                monitor.startMonitoring()
-            }
+            // Reconcile both directions at startup: start if the user wants
+            // protection and it isn't running, but also stop if a widget/
+            // Shortcuts toggle turned it off while the app wasn't running.
+            handleMonitoringStateChange()
             // Only consider the donation prompt once setup is finished. Brand
             // new users see the welcome flow on their first launch and the
             // donation ask on the next one — asking before they've used the
@@ -288,7 +300,10 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSMenuDele
         quickPauseTimer = nil
 
         if PingWardenMonitor.shared.isMonitoringActive {
-            PingWardenMonitor.shared.stopMonitoring()
+            // Transient stop: quitting must not flip the user's preference
+            // off, or the launch-time restore would never re-enable
+            // protection after a normal quit + relaunch.
+            PingWardenMonitor.shared.stopMonitoring(persistUserPreference: false)
         }
 
         if let token = monitorStateObserverToken {
@@ -330,6 +345,20 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSMenuDele
         let aboutVisible = aboutWindow?.isVisible ?? false
         let welcomeVisible = welcomeWindow?.isVisible ?? false
         let donationVisible = donationWindow?.isVisible ?? false
+
+        // Lockout invariant (H2): never hide the dock icon while Control
+        // Center mode has the menu bar icon removed. Without this, unchecking
+        // "Show Dock Icon" after enabling Control Center mode leaves no way
+        // into the app except re-launching from Finder — and the state
+        // persists across launches. (Checked against the preference, not
+        // `statusItem == nil`, because this also runs at launch before
+        // setupMenuBar() when statusItem is legitimately still nil.)
+        if PingWardenPreferences.shared.controlCenterWidgetEnabled,
+           !PingWardenPreferences.shared.showDockIcon {
+            log.info("Menu bar icon is hidden (Control Center mode) — forcing dock icon on to prevent lockout")
+            PingWardenPreferences.shared.showDockIcon = true
+            return // the preference setter re-triggers this method via its notification
+        }
 
         if PingWardenPreferences.shared.showDockIcon || settingsVisible || aboutVisible || welcomeVisible || donationVisible {
             NSApp.setActivationPolicy(.regular)
@@ -417,6 +446,20 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSMenuDele
             )
             gameModeSnapshot = nil
 
+            // A quick pause the user started *during* Game Mode takes
+            // priority: honor it instead of force-resuming blocking from the
+            // pre-game snapshot.
+            if let currentPause = quickPauseUntil, currentPause > Date(),
+               currentPause != snapshot.quickPauseUntil {
+                log.info("Game Mode inactive - honoring quick pause started during Game Mode")
+                if PingWardenMonitor.shared.isMonitoringActive {
+                    PingWardenMonitor.shared.stopMonitoring(persistUserPreference: false)
+                }
+                scheduleQuickPauseTimer()
+                updateMenuItem()
+                return
+            }
+
             if let pauseUntil = snapshot.quickPauseUntil, pauseUntil > Date() {
                 log.info("Game Mode inactive - restoring paused state")
                 quickPauseUntil = pauseUntil
@@ -425,14 +468,21 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSMenuDele
                 scheduleQuickPauseTimer()
                 updateMenuItem()
                 return
-            } else {
-                clearQuickPauseState()
             }
 
-            if snapshot.wasMonitoringActive && !PingWardenMonitor.shared.isMonitoringActive {
+            clearQuickPauseState()
+
+            // If a pre-game pause expired while the game was running, restore
+            // from the user's persistent intent — the runtime state captured
+            // at game start ("off", because paused) is stale by now.
+            let shouldMonitor = snapshot.quickPauseUntil != nil
+                ? snapshot.userIntentMonitoringEnabled
+                : snapshot.wasMonitoringActive
+
+            if shouldMonitor && !PingWardenMonitor.shared.isMonitoringActive {
                 log.info("Game Mode inactive - restoring AWDL blocking state to enabled")
                 PingWardenMonitor.shared.startMonitoring(persistUserPreference: false)
-            } else if !snapshot.wasMonitoringActive && PingWardenMonitor.shared.isMonitoringActive {
+            } else if !shouldMonitor && PingWardenMonitor.shared.isMonitoringActive {
                 log.info("Game Mode inactive - restoring AWDL blocking state to disabled")
                 PingWardenMonitor.shared.stopMonitoring(persistUserPreference: false)
             }
@@ -562,6 +612,11 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSMenuDele
         updateMenuBarIcon()
         statusMenu = NSMenu()
         statusMenu?.delegate = self
+        // Manual isEnabled control for the pause/resume items: with
+        // autoenablesItems left on, AppKit re-enables any item whose target
+        // responds to its action every time the menu opens, overriding the
+        // assignments in updateQuickActionMenuItems().
+        statusMenu?.autoenablesItems = false
 
         // Toggle item
         let toggleItem = NSMenuItem(
@@ -745,8 +800,11 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSMenuDele
         window.toolbarStyle = .unified
         window.titlebarAppearsTransparent = false
         window.toolbar?.showsBaselineSeparator = false
-        window.setFrameAutosaveName("PingWardenSettings")
+        // Center first, then attach the autosave name: setFrameAutosaveName
+        // restores any saved frame, so the restored position must not be
+        // clobbered by a subsequent center().
         window.center()
+        window.setFrameAutosaveName("PingWardenSettings")
 
         settingsWindow = window
         window.makeKeyAndOrderFront(nil)
@@ -797,13 +855,19 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSMenuDele
         updaterController?.updater.checkForUpdates()
     }
 
+    @discardableResult
     private func startUpdaterIfNeeded() -> Bool {
         guard let updater = updaterController?.updater else {
             return false
         }
-        
+
+        if updaterHasStarted {
+            return true
+        }
+
         do {
             try updater.start()
+            updaterHasStarted = true
             updaterStartupError = nil
             return true
         } catch {
@@ -1048,6 +1112,11 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSMenuDele
             Task { @MainActor in
                 self?.resumeMonitoringAfterQuickPause()
             }
+        }
+        // .common mode so the auto-resume still fires while the status menu
+        // is held open or a modal alert is running.
+        if let quickPauseTimer {
+            RunLoop.main.add(quickPauseTimer, forMode: .common)
         }
     }
 
@@ -2455,10 +2524,16 @@ final class GameModeDetector: @unchecked Sendable {
             return false
         }
 
-        // Check LSApplicationCategoryType for game category
+        // Check LSApplicationCategoryType for game category. The generic
+        // category is "public.app-category.games", but most titles declare a
+        // subcategory like "public.app-category.action-games" or
+        // "public.app-category.role-playing-games" — those end in "-games"
+        // and do NOT share the generic prefix, so match both shapes.
         if let categoryType = infoPlist["LSApplicationCategoryType"] as? String {
-            if categoryType.hasPrefix("public.app-category.games") {
-                log.debug("App \(bundleURL.lastPathComponent) has game category")
+            let isGameCategory = categoryType == "public.app-category.games" ||
+                (categoryType.hasPrefix("public.app-category.") && categoryType.hasSuffix("-games"))
+            if isGameCategory {
+                log.debug("App \(bundleURL.lastPathComponent) has game category (\(categoryType))")
                 return true
             }
         }

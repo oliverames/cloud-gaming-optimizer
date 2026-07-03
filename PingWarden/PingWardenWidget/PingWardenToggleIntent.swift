@@ -61,8 +61,24 @@ struct ToggleAWDLMonitoringIntent: AppIntent {
 }
 
 private enum PingProtectionIntentHandler {
+    private enum LaunchOutcome {
+        case alreadyRunning
+        case launched
+        case failed
+    }
+
     static func apply(desiredState: Bool) async throws {
         let preferences = PingWardenPreferences.shared
+
+        // Without the shared App Group suite the widget and the app read
+        // different defaults domains: the write below would verify fine here
+        // while the app never sees it. Fail visibly instead of toggling a
+        // control that does nothing.
+        guard preferences.usesAppGroupSuite else {
+            log.error("App Group suite unavailable - refusing to toggle into a split-brain state")
+            throw AWDLError.toggleFailed
+        }
+
         let previousIntentState = preferences.isMonitoringEnabled
         let previousEffectiveState = preferences.effectiveMonitoringEnabled
         log.info("Setting monitoring intent from \(previousIntentState) to \(desiredState)")
@@ -79,27 +95,38 @@ private enum PingProtectionIntentHandler {
         // Enabling always needs the main app to apply helper state. Disabling
         // also needs the app if the last effective state says protection is active.
         let launchRequired = desiredState || previousEffectiveState != desiredState
-        let didLaunch = launchRequired ? await launchMainAppIfNeeded() : false
+        let launchOutcome = launchRequired ? await launchMainAppIfNeeded() : LaunchOutcome.alreadyRunning
 
-        if didLaunch {
+        switch launchOutcome {
+        case .alreadyRunning:
+            break
+        case .launched:
             // Give the app a brief moment to finish launch and process intent signal.
+            // (The app also reconciles intent vs. runtime state at startup, so
+            // this repost is belt-and-braces rather than load-bearing.)
             try? await Task.sleep(nanoseconds: 700_000_000)
             postMonitoringIntentNotification()
             ControlCenter.shared.reloadControls(ofKind: PingWardenControlKind.pingProtection)
+        case .failed:
+            // Roll back the intent so the toggle doesn't show a state that
+            // nothing will ever apply, then surface the failure.
+            preferences.isMonitoringEnabled = previousIntentState
+            ControlCenter.shared.reloadControls(ofKind: PingWardenControlKind.pingProtection)
+            log.error("Main app could not be launched - rolled back monitoring intent")
+            throw AWDLError.appLaunchFailed
         }
 
         log.info("Successfully set monitoring intent to \(desiredState)")
     }
 
     /// Launch the main app if it's not already running
-    @discardableResult
-    private static func launchMainAppIfNeeded() async -> Bool {
+    private static func launchMainAppIfNeeded() async -> LaunchOutcome {
         let bundleIdentifier = "com.amesvt.pingwarden"
 
         // Check if app is already running
         guard !isMainAppRunning(bundleIdentifier: bundleIdentifier) else {
             log.debug("Main app already running")
-            return false
+            return .alreadyRunning
         }
 
         log.info("Main app not running, attempting to launch...")
@@ -113,14 +140,14 @@ private enum PingProtectionIntentHandler {
             do {
                 _ = try await NSWorkspace.shared.openApplication(at: appURL, configuration: configuration)
                 log.info("Successfully launched main app")
-                return true
+                return .launched
             } catch {
                 log.error("Failed to launch main app: \(error.localizedDescription)")
             }
         } else {
             log.warning("Could not find main app URL for bundle identifier: \(bundleIdentifier)")
         }
-        return false
+        return .failed
     }
 
     private static func isMainAppRunning(bundleIdentifier: String) -> Bool {

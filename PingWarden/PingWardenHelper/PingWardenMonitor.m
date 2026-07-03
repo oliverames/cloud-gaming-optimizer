@@ -382,6 +382,14 @@ _Static_assert(sizeof("awdl0") <= IFNAMSIZ, "TARGETIFNAM must fit in IFNAMSIZ");
 }
 
 - (BOOL)setAwdlEnabled:(BOOL)enabled {
+    // If the poll thread has died (poll() error, quit), a pipe write would
+    // still "succeed" into a readerless buffer while nothing enforces the
+    // state — the app would believe AWDL is blocked when it isn't. Fail
+    // loudly instead so the client can surface the problem.
+    if (!atomic_load(&_threadRunning)) {
+        os_log_error(LOG, "Cannot set AWDL state to %d: monitor thread is not running", enabled);
+        return NO;
+    }
     const char *msg = enabled ? "U" : "D";
     if (![self writeMessageToPipe:msg]) {
         os_log_error(LOG, "Failed to send %s message to pipe", enabled ? "enable" : "disable");
@@ -389,6 +397,38 @@ _Static_assert(sizeof("awdl0") <= IFNAMSIZ, "TARGETIFNAM must fit in IFNAMSIZ");
     }
     atomic_store(&_awdlEnabledAtomic, enabled);
     return YES;
+}
+
+- (void)restoreInterfaceUpDirectly {
+    // Last-resort restore used on exit paths. Performs the ioctl directly on
+    // the calling thread with a transient socket, so it works even when the
+    // poll thread is dead or the control pipe is gone. Must only run after
+    // `invalidate` (the poll thread no longer touches interface flags).
+    atomic_store(&_awdlEnabledAtomic, true);
+
+    int fd = socket(AF_INET, SOCK_DGRAM, 0);
+    if (fd < 0) {
+        os_log_error(LOG, "restoreInterfaceUpDirectly: socket failed: %d (%s)", errno, strerror(errno));
+        return;
+    }
+
+    struct ifreq ifr = {0};
+    strlcpy(ifr.ifr_name, TARGETIFNAM, IFNAMSIZ);
+    if (ioctl(fd, SIOCGIFFLAGS, &ifr) < 0) {
+        os_log_error(LOG, "restoreInterfaceUpDirectly: SIOCGIFFLAGS failed: %d (%s)", errno, strerror(errno));
+        close(fd);
+        return;
+    }
+
+    if (!(ifr.ifr_flags & IFF_UP)) {
+        ifr.ifr_flags |= IFF_UP;
+        if (ioctl(fd, SIOCSIFFLAGS, &ifr) < 0) {
+            os_log_error(LOG, "restoreInterfaceUpDirectly: SIOCSIFFLAGS failed: %d (%s)", errno, strerror(errno));
+        } else {
+            os_log(LOG, "Restored awdl0 UP via direct ioctl before exit");
+        }
+    }
+    close(fd);
 }
 
 - (void)invalidate {
@@ -409,6 +449,12 @@ _Static_assert(sizeof("awdl0") <= IFNAMSIZ, "TARGETIFNAM must fit in IFNAMSIZ");
             os_log_error(LOG, "Timeout waiting for pollIoctl thread to exit");
             // Mark thread as not running to prevent further issues (atomic write)
             atomic_store(&_threadRunning, false);
+            // Deliberately leak the fds: the poller may still be blocked in
+            // poll()/read() on them, and closing here would let the process
+            // recycle the descriptor numbers underneath a live reader. Both
+            // callers exit the process moments later, so the leak is bounded.
+            os_log(LOG, "PingWardenMonitor invalidated (fds leaked pending process exit)");
+            return;
         }
     }
 
