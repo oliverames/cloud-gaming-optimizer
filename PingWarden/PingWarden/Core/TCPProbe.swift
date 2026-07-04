@@ -59,10 +59,17 @@ enum TCPProbe {
     /// getaddrinfo has no timeout of its own — an unresponsive resolver can
     /// block for ~30 s, which used to freeze the entire probe pipeline (the
     /// serial probe queue skipped every subsequent tick behind the hung
-    /// call). Run it on a detached thread and give it a bounded window; on
-    /// timeout the probe reports failure and the orphaned thread finishes on
-    /// its own.
+    /// call). IP-literal hosts (all the default targets: public DNS servers,
+    /// the local gateway, discovered GFN endpoints) can never hit the
+    /// resolver, so they resolve inline; only real hostnames pay for the
+    /// deadline-bounded detached thread — off the 2-second probe hot path.
+    /// On timeout the probe reports failure and the orphaned thread finishes
+    /// on its own.
     private static func resolveAddresses(host: String, port: UInt16, timeoutSeconds: Int) -> [ResolvedAddress]? {
+        if isIPLiteral(host) {
+            return resolveAddressesBlocking(host: host, port: port, numericOnly: true)
+        }
+
         final class ResultBox: @unchecked Sendable {
             var addresses: [ResolvedAddress]?
             let semaphore = DispatchSemaphore(value: 0)
@@ -70,16 +77,14 @@ enum TCPProbe {
 
         let box = ResultBox()
         let thread = Thread {
-            box.addresses = resolveAddressesBlocking(host: host, port: port)
+            box.addresses = resolveAddressesBlocking(host: host, port: port, numericOnly: false)
             box.semaphore.signal()
         }
         thread.name = "TCPProbe.resolve"
         thread.stackSize = 512 * 1024
         thread.start()
 
-        // Allow at least 2 s for DNS even when the connect timeout is 1 s;
-        // IP-literal targets resolve instantly either way (AI_NUMERICSERV +
-        // numeric host short-circuits inside getaddrinfo).
+        // Allow at least 2 s for DNS even when the connect timeout is 1 s.
         let resolverDeadline = DispatchTime.now() + max(2.0, Double(timeoutSeconds) * 2.0)
         guard box.semaphore.wait(timeout: resolverDeadline) == .success else {
             return nil
@@ -87,12 +92,21 @@ enum TCPProbe {
         return box.addresses
     }
 
-    private static func resolveAddressesBlocking(host: String, port: UInt16) -> [ResolvedAddress]? {
+    private static func isIPLiteral(_ host: String) -> Bool {
+        var v4 = in_addr()
+        if inet_pton(AF_INET, host, &v4) == 1 {
+            return true
+        }
+        var v6 = in6_addr()
+        return inet_pton(AF_INET6, host, &v6) == 1
+    }
+
+    private static func resolveAddressesBlocking(host: String, port: UInt16, numericOnly: Bool) -> [ResolvedAddress]? {
         // Build hints via memberwise-zero init and explicit field assignment:
         // the addrinfo struct declares its members in a different order on
         // Darwin and Glibc, so a positional initializer is not portable.
         var hints = addrinfo()
-        hints.ai_flags = AI_NUMERICSERV
+        hints.ai_flags = numericOnly ? (AI_NUMERICSERV | AI_NUMERICHOST) : AI_NUMERICSERV
         hints.ai_family = AF_UNSPEC
         #if canImport(Glibc)
         hints.ai_socktype = Int32(SOCK_STREAM.rawValue)

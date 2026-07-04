@@ -226,13 +226,7 @@ class DashboardViewModel: ObservableObject {
             guard let gateway else { return }
             await MainActor.run { [weak self] in
                 guard let self, self.isStarted else { return }
-                let previousSelection = self.selectedTargetID
-                self.targets = Self.dedupe(
-                    Self.baseTargets(localGateway: gateway)
-                        + self.gfnTargets.sorted { $0.displayName < $1.displayName }
-                        + Self.toPingTargets(self.customTargets)
-                )
-                self.reapplySelectionAfterTargetsChanged(previousSelection: previousSelection)
+                self.rebuildTargets(localGateway: gateway)
             }
         }
 
@@ -422,10 +416,13 @@ class DashboardViewModel: ObservableObject {
         }
     }
 
-    private func rebuildTargets() {
-        // Use cached gateway from existing targets — do NOT call NetworkGatewayResolver
-        // here since this runs on @MainActor and the resolver spawns a blocking Process.
-        let gatewayHost = targets.first(where: { $0.source == .local })?.host
+    /// Rebuild the full target list from all sources. Pass `localGateway`
+    /// when a freshly resolved gateway is in hand; otherwise the gateway
+    /// cached in the existing targets is reused — do NOT call
+    /// NetworkGatewayResolver here since this runs on @MainActor and the
+    /// resolver spawns a blocking Process.
+    private func rebuildTargets(localGateway: String? = nil) {
+        let gatewayHost = localGateway ?? targets.first(where: { $0.source == .local })?.host
         let baseTargets = Self.baseTargets(localGateway: gatewayHost)
         let sortedGFNTargets = gfnTargets.sorted { $0.displayName < $1.displayName }
         let customAsTargets = Self.toPingTargets(customTargets)
@@ -672,8 +669,13 @@ class DashboardViewModel: ObservableObject {
         candidates: [PingTarget],
         sampleCount: Int
     ) async -> [String: [Double]] {
-        await withTaskGroup(of: (String, [Double])?.self) { group in
-            for target in candidates {
+        // Bound the fan-out: each candidate parks a blocking probe on
+        // baselineProbeQueue, and an unbounded group over ~36 targets would
+        // drive GCD to spawn dozens of overcommit threads in one burst.
+        let maxConcurrentProbes = 8
+
+        return await withTaskGroup(of: (String, [Double])?.self) { group in
+            func addProbeTask(for target: PingTarget) {
                 group.addTask {
                     var samples: [Double] = []
                     for sampleIndex in 0..<sampleCount {
@@ -699,8 +701,18 @@ class DashboardViewModel: ObservableObject {
                 }
             }
 
+            var nextCandidateIndex = 0
+            while nextCandidateIndex < candidates.count && nextCandidateIndex < maxConcurrentProbes {
+                addProbeTask(for: candidates[nextCandidateIndex])
+                nextCandidateIndex += 1
+            }
+
             var measurements: [String: [Double]] = [:]
             for await result in group {
+                if nextCandidateIndex < candidates.count {
+                    addProbeTask(for: candidates[nextCandidateIndex])
+                    nextCandidateIndex += 1
+                }
                 guard let (targetID, samples) = result else { continue }
                 measurements[targetID] = samples
             }

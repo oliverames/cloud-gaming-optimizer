@@ -291,43 +291,42 @@ echo -e "${GREEN}✓${NC} Ticket stapled successfully"
 echo ""
 echo "Creating notarized DMG..."
 if [ ! -f "$CREATE_DMG_SCRIPT" ]; then
-    # Previously this block was silently skipped, printing "Notarization
+    # Previously this section was silently skipped, printing "Notarization
     # Complete!" and exiting 0 with no DMG produced.
     echo -e "${RED}Error: create-dmg.sh not found at $CREATE_DMG_SCRIPT${NC}"
     exit 1
 fi
-if [ -f "$CREATE_DMG_SCRIPT" ]; then
-    "$CREATE_DMG_SCRIPT" "$VERSION" "$STAGED_APP_PATH"
 
-    if [ -f "$DMG_NAME" ]; then
-        echo ""
-        echo "Signing DMG with Developer ID..."
-        codesign -f -s "$APP_DEVELOPER_IDENTITY" --timestamp "$DMG_NAME"
-        codesign --verify --verbose=2 "$DMG_NAME"
-        echo -e "${GREEN}✓${NC} DMG code signature valid"
+"$CREATE_DMG_SCRIPT" "$VERSION" "$STAGED_APP_PATH"
 
-        echo ""
-        echo "Submitting DMG to Apple for notarization..."
-        DMG_SUBMIT_OUTPUT=$(xcrun notarytool submit "$DMG_NAME" \
-            "${NOTARYTOOL_ARGS[@]}" \
-            --wait 2>&1) || true
-        echo "$DMG_SUBMIT_OUTPUT"
-        
-        if ! echo "$DMG_SUBMIT_OUTPUT" | grep -q "status: Accepted"; then
-            echo -e "${RED}✗ DMG notarization failed${NC}"
-            exit 1
-        fi
-        
-        echo -e "${GREEN}✓${NC} DMG notarization successful"
-        echo ""
-        echo "Stapling DMG..."
-        xcrun stapler staple "$DMG_NAME"
-        echo -e "${GREEN}✓${NC} DMG stapled"
-    else
-        echo -e "${RED}Error: create-dmg.sh ran but $DMG_NAME was not produced${NC}"
-        exit 1
-    fi
+if [ ! -f "$DMG_NAME" ]; then
+    echo -e "${RED}Error: create-dmg.sh ran but $DMG_NAME was not produced${NC}"
+    exit 1
 fi
+
+echo ""
+echo "Signing DMG with Developer ID..."
+codesign -f -s "$APP_DEVELOPER_IDENTITY" --timestamp "$DMG_NAME"
+codesign --verify --verbose=2 "$DMG_NAME"
+echo -e "${GREEN}✓${NC} DMG code signature valid"
+
+echo ""
+echo "Submitting DMG to Apple for notarization..."
+DMG_SUBMIT_OUTPUT=$(xcrun notarytool submit "$DMG_NAME" \
+    "${NOTARYTOOL_ARGS[@]}" \
+    --wait 2>&1) || true
+echo "$DMG_SUBMIT_OUTPUT"
+
+if ! echo "$DMG_SUBMIT_OUTPUT" | grep -q "status: Accepted"; then
+    echo -e "${RED}✗ DMG notarization failed${NC}"
+    exit 1
+fi
+
+echo -e "${GREEN}✓${NC} DMG notarization successful"
+echo ""
+echo "Stapling DMG..."
+xcrun stapler staple "$DMG_NAME"
+echo -e "${GREEN}✓${NC} DMG stapled"
 
 # Summary
 echo ""

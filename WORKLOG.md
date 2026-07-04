@@ -1,5 +1,60 @@
 # Ping Warden Worklog
 
+## 2026-07-03 - 2.5.0: Full reliability audit (helper/XPC/widget/monitoring/tooling)
+
+**What changed**:
+- Ran a comprehensive multi-agent audit of the entire codebase and fixed
+  every verified finding (~30 files). Highlights: quit no longer persists
+  protection off; helper exit paths guarantee awdl0 restore via a direct
+  ioctl fallback (`restoreInterfaceUpDirectly`); `setAwdlEnabled` fails
+  loudly when the poll thread is dead; XPC retry counter resets only after
+  a validated helper response (fixes an infinite silent reconnect loop);
+  abandoned XPC connections are invalidated; registration polling is
+  main-confined and always delivers its completion; helper exit decision is
+  atomic with connection counting; release helper builds fail closed on
+  signature-validation failure; game-category detection matches
+  subcategories (`…-games`); Game Mode vs. quick-pause restore matrix fixed;
+  Control Center toggle kept in sync via app-side `reloadControls` and
+  intent-only display; widget launch failures roll back and surface;
+  TCPProbe measures handshake-only latency with deadline-bounded DNS on a
+  detached thread (IP literals resolve inline) and uses poll(2), making the
+  core package Linux-portable; saved GFN/gateway target selection survives
+  relaunch; failed GFN refresh keeps prior zones; chart history memoized +
+  downsampled (spikes preserved); dashboard target dedup everywhere;
+  bounded auto-select fan-out; atomic CustomPingTargetStore mutations;
+  Sparkle starts after first-run setup; settings frame autosave preserved;
+  release.sh/notarize.sh/create-dmg.sh hardening (Sentry fail-soft actually
+  fail-soft, untracked beta appcast push, `--prerelease` for betas,
+  per-version GitHub notes via `render_release_notes.sh --markdown`,
+  RFC-822 pubDate, mandatory version args cross-checked against Info.plist).
+- CI: new `linux-core-tests` job (swift:5.10 container) + shellcheck for all
+  five scripts. Tests 33 → 41, all green on Linux and macOS.
+- Bumped to 2.5.0 (Info.plist ×3, MARKETING_VERSION ×4, helper fallback
+  macro) and added the RELEASE_NOTES.md section.
+
+**Decisions made**:
+- Widget toggle now displays/toggles user *intent* (not effective||intent):
+  the composite made disable snap back visually and made the Shortcuts
+  toggle unable to turn off auto-enabled protection.
+- Left `MINIMUM_SYSTEM_VERSION=26.0` in release.sh untouched (flagged in the
+  PR): all 2.4.x appcast items carry it, so it reads as deliberate, but it
+  contradicts the documented macOS 13+ support — maintainer call.
+- Widget appex stays unsandboxed (intent launches the app via NSWorkspace);
+  flagged, not changed.
+
+**Verification**:
+- `swift test` 41/41 on Linux; `swiftc -parse` on every edited Swift file;
+  `bash -n` on all scripts; CI green on the PR branch (build + linux tests +
+  shell-lint). The app target itself still needs the maintainer's macOS
+  Release archive for full compile verification.
+
+**Left off at**: PR #34 (draft) open with everything above; release-side
+prep done. Signing/notarization must run on the Mac with the Developer ID
+cert, notarytool profile, and Sparkle key: merge, then the standard headless
+archive + `release.sh 2.5.0 ../../RELEASE_NOTES.md` flow from CLAUDE.md.
+
+---
+
 ## 2026-06-22 - 2.4.3: Settings-scene crash fix + headless release path proven
 
 **What changed**:

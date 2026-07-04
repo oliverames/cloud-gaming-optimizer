@@ -357,7 +357,10 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSMenuDele
            !PingWardenPreferences.shared.showDockIcon {
             log.info("Menu bar icon is hidden (Control Center mode) — forcing dock icon on to prevent lockout")
             PingWardenPreferences.shared.showDockIcon = true
-            return // the preference setter re-triggers this method via its notification
+            // Deliberately fall through (no early return): at launch this
+            // runs before the dockIconVisibilityChanged observer exists, so
+            // relying on the setter's notification to re-enter would leave
+            // the activation policy unset for the whole session.
         }
 
         if PingWardenPreferences.shared.showDockIcon || settingsVisible || aboutVisible || welcomeVisible || donationVisible {

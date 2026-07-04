@@ -65,12 +65,13 @@ struct QuarantineHelper {
         }
     }
 
+    /// Main-thread only (presents modal alerts).
     private static func presentQuarantineHelpAlert() {
         // Build the remediation command from the actual bundle location —
         // the app may be running from ~/Downloads or a renamed bundle.
         let removalCommand = "xattr -cr \"\(Bundle.main.bundlePath)\""
 
-        DispatchQueue.main.async {
+        do {
             let alert = NSAlert()
             alert.messageText = "First Time Setup"
             alert.informativeText = """
