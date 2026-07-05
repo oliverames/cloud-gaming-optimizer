@@ -11,8 +11,12 @@
 # so Sparkle's update window shows real release notes instead of "See release
 # notes on GitHub". Also usable standalone for previewing.
 #
-# Usage: ./scripts/render_release_notes.sh <version>
+# Usage: ./scripts/render_release_notes.sh <version> [--markdown]
 # Example: ./scripts/render_release_notes.sh 2.3.0
+#
+# --markdown prints the raw extracted markdown section instead of rendered
+# HTML (used by release.sh for the GitHub release body, so each release page
+# shows only its own notes rather than the whole history file).
 #
 # Copyright (c) 2025-2026 Oliver Ames. All rights reserved.
 # Licensed under the MIT License.
@@ -21,8 +25,9 @@
 set -euo pipefail
 
 VERSION="${1:-}"
+OUTPUT_MODE="${2:-}"
 if [ -z "$VERSION" ]; then
-    echo "Usage: $0 <version>" >&2
+    echo "Usage: $0 <version> [--markdown]" >&2
     exit 1
 fi
 
@@ -35,7 +40,7 @@ if [ ! -f "$RELEASE_NOTES_FILE" ]; then
     exit 1
 fi
 
-if ! command -v gh >/dev/null 2>&1; then
+if [ "$OUTPUT_MODE" != "--markdown" ] && ! command -v gh >/dev/null 2>&1; then
     echo "Error: gh CLI required for markdown rendering" >&2
     exit 1
 fi
@@ -56,6 +61,11 @@ SECTION=$(printf '%s\n' "$SECTION" | awk 'NF{p=1}p' | awk 'BEGIN{n=0} {a[n++]=$0
 if [ -z "$SECTION" ]; then
     echo "Error: no release notes found for version '$VERSION' in RELEASE_NOTES.md" >&2
     exit 2
+fi
+
+if [ "$OUTPUT_MODE" = "--markdown" ]; then
+    printf '%s\n' "$SECTION"
+    exit 0
 fi
 
 # Render markdown → HTML using gh's /markdown endpoint. The `gfm` mode matches

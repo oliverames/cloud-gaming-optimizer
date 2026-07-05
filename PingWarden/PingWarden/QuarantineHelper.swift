@@ -51,12 +51,27 @@ struct QuarantineHelper {
     
     /// Show helpful dialog if app is quarantined
     static func showQuarantineHelpIfNeeded() {
-        // Only show if quarantined and not properly signed (most users)
-        guard isQuarantined() && !isProperlyCodeSigned() else {
-            return
+        // Run the checks off the main thread: SecStaticCodeCheckValidity
+        // hashes the whole bundle (including Sparkle.framework) on the
+        // quarantined first-run path, which would stall launch for seconds.
+        DispatchQueue.global(qos: .utility).async {
+            // Only show if quarantined and not properly signed (most users)
+            guard isQuarantined() && !isProperlyCodeSigned() else {
+                return
+            }
+            DispatchQueue.main.async {
+                presentQuarantineHelpAlert()
+            }
         }
-        
-        DispatchQueue.main.async {
+    }
+
+    /// Main-thread only (presents modal alerts).
+    private static func presentQuarantineHelpAlert() {
+        // Build the remediation command from the actual bundle location —
+        // the app may be running from ~/Downloads or a renamed bundle.
+        let removalCommand = "xattr -cr \"\(Bundle.main.bundlePath)\""
+
+        do {
             let alert = NSAlert()
             alert.messageText = "First Time Setup"
             alert.informativeText = """
@@ -66,9 +81,9 @@ struct QuarantineHelper {
             
             1. Opening Terminal
             2. Running this command:
-            
-            xattr -cr "/Applications/Ping Warden.app"
-            
+
+            \(removalCommand)
+
             Then relaunch the app.
             
             This only needs to be done once!
@@ -84,7 +99,7 @@ struct QuarantineHelper {
             case .alertFirstButtonReturn: // Copy Command
                 let pasteboard = NSPasteboard.general
                 pasteboard.clearContents()
-                pasteboard.setString("xattr -cr \"/Applications/Ping Warden.app\"", forType: .string)
+                pasteboard.setString(removalCommand, forType: .string)
                 
                 let confirmAlert = NSAlert()
                 confirmAlert.messageText = "Command Copied!"

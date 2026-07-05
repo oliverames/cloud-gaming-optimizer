@@ -54,6 +54,10 @@ The Foundation-only core helpers are covered by a SwiftPM test target driven
 by `Package.swift` at the repo root. The Xcode app build is unaffected — the
 package's `PingWardenCore` target points at `PingWarden/PingWarden/Core/` via
 an explicit `path:` so the same Swift sources back both build systems.
+The package is **cross-platform**: `TCPProbe` and the test suite compile on
+Linux (`#if canImport(Darwin)/Glibc` shims, poll(2) instead of select), and
+CI runs `swift test` on both `macos-14` and an `ubuntu-latest` Swift
+container. Keep new Core code Foundation/POSIX-only.
 
 ```bash
 swift test            # canonical command
@@ -61,11 +65,13 @@ swift test            # canonical command
 ```
 
 Coverage: `PingStatistics.calculate()` edge cases (empty, healthy, lossy,
-even-count median), `XPCReconnectPolicy.delayForAttempt` (backoff curve),
+even-count median, fair band, min/max, all-failures, single-sample jitter),
+`XPCReconnectPolicy.delayForAttempt` (backoff curve, 30 s cap, monotonicity),
 `TCPProbe` failure and success paths (invalid hostname, closed loopback port,
 open loopback port), `StateObserverRegistry` add/remove/snapshot lifecycle,
-and `HelperBundleValidator` failure modes (missing binary, missing plist,
-non-executable binary, valid bundle).
+`VersionPromptPolicy` (incl. single-component fail-closed), custom-target
+validation boundaries, and `HelperBundleValidator` failure modes (missing
+binary, missing plist, non-executable binary, valid bundle).
 
 ## Release Process
 

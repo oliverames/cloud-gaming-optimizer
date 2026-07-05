@@ -125,6 +125,19 @@ jobs:
         echo ""
         echo "All bundle structure requirements verified."
 
+  # The core package (PingWarden/PingWarden/Core) is pure Foundation/POSIX
+  # and compiles on Linux; running the suite here catches portability
+  # regressions that the macOS job can't see, and gives much faster feedback.
+  linux-core-tests:
+    runs-on: ubuntu-latest
+    container: swift:5.10
+    steps:
+    - name: Checkout
+      uses: actions/checkout@v5
+
+    - name: Run core logic tests
+      run: swift test
+
   shell-lint:
     runs-on: macos-14
     steps:
@@ -141,6 +154,8 @@ jobs:
           PingWarden/PingWarden/notarize.sh
           PingWarden/PingWarden/release.sh
           PingWarden/create-dmg.sh
+          scripts/render_release_notes.sh
+          scripts/run-smoke-tests.sh
         )
         for f in "${scripts[@]}"; do
           echo "=== bash -n $f ==="

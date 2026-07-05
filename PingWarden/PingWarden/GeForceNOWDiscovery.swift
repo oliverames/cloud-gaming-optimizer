@@ -20,8 +20,13 @@ enum GeForceNOWDiscovery {
         let name: String
     }
 
-    static func fetchTargets() async -> [PingTarget] {
-        guard let endpoint else { return [] }
+    /// Returns the discovered zone targets, or `nil` when the fetch failed
+    /// (network error, non-2xx, decode failure). `nil` is distinct from a
+    /// successful-but-empty response so callers can keep previously
+    /// discovered zones on a transient failure instead of wiping them —
+    /// which would silently reset the user's selected GFN target.
+    static func fetchTargets() async -> [PingTarget]? {
+        guard let endpoint else { return nil }
 
         var request = URLRequest(url: endpoint)
         request.timeoutInterval = 8
@@ -30,7 +35,7 @@ enum GeForceNOWDiscovery {
             let (data, response) = try await URLSession.shared.data(for: request)
             guard let httpResponse = response as? HTTPURLResponse,
                   (200...299).contains(httpResponse.statusCode) else {
-                return []
+                return nil
             }
 
             let payload = try JSONDecoder().decode(ComponentsResponse.self, from: data)
@@ -45,7 +50,7 @@ enum GeForceNOWDiscovery {
                 )
             }
         } catch {
-            return []
+            return nil
         }
     }
 

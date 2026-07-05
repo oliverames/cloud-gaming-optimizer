@@ -143,11 +143,16 @@ class PingWardenMonitor: @unchecked Sendable {
     /// Thread-safe registry of state-change observer callbacks.
     private let stateObservers = StateObserverRegistry()
 
-    /// Timer for polling registration status
+    /// Timer for polling registration status (main-thread confined)
     private var registrationTimer: Timer?
 
-    /// Timer for registration timeout
+    /// Timer for registration timeout (main-thread confined)
     private var registrationTimeoutTimer: Timer?
+
+    /// Completion of the in-flight registration poll (main-thread confined).
+    /// Held so a superseding poll can still deliver `false` to the previous
+    /// caller — dropping it silently would wedge `isRegisteringHelper`.
+    private var pendingRegistrationCompletion: (@Sendable (Bool) -> Void)?
 
     private init() {
         log.info("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━")
@@ -349,7 +354,7 @@ class PingWardenMonitor: @unchecked Sendable {
         }
 
         // Ensure XPC connection; connectXPC() resets the retry counter
-        // internally on successful activation.
+        // internally once the helper answers a validation ping.
         if xpcConnection == nil {
             connectXPC()
         }
@@ -676,15 +681,17 @@ class PingWardenMonitor: @unchecked Sendable {
 
         previousConnection?.invalidate()
 
-        // Reset retry count on successful activation
-        xpcRetryCount = 0
-
         log.info("XPC connection activated")
 
         // Validate connection asynchronously to avoid blocking UI paths.
+        // The retry counter is reset only here, once the helper has actually
+        // answered — activate() succeeding locally proves nothing about the
+        // daemon. Resetting after activate() would let a dead helper produce
+        // an infinite reconnect loop that never trips the max-retry cap.
         validateXPCConnection { [weak self] isValid in
             guard let self else { return }
             if isValid {
+                self.xpcRetryCount = 0
                 self.reassertMonitoringStateIfNeeded()
             }
         }
@@ -741,6 +748,12 @@ class PingWardenMonitor: @unchecked Sendable {
         proxy.setAWDLEnabled(false, reply: { [weak self] success in
             guard let monitor = self else { return }
             DispatchQueue.main.async {
+                // A stopMonitoring() may have raced the reassert; don't
+                // stamp "protection on" state over the user's fresh stop.
+                guard monitor.isMonitoring else {
+                    log.info("Skipping reassert completion: monitoring was stopped meanwhile")
+                    return
+                }
                 if success {
                     PingWardenPreferences.shared.effectiveMonitoringEnabled = true
                     PingWardenPreferences.shared.lastKnownState = "down"
@@ -788,9 +801,18 @@ class PingWardenMonitor: @unchecked Sendable {
             return
         }
         _isHandlingInvalidation = true
+        let abandonedConnection = _xpcConnection
         _xpcConnection = nil
         let wasMonitoring = _isMonitoring
         stateLock.unlock()
+
+        // When this path is reached from a proxy error handler (not the
+        // connection's own invalidationHandler), the connection object is
+        // still live in the XPC runtime. Invalidate it explicitly or it —
+        // and its mach resources and handler blocks — leak for the app's
+        // lifetime. invalidate() is an idempotent no-op on an
+        // already-invalidated connection.
+        abandonedConnection?.invalidate()
 
         if wasMonitoring {
             PingWardenPreferences.shared.effectiveMonitoringEnabled = false
@@ -854,26 +876,32 @@ class PingWardenMonitor: @unchecked Sendable {
 
     // MARK: - Registration Polling
 
-    /// Poll for registration status change with timeout
+    /// Poll for registration status change with timeout.
+    /// Timer state and the pending completion are main-thread confined:
+    /// callers can reach this from any thread (the singleton's init runs on
+    /// whichever thread first touches `shared`), and a Timer scheduled on a
+    /// background thread's never-spun run loop would simply never fire.
     private func startPollingForRegistration(completion: (@Sendable (Bool) -> Void)?) {
+        if !Thread.isMainThread {
+            DispatchQueue.main.async { [weak self] in
+                self?.startPollingForRegistration(completion: completion)
+            }
+            return
+        }
+
         log.debug("Starting registration polling (timeout: \(self.registrationTimeoutSeconds)s)...")
 
-        // Cancel any existing timers
-        registrationTimer?.invalidate()
-        registrationTimeoutTimer?.invalidate()
+        // A superseded poll must still deliver its completion — callers
+        // (e.g. startMonitoring's isRegisteringHelper flag) wait on it.
+        finishRegistrationPolling(success: false, reason: "superseded by a new registration poll")
+        pendingRegistrationCompletion = completion
 
         // Set up timeout timer
         registrationTimeoutTimer = Timer.scheduledTimer(withTimeInterval: registrationTimeoutSeconds, repeats: false) { [weak self] _ in
             guard let self = self else { return }
             log.warning("Registration polling timed out after \(self.registrationTimeoutSeconds)s")
-            self.registrationTimer?.invalidate()
-            self.registrationTimer = nil
-            self.registrationTimeoutTimer = nil
-
-            DispatchQueue.main.async {
-                self.showError("Registration timed out.\n\nPlease approve the helper in System Settings → Login Items and try again.")
-            }
-            completion?(false)
+            self.showError("Registration timed out.\n\nPlease approve the helper in System Settings → Login Items and try again.")
+            self.finishRegistrationPolling(success: false, reason: "timed out")
         }
 
         // Set up polling timer
@@ -888,21 +916,13 @@ class PingWardenMonitor: @unchecked Sendable {
 
             switch status {
             case .enabled:
-                timer.invalidate()
-                self.registrationTimer = nil
-                self.registrationTimeoutTimer?.invalidate()
-                self.registrationTimeoutTimer = nil
                 log.info("✅ Helper registration approved")
                 self.connectXPC()
-                completion?(true)
+                self.finishRegistrationPolling(success: true, reason: "approved")
 
             case .notRegistered:
-                timer.invalidate()
-                self.registrationTimer = nil
-                self.registrationTimeoutTimer?.invalidate()
-                self.registrationTimeoutTimer = nil
                 log.info("❌ Helper registration denied")
-                completion?(false)
+                self.finishRegistrationPolling(success: false, reason: "denied")
 
             case .requiresApproval, .notFound:
                 // Keep polling
@@ -912,6 +932,21 @@ class PingWardenMonitor: @unchecked Sendable {
                 break
             }
         }
+    }
+
+    /// Tear down the polling timers and deliver the pending completion
+    /// exactly once. Main-thread only.
+    private func finishRegistrationPolling(success: Bool, reason: String) {
+        dispatchPrecondition(condition: .onQueue(.main))
+        registrationTimer?.invalidate()
+        registrationTimer = nil
+        registrationTimeoutTimer?.invalidate()
+        registrationTimeoutTimer = nil
+
+        guard let completion = pendingRegistrationCompletion else { return }
+        pendingRegistrationCompletion = nil
+        log.debug("Registration polling finished (\(reason, privacy: .public))")
+        completion(success)
     }
 
     // MARK: - Helper Methods

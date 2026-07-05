@@ -18,7 +18,13 @@ PROJECT_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
 
 # Configuration
 APP_NAME="Ping Warden"
-VERSION="${1:-2.2.1}"
+VERSION="${1:-}"
+if [ -z "$VERSION" ]; then
+    echo "Error: version argument is required (a stale default here once produced" >&2
+    echo "DMGs whose filename didn't match their contents)." >&2
+    echo "Usage: ./notarize.sh <version>" >&2
+    exit 1
+fi
 BUNDLE_ID="com.amesvt.pingwarden"
 KEYCHAIN_PROFILE="${KEYCHAIN_PROFILE:-notarytool-profile}"  # Must match setup in NOTARIZATION_GUIDE.md
 TEAM_ID="PV3W52NDZ3"  # Apple Developer Team ID
@@ -49,6 +55,15 @@ APP_ENTITLEMENTS="$PROJECT_ROOT/PingWarden/PingWarden.entitlements"
 WIDGET_ENTITLEMENTS="$PROJECT_ROOT/PingWardenWidget/PingWardenWidget.entitlements"
 STAGING_DIR=""
 STAGED_APP_PATH=""
+APP_INFO_PLIST_SRC="$PROJECT_ROOT/PingWarden/Info.plist"
+
+# Cross-check the version argument against the app's Info.plist so a DMG can
+# never be produced whose Sparkle version metadata mismatches its contents.
+PLIST_VERSION=$(/usr/libexec/PlistBuddy -c "Print :CFBundleShortVersionString" "$APP_INFO_PLIST_SRC" 2>/dev/null || true)
+if [ -n "$PLIST_VERSION" ] && [ "$PLIST_VERSION" != "$VERSION" ]; then
+    echo "Error: version mismatch — argument is $VERSION but Info.plist says $PLIST_VERSION." >&2
+    exit 1
+fi
 
 # Colors
 GREEN='\033[0;32m'
@@ -208,9 +223,14 @@ fi
 # Step 2: Verify code signing
 echo ""
 echo "Verifying code signature..."
-if ! codesign --verify --deep --strict --verbose=2 "$STAGED_APP_PATH" 2>&1 | grep -q "satisfies"; then
+# Buffer the output before grep (same SIGPIPE/pipefail hazard documented for
+# CODESIGN_INFO above: `grep -q` exits at first match while codesign is still
+# writing, turning a *successful* verify into exit 141).
+DEEP_VERIFY_OUTPUT="$(codesign --verify --deep --strict --verbose=2 "$STAGED_APP_PATH" 2>&1 || true)"
+if ! printf '%s\n' "$DEEP_VERIFY_OUTPUT" | grep -q "satisfies"; then
     echo -e "${RED}Error: App is not properly code signed${NC}"
     echo "Make sure you built with Developer ID Application certificate"
+    printf '%s\n' "$DEEP_VERIFY_OUTPUT"
     exit 1
 fi
 
@@ -241,9 +261,12 @@ echo "Submitting to Apple for notarization..."
 echo "This may take 1-10 minutes..."
 echo ""
 
+# `|| true` so a notarytool failure (auth expiry, network) doesn't trip
+# set -e on the assignment itself — that used to kill the script before the
+# diagnostic output below could ever be printed.
 SUBMIT_OUTPUT=$(xcrun notarytool submit "$ZIP_NAME" \
     "${NOTARYTOOL_ARGS[@]}" \
-    --wait 2>&1)
+    --wait 2>&1) || true
 
 echo "$SUBMIT_OUTPUT"
 
@@ -267,35 +290,43 @@ echo -e "${GREEN}✓${NC} Ticket stapled successfully"
 # Step 6: Create notarized DMG
 echo ""
 echo "Creating notarized DMG..."
-if [ -f "$CREATE_DMG_SCRIPT" ]; then
-    "$CREATE_DMG_SCRIPT" "$VERSION" "$STAGED_APP_PATH"
-    
-    if [ -f "$DMG_NAME" ]; then
-        echo ""
-        echo "Signing DMG with Developer ID..."
-        codesign -f -s "$APP_DEVELOPER_IDENTITY" --timestamp "$DMG_NAME"
-        codesign --verify --verbose=2 "$DMG_NAME"
-        echo -e "${GREEN}✓${NC} DMG code signature valid"
-
-        echo ""
-        echo "Submitting DMG to Apple for notarization..."
-        DMG_SUBMIT_OUTPUT=$(xcrun notarytool submit "$DMG_NAME" \
-            "${NOTARYTOOL_ARGS[@]}" \
-            --wait 2>&1)
-        echo "$DMG_SUBMIT_OUTPUT"
-        
-        if ! echo "$DMG_SUBMIT_OUTPUT" | grep -q "status: Accepted"; then
-            echo -e "${RED}✗ DMG notarization failed${NC}"
-            exit 1
-        fi
-        
-        echo -e "${GREEN}✓${NC} DMG notarization successful"
-        echo ""
-        echo "Stapling DMG..."
-        xcrun stapler staple "$DMG_NAME"
-        echo -e "${GREEN}✓${NC} DMG stapled"
-    fi
+if [ ! -f "$CREATE_DMG_SCRIPT" ]; then
+    # Previously this section was silently skipped, printing "Notarization
+    # Complete!" and exiting 0 with no DMG produced.
+    echo -e "${RED}Error: create-dmg.sh not found at $CREATE_DMG_SCRIPT${NC}"
+    exit 1
 fi
+
+"$CREATE_DMG_SCRIPT" "$VERSION" "$STAGED_APP_PATH"
+
+if [ ! -f "$DMG_NAME" ]; then
+    echo -e "${RED}Error: create-dmg.sh ran but $DMG_NAME was not produced${NC}"
+    exit 1
+fi
+
+echo ""
+echo "Signing DMG with Developer ID..."
+codesign -f -s "$APP_DEVELOPER_IDENTITY" --timestamp "$DMG_NAME"
+codesign --verify --verbose=2 "$DMG_NAME"
+echo -e "${GREEN}✓${NC} DMG code signature valid"
+
+echo ""
+echo "Submitting DMG to Apple for notarization..."
+DMG_SUBMIT_OUTPUT=$(xcrun notarytool submit "$DMG_NAME" \
+    "${NOTARYTOOL_ARGS[@]}" \
+    --wait 2>&1) || true
+echo "$DMG_SUBMIT_OUTPUT"
+
+if ! echo "$DMG_SUBMIT_OUTPUT" | grep -q "status: Accepted"; then
+    echo -e "${RED}✗ DMG notarization failed${NC}"
+    exit 1
+fi
+
+echo -e "${GREEN}✓${NC} DMG notarization successful"
+echo ""
+echo "Stapling DMG..."
+xcrun stapler staple "$DMG_NAME"
+echo -e "${GREEN}✓${NC} DMG stapled"
 
 # Summary
 echo ""

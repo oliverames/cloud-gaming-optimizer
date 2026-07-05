@@ -20,7 +20,7 @@
 #define LOG OS_LOG_DEFAULT
 // Fallback only — the live version is read from the embedded Info.plist by
 // helperVersionString(). Kept current so the fallback is never stale.
-#define HELPER_VERSION @"2.4.0"
+#define HELPER_VERSION @"2.5.0"
 
 // Team ID for code signing validation
 #define TEAM_ID @"PV3W52NDZ3"
@@ -30,9 +30,22 @@
 // tearing down monitoring and re-enabling AWDL mid-session.
 #define EXIT_GRACE_PERIOD_SECONDS 60.0
 
+@class PingWardenService;
+
 static NSInteger activeConnectionCount = 0;
 static dispatch_queue_t connectionCountQueue;
+// Set on connectionCountQueue once the exit decision is final; connections
+// arriving after this point are rejected so the count check cannot race exit.
+static BOOL isExiting = NO;
+// Mutated only on the main queue (scheduleExit and the main-queue hop in
+// shouldAcceptNewConnection) so cancel/recreate cannot race across threads.
 static dispatch_source_t exitTimer = nil;
+// Keep the service and listener alive for the whole process lifetime.
+// main() never returns from dispatch_main(), and ARC is allowed to release
+// locals after their last use — the listener's weak delegate would then go
+// nil and the daemon would silently stop accepting connections.
+static PingWardenService *gService = nil;
+static NSXPCListener *gListener = nil;
 
 #pragma mark - Version
 
@@ -174,23 +187,33 @@ static BOOL isProperlyCodeSigned(void) {
             exit(0);
         }
 
-        // Double-check no connections were established during grace period
-        // Use dispatch_async to avoid potential deadlock with main queue
+        // Make the exit decision atomically with the connection count: the
+        // count check and the `isExiting` flip happen in one block on
+        // connectionCountQueue, and shouldAcceptNewConnection increments on
+        // the same queue synchronously — so a connection is either counted
+        // here (exit aborted) or rejected by the flag. No TOCTOU window.
         dispatch_async(connectionCountQueue, ^{
-            NSInteger currentCount = activeConnectionCount;
+            if (activeConnectionCount > 0) {
+                dispatch_async(dispatch_get_main_queue(), ^{
+                    os_log(LOG, "Exit cancelled - active connection(s) present");
+                });
+                return;
+            }
+            isExiting = YES;
 
             // Return to main queue for the actual exit logic
             dispatch_async(dispatch_get_main_queue(), ^{
-                if (currentCount > 0) {
-                    os_log(LOG, "Exit cancelled - %ld active connection(s)", (long)currentCount);
-                    return;
-                }
-
                 os_log(LOG, "Grace period expired, restoring AWDL and exiting");
 
-                // Restore AWDL to enabled state before exiting
-                [strongSelf.monitor setAwdlEnabled:YES];
+                // Restore AWDL to enabled state before exiting. The pipe
+                // write is best-effort; the direct ioctl below guarantees
+                // the interface is not left down even if the poll thread
+                // is already dead or the pipe write failed.
+                if (![strongSelf.monitor setAwdlEnabled:YES]) {
+                    os_log_error(LOG, "setAwdlEnabled:YES failed on exit path - falling back to direct restore");
+                }
                 [strongSelf.monitor invalidate];
+                [strongSelf.monitor restoreInterfaceUpDirectly];
 
                 // Give a moment for cleanup, then exit
                 dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(0.1 * NSEC_PER_SEC)),
@@ -226,13 +249,27 @@ static BOOL isProperlyCodeSigned(void) {
         return NO;
     }
 
-    // Cancel pending exit if a new connection arrives
-    [self cancelExitTimer];
-
-    // Use dispatch_async to avoid potential deadlock from XPC callback context
-    dispatch_async(connectionCountQueue, ^{
+    // Count the connection synchronously so the exit timer's atomic
+    // count-check/isExiting decision on the same serial queue can never
+    // miss it; reject outright if the exit decision was already made.
+    __block BOOL acceptedForCounting = NO;
+    dispatch_sync(connectionCountQueue, ^{
+        if (isExiting) {
+            return;
+        }
         activeConnectionCount++;
+        acceptedForCounting = YES;
         os_log_debug(LOG, "Active connections: %ld", (long)activeConnectionCount);
+    });
+    if (!acceptedForCounting) {
+        os_log(LOG, "Rejecting XPC connection: helper is exiting");
+        return NO;
+    }
+
+    // Cancel pending exit if a new connection arrives. exitTimer is confined
+    // to the main queue; this delegate runs on the listener's queue.
+    dispatch_async(dispatch_get_main_queue(), ^{
+        [self cancelExitTimer];
     });
 
     __weak typeof(self) weakSelf = self;
@@ -290,8 +327,13 @@ static dispatch_source_t setupSignalHandler(PingWardenService *service) {
         dispatch_source_set_event_handler(signalSource, ^{
             os_log(LOG, "Received SIGTERM via dispatch, performing graceful shutdown");
             if (service && service.monitor) {
-                [service.monitor setAwdlEnabled:YES];
+                if (![service.monitor setAwdlEnabled:YES]) {
+                    os_log_error(LOG, "setAwdlEnabled:YES failed during SIGTERM - falling back to direct restore");
+                }
                 [service.monitor invalidate];
+                // Guarantee awdl0 is not left down even if the pipe write
+                // failed or the poll thread was already dead.
+                [service.monitor restoreInterfaceUpDirectly];
             }
             os_log(LOG, "PingWardenHelper exiting due to SIGTERM");
             // Give a moment for cleanup
@@ -350,8 +392,23 @@ int main(int argc, const char * argv[]) {
                 listener.connectionCodeSigningRequirement = requirement;
             }
         } else {
-            os_log(LOG, "WARNING: Running without code signing requirement - relying on UID-based validation only");
+#if DEBUG
+            os_log(LOG, "WARNING: Debug build without code signing requirement - relying on UID-based validation only");
+#else
+            // Fail closed: a release build of a root daemon whose own
+            // signature does not validate is either tampered with or a
+            // broken install. Downgrading to UID-only validation would let
+            // any GUI-user process drive a root-owned network control.
+            os_log_error(LOG, "Refusing to serve: code signature validation failed on a release build");
+            return EXIT_FAILURE;
+#endif
         }
+
+        // Anchor the service and listener in immortal globals (see the
+        // declarations above for why ARC would otherwise be free to release
+        // them once dispatch_main() is entered).
+        gService = service;
+        gListener = listener;
 
         listener.delegate = service;
         [listener activate];

@@ -15,6 +15,16 @@ enum DiagnosticsExporter {
     }
 
     static func exportSnapshot() -> ExportResult? {
+        // Both getInterventionCount and performHealthCheck below use
+        // semaphore waits that would deadlock/stall the main thread. Enforce
+        // the background-queue contract up front and in Release builds too
+        // (assert() compiles out and would let a future main-thread call
+        // site hang the UI).
+        guard !Thread.isMainThread else {
+            assertionFailure("exportSnapshot must not be called on the main thread")
+            return nil
+        }
+
         let monitor = PingWardenMonitor.shared
         let formatter = ISO8601DateFormatter()
         formatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
@@ -53,10 +63,6 @@ enum DiagnosticsExporter {
             registrationStatus = "unknown"
         }
 
-        // Both getInterventionCount (above) and performHealthCheck use semaphore
-        // waits that would deadlock the main thread. The sole call site already
-        // dispatches to a background queue, so assert that contract here.
-        assert(!Thread.isMainThread, "exportSnapshot must not be called on the main thread")
         let health = monitor.performHealthCheck()
         let awdlStatus = monitor.currentAWDLInterfaceStatus()
 
@@ -100,15 +106,21 @@ enum DiagnosticsExporter {
         """
 
         let desktop = FileManager.default.urls(for: .desktopDirectory, in: .userDomainMask).first
-        let destinationDir = desktop ?? FileManager.default.temporaryDirectory
         let filename = "PingWarden-Diagnostics-\(fileTimestamp).txt"
-        let fileURL = destinationDir.appendingPathComponent(filename)
 
-        do {
-            try diagnostics.write(to: fileURL, atomically: true, encoding: .utf8)
-            return ExportResult(fileURL: fileURL, contents: diagnostics)
-        } catch {
-            return nil
+        // Desktop writes can fail (TCC denial, iCloud-evicted or read-only
+        // Desktop); fall back to the temporary directory rather than
+        // reporting a generic failure.
+        let candidateDirs = [desktop, FileManager.default.temporaryDirectory].compactMap { $0 }
+        for destinationDir in candidateDirs {
+            let fileURL = destinationDir.appendingPathComponent(filename)
+            do {
+                try diagnostics.write(to: fileURL, atomically: true, encoding: .utf8)
+                return ExportResult(fileURL: fileURL, contents: diagnostics)
+            } catch {
+                continue
+            }
         }
+        return nil
     }
 }

@@ -65,6 +65,7 @@ final class PingWardenPreferences: @unchecked Sendable {
                 userInfo: nil,
                 deliverImmediately: true
             )
+            ControlCenterSupport.reloadPingProtectionControl()
         }
     }
 
@@ -81,6 +82,7 @@ final class PingWardenPreferences: @unchecked Sendable {
                 deliverImmediately: true
             )
             NotificationCenter.default.post(name: .awdlMonitorStateChanged, object: nil)
+            ControlCenterSupport.reloadPingProtectionControl()
         }
     }
 

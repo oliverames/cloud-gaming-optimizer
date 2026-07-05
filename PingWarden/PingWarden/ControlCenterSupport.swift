@@ -7,8 +7,27 @@
 
 import Foundation
 import Security
+#if canImport(WidgetKit)
+import WidgetKit
+#endif
 
 enum ControlCenterSupport {
+    /// Must match `PingWardenControlKind.pingProtection` in the widget target.
+    static let pingProtectionControlKind = "PingWardenWidget"
+
+    /// Ask Control Center to re-render the Ping Protection toggle. The main
+    /// app must call this whenever the monitoring intent or effective state
+    /// changes — the widget only re-reads shared defaults when reloaded, so
+    /// without this a menu-bar or Game Mode toggle leaves the Control Center
+    /// toggle displaying stale state indefinitely.
+    static func reloadPingProtectionControl() {
+        #if canImport(WidgetKit)
+        if #available(macOS 26.0, *) {
+            ControlCenter.shared.reloadControls(ofKind: pingProtectionControlKind)
+        }
+        #endif
+    }
+
     enum Availability: Equatable {
         case available
         case unsupportedOS

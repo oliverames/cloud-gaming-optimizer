@@ -242,7 +242,10 @@ echo ""
 
 # Step 4: Get file size and date
 DMG_SIZE=$(stat -f%z "$DMG_PATH")
-DMG_DATE=$(date -u +"%a, %d %b %Y %H:%M:%S %Z")
+# LC_ALL=C keeps day/month names English (RFC 822 requires them; a localized
+# LC_TIME would emit names Sparkle's date parser rejects), and +0000 is used
+# because "UTC" is not a valid RFC 822 zone token.
+DMG_DATE=$(LC_ALL=C date -u +"%a, %d %b %Y %H:%M:%S +0000")
 
 echo -e "${GREEN}Step 3: Preparing release metadata...${NC}"
 echo "  Version: $VERSION"
@@ -369,21 +372,35 @@ if ! command -v gh &> /dev/null; then
     echo "5. Copy notes from $RELEASE_NOTES"
     echo ""
 else
-    # Create release with gh CLI
-    if [ -f "$RELEASE_NOTES_PATH" ]; then
-        gh release create "v$VERSION" \
-            "$DMG_PATH" \
-            --title "Ping Warden v$VERSION" \
-            --target "$CURRENT_SHA" \
-            --notes-file "$RELEASE_NOTES_PATH"
-    else
-        gh release create "v$VERSION" \
-            "$DMG_PATH" \
-            --title "Ping Warden v$VERSION" \
-            --target "$CURRENT_SHA" \
-            --notes "See CHANGELOG for details"
+    # Betas (and any semver pre-release tag) must be marked --prerelease or
+    # GitHub promotes them to "latest release", pointing the README badge and
+    # releases/latest at a beta DMG for stable users.
+    GH_RELEASE_FLAGS=()
+    if [ "${BETA_CHANNEL:-0}" = "1" ] || [[ "$VERSION" == *-* ]]; then
+        GH_RELEASE_FLAGS+=(--prerelease)
+        echo "  ✓ marking GitHub release as pre-release"
     fi
-    
+
+    # Prefer just this version's section from RELEASE_NOTES.md; the file
+    # passed as $2 is the full multi-version history, and using it verbatim
+    # put every release's notes on every release page.
+    GH_NOTES_ARGS=()
+    if VERSION_NOTES=$("$RENDER_SCRIPT" "$VERSION" --markdown 2>/dev/null) && [ -n "$VERSION_NOTES" ]; then
+        GH_NOTES_ARGS=(--notes "$VERSION_NOTES")
+    elif [ -f "$RELEASE_NOTES_PATH" ]; then
+        echo -e "${YELLOW}  ⚠ could not extract v$VERSION section; using $RELEASE_NOTES_PATH verbatim${NC}"
+        GH_NOTES_ARGS=(--notes-file "$RELEASE_NOTES_PATH")
+    else
+        GH_NOTES_ARGS=(--notes "See CHANGELOG for details")
+    fi
+
+    gh release create "v$VERSION" \
+        "$DMG_PATH" \
+        --title "Ping Warden v$VERSION" \
+        --target "$CURRENT_SHA" \
+        "${GH_RELEASE_FLAGS[@]}" \
+        "${GH_NOTES_ARGS[@]}"
+
     echo -e "${GREEN}✓ GitHub release created${NC}"
 fi
 
@@ -432,16 +449,21 @@ else
     # the script before gh-pages gets updated. The subshell + set +e localizes
     # the relaxed error handling, and the trailing summary makes any failures
     # visible rather than silently passing.
+    # NOTE: the subshell must be run inside an `if !` so its non-zero exit is
+    # exempt from the outer `set -e` — a bare `( ... ); SENTRY_FAILURES=$?`
+    # aborts the whole script on failure before gh-pages is pushed, which is
+    # exactly the failure mode this block exists to prevent.
     SENTRY_FAILURES=0
-    (
+    if ! (
         set +e
         sentry-cli debug-files upload "$XCARCHIVE_DSYMS" || exit 1
         sentry-cli releases new "$SENTRY_RELEASE" || exit 2
         sentry-cli releases set-commits "$SENTRY_RELEASE" --auto || true  # needs repo integration; non-fatal
         sentry-cli releases finalize "$SENTRY_RELEASE" || exit 4
         exit 0
-    )
-    SENTRY_FAILURES=$?
+    ); then
+        SENTRY_FAILURES=$?
+    fi
 
     unset SENTRY_AUTH_TOKEN SENTRY_ORG SENTRY_PROJECT SENTRY_LOG_LEVEL
     if [ "$SENTRY_FAILURES" = "0" ]; then
@@ -493,10 +515,19 @@ else
 
     restore_branch() {
         local rc=$?
-        # Best-effort: return to the original branch and pop the stash.
-        git -C "$REPO_ROOT" checkout --quiet "$ORIGINAL_BRANCH" 2>/dev/null || true
+        # Best-effort, but LOUD on failure: silently continuing here can pop
+        # the stash onto the wrong branch or strand it entirely.
+        if ! git -C "$REPO_ROOT" checkout --quiet "$ORIGINAL_BRANCH" 2>/dev/null; then
+            echo -e "${RED}⚠ Could not return to branch '$ORIGINAL_BRANCH' — repo left on $(git -C "$REPO_ROOT" rev-parse --abbrev-ref HEAD).${NC}" >&2
+            if [ "$STASHED" = "1" ]; then
+                echo -e "${RED}⚠ Your pre-release changes are stashed (git stash list) — NOT popping onto the wrong branch.${NC}" >&2
+            fi
+            return $rc
+        fi
         if [ "$STASHED" = "1" ]; then
-            git -C "$REPO_ROOT" stash pop --quiet 2>/dev/null || true
+            if ! git -C "$REPO_ROOT" stash pop --quiet 2>/dev/null; then
+                echo -e "${RED}⚠ git stash pop failed (conflict?). Your changes remain in the stash — resolve with 'git stash pop' manually.${NC}" >&2
+            fi
         fi
         return $rc
     }
@@ -509,7 +540,10 @@ else
     cp "$APPCAST_SNAPSHOT" "$REPO_ROOT/$APPCAST_BASENAME"
     rm -f "$APPCAST_SNAPSHOT"
 
-    if git -C "$REPO_ROOT" diff --quiet -- "$APPCAST_BASENAME"; then
+    # status --porcelain (not diff --quiet): a first-ever beta appcast is an
+    # UNTRACKED file on gh-pages, which `git diff --quiet` reports as
+    # unchanged — silently skipping the push and 404ing the beta feed.
+    if [ -z "$(git -C "$REPO_ROOT" status --porcelain -- "$APPCAST_BASENAME")" ]; then
         echo -e "${YELLOW}gh-pages $APPCAST_BASENAME already matches v$VERSION; nothing to push.${NC}"
     else
         git -C "$REPO_ROOT" add "$APPCAST_BASENAME"

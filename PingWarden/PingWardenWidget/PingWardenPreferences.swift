@@ -17,7 +17,7 @@ private let log = Logger(subsystem: "com.amesvt.pingwarden", category: "WidgetPr
 /// Note: This file should be kept in sync with PingWarden/PingWardenPreferences.swift
 /// The widget only uses isMonitoringEnabled and lastKnownState, but all properties
 /// are included for consistency and to ensure key names match.
-class PingWardenPreferences {
+final class PingWardenPreferences: @unchecked Sendable {
     static let shared = PingWardenPreferences()
 
     private let appGroupID = "group.com.amesvt.pingwarden"
@@ -29,18 +29,29 @@ class PingWardenPreferences {
     private let showDockIconKey = "ShowDockIcon"
     private let showMenuDropdownMetricsKey = "ShowMenuDropdownMetrics"
 
-    private lazy var defaults: UserDefaults? = {
-        guard let suite = UserDefaults(suiteName: appGroupID) else {
+    // Assigned once in init (a `lazy var` is not thread-safe and the async
+    // intent perform() can race control rendering on first access).
+    private let defaults: UserDefaults?
+
+    /// True when the shared App Group suite is in use. When false, the widget
+    /// and the main app are reading *different* defaults domains — writes
+    /// from here would appear to succeed while the app never sees them, so
+    /// intent handlers must surface an error instead of proceeding.
+    let usesAppGroupSuite: Bool
+
+    private init() {
+        if let suite = UserDefaults(suiteName: appGroupID) {
+            log.debug("Successfully connected to App Group suite")
+            defaults = suite
+            usesAppGroupSuite = true
+        } else {
             // Fallback to standard defaults if app group fails
             // This matches the main app's behavior for consistency
-            log.error("Failed to create App Group suite '\(self.appGroupID)', using standard defaults")
-            return UserDefaults.standard
+            log.error("Failed to create App Group suite, using standard defaults")
+            defaults = UserDefaults.standard
+            usesAppGroupSuite = false
         }
-        log.debug("Successfully connected to App Group suite")
-        return suite
-    }()
-
-    private init() {}
+    }
 
     /// Whether continuous AWDL monitoring is enabled
     var isMonitoringEnabled: Bool {

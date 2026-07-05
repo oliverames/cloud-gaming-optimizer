@@ -92,7 +92,10 @@ class PingMonitor: @unchecked Sendable {
     
     var currentPing: TimeInterval? {
         withHistoryLock {
-            history.last?.latency
+            // Failed probes store the timeout as their latency; reporting
+            // that as "current ping" would show e.g. 1000 ms instead of
+            // signaling loss. Surface the last *successful* measurement.
+            history.last(where: { $0.success })?.latency
         }
     }
     
@@ -102,16 +105,20 @@ class PingMonitor: @unchecked Sendable {
     
     // MARK: - Public Methods
     
-    /// Start monitoring with specified server and interval
+    /// Start monitoring with specified server and interval.
+    /// A start while already running is a no-op — callers must stop() first
+    /// to retarget. (Config used to be written before this guard, silently
+    /// retargeting the running monitor's next tick and mixing two hosts'
+    /// samples in one history window.)
     func start(server: String? = nil, port: UInt16? = nil, interval: TimeInterval? = nil) {
+        guard !isMonitoring else {
+            log.warning("Ping monitor already running - ignoring start (stop() first to retarget)")
+            return
+        }
+
         if let server = server { self.server = server }
         if let port = port { self.port = port }
         if let interval = interval { self.interval = interval }
-        
-        guard !isMonitoring else {
-            log.warning("Ping monitor already running")
-            return
-        }
         
         log.info("Starting ping monitor: \(self.server):\(self.port) every \(self.interval)s")
         let sessionID = beginSession()
