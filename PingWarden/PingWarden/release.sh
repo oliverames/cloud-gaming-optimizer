@@ -436,12 +436,6 @@ else
     # Betas (and any semver pre-release tag) must be marked --prerelease or
     # GitHub promotes them to "latest release", pointing the README badge and
     # releases/latest at a beta DMG for stable users.
-    GH_RELEASE_FLAGS=()
-    if [ "${BETA_CHANNEL:-0}" = "1" ] || [[ "$VERSION" == *-* ]]; then
-        GH_RELEASE_FLAGS+=(--prerelease)
-        echo "  ✓ marking GitHub release as pre-release"
-    fi
-
     # Prefer just this version's section from RELEASE_NOTES.md; the file
     # passed as $2 is the full multi-version history, and using it verbatim
     # put every release's notes on every release page.
@@ -455,12 +449,23 @@ else
         GH_NOTES_ARGS=(--notes "See CHANGELOG for details")
     fi
 
-    gh release create "v$VERSION" \
-        "$DMG_PATH" \
-        --title "Ping Warden v$VERSION" \
-        --target "$CURRENT_SHA" \
-        "${GH_RELEASE_FLAGS[@]}" \
-        "${GH_NOTES_ARGS[@]}"
+    # Build one non-empty argument array. macOS still ships Bash 3.2, where
+    # expanding an empty array under `set -u` fails with "unbound variable".
+    # That used to stop stable releases because only prereleases add an
+    # optional flag.
+    GH_RELEASE_ARGS=(
+        release create "v$VERSION"
+        "$DMG_PATH"
+        --title "Ping Warden v$VERSION"
+        --target "$CURRENT_SHA"
+    )
+    if [ "${BETA_CHANNEL:-0}" = "1" ] || [[ "$VERSION" == *-* ]]; then
+        GH_RELEASE_ARGS+=(--prerelease)
+        echo "  ✓ marking GitHub release as pre-release"
+    fi
+    GH_RELEASE_ARGS+=("${GH_NOTES_ARGS[@]}")
+
+    gh "${GH_RELEASE_ARGS[@]}"
 
     echo -e "${GREEN}✓ GitHub release created${NC}"
 fi
