@@ -27,6 +27,10 @@ final class PingWardenPreferences: @unchecked Sendable {
     private let showMenuDropdownMetricsKey = "ShowMenuDropdownMetrics"
     private let donationLastSeenVersionKey = "DonationPromptLastSeenVersion"
     private let donationDismissedPermanentlyKey = "DonationPromptDismissedPermanently"
+    private let supportLastPromptDateKey = "SupportPromptLastDate"
+    private let supportOpenedDateKey = "SupportOpenedDate"
+    private let completedSessionCountKey = "CompletedProtectedSessionCount"
+    private let lifetimeInterventionCountKey = "LifetimeInterventionCount"
     private let crashReportingEnabledKey = "CrashReportingEnabled"
     private let betaChannelEnabledKey = "BetaChannelEnabled"
 
@@ -44,12 +48,10 @@ final class PingWardenPreferences: @unchecked Sendable {
             defaults = UserDefaults.standard
         }
 
-        // Per-app defaults. `register` only applies when the key has never
-        // been written by the user, so toggling crash reporting off in the
-        // UI persists across launches; only fresh installs (or users on
-        // v2.3.0 launching v2.3.1 for the first time) see the default.
+        // `register` only applies when the key has never been written. Existing
+        // choices persist, while new installations start with reporting off.
         defaults.register(defaults: [
-            crashReportingEnabledKey: true,
+            crashReportingEnabledKey: false,
         ])
     }
 
@@ -149,13 +151,30 @@ final class PingWardenPreferences: @unchecked Sendable {
         set { defaults.set(newValue, forKey: donationDismissedPermanentlyKey) }
     }
 
-    /// Crash reporting via Sentry. Default `true` — anonymous data only
-    /// (no IP, no network targets, no usage telemetry, no session events).
-    /// The default is registered in `init` so existing users who have not
-    /// explicitly toggled the setting also get crash reporting on first
-    /// launch of v2.3.1; explicit user choices persist. Toggled in
-    /// Settings → Advanced → Privacy; applied at next launch. Reset to
-    /// the registered default by `performUninstall`.
+    var supportLastPromptDate: Date? {
+        get { defaults.object(forKey: supportLastPromptDateKey) as? Date }
+        set { defaults.set(newValue, forKey: supportLastPromptDateKey) }
+    }
+
+    var supportOpenedDate: Date? {
+        get { defaults.object(forKey: supportOpenedDateKey) as? Date }
+        set { defaults.set(newValue, forKey: supportOpenedDateKey) }
+    }
+
+    var completedProtectedSessionCount: Int {
+        get { max(0, defaults.integer(forKey: completedSessionCountKey)) }
+        set { defaults.set(max(0, newValue), forKey: completedSessionCountKey) }
+    }
+
+    var lifetimeInterventionCount: Int {
+        get { max(0, defaults.integer(forKey: lifetimeInterventionCountKey)) }
+        set { defaults.set(max(0, newValue), forKey: lifetimeInterventionCountKey) }
+    }
+
+    /// Crash reporting via Sentry. Default `false`; users can opt in from
+    /// Settings → Advanced → Privacy. Reports contain no IP, network target,
+    /// usage telemetry, or session event data. Turning it off applies
+    /// immediately; turning it on starts reporting on the next launch.
     var isCrashReportingEnabled: Bool {
         get { defaults.bool(forKey: crashReportingEnabledKey) }
         set { defaults.set(newValue, forKey: crashReportingEnabledKey) }

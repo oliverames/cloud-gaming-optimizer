@@ -6,7 +6,7 @@ For quick setup, see [Quick Start](QUICKSTART.md). For issue recovery, see [Trou
 
 ## 1. Overview
 
-Ping Warden is a macOS latency-stability tool focused on preventing AWDL-related jitter and spikes for real-time workloads.
+Ping Warden is a macOS latency-stability tool that keeps AWDL from reactivating during latency-sensitive work.
 
 AWDL (Apple Wireless Direct Link) is used by Apple ecosystem features such as AirDrop, AirPlay, and Handoff. On some networks and workflows, AWDL interface transitions can correlate with sudden latency jumps. Ping Warden provides a controlled, user-friendly way to keep AWDL suppressed when desired, while retaining the ability to restore normal behavior instantly.
 
@@ -21,9 +21,9 @@ Primary goals:
 
 A one-time shell command might seem like a simple fix, but it doesn't actually solve the problem.
 
-**The core issue:** macOS will bring AWDL back up automatically—often within seconds. You might write a script that polls every few seconds and takes AWDL down whenever it comes back up. This still introduces ping spikes during the seconds AWDL spools up. In some cases, this makes things *worse* because AWDL performs a channel scan each time it comes up, causing additional latency. Even reducing the polling interval to 0.5 seconds doesn't truly solve the problem—something at a deeper level is needed to prevent the system from ever calling the process to start.
+**The core issue:** macOS can bring AWDL back up automatically. A polling script reacts only after the interface is active, so it cannot prevent the transition itself.
 
-**Why Ping Warden is different:** Instead of polling and reacting after AWDL is already up, the helper daemon listens to kernel route/interface events via `AF_ROUTE` sockets. When macOS signals that AWDL is coming up, the helper immediately counters the transition (sub-millisecond response) before the system can initiate its channel scan.
+**Why Ping Warden is different:** Instead of polling, the helper daemon waits for kernel route and interface events through an `AF_ROUTE` socket. When macOS raises AWDL while protection is active, the helper takes the interface back down and records an intervention. Ping Warden does not claim that a specific intervention proves a particular latency spike was avoided.
 
 Additional benefits:
 
@@ -59,6 +59,7 @@ Important files:
 - `PingWarden/PingWarden/PingWardenApp.swift`
 - `PingWarden/PingWarden/PingWardenMonitor.swift`
 - `PingWarden/PingWarden/DashboardView.swift`
+- `PingWarden/PingWarden/ProtectedSessionCoordinator.swift`
 - `PingWarden/PingWarden/PingWardenPreferences.swift`
 - `PingWarden/PingWarden/DiagnosticsExporter.swift`
 
@@ -68,6 +69,7 @@ Responsibilities:
 - User intent state persistence (`isMonitoringEnabled`).
 - Effective runtime state tracking (`effectiveMonitoringEnabled`).
 - Dashboard data collection and charting.
+- Protected Session lifecycle and local recap history.
 - Sparkle update checks and update menu entries.
 
 ### 4.2 Helper Daemon
@@ -144,6 +146,11 @@ Provides real-time latency visibility and tuning controls.
 
 Cards include:
 
+- Protected Session:
+  - Start and end a measured game or call.
+  - Review duration, median, p95, jitter, packet loss, and interventions.
+  - Share a privacy-scrubbed text recap.
+
 - Network Quality:
   - Current ping, average, best, worst, jitter, packet loss, AWDL state.
 - Ping History:
@@ -151,7 +158,7 @@ Cards include:
   - Timeframe changes are non-destructive (history is not deleted by zoom changes).
 - Latency Timeline:
   - Spike and intervention event list.
-- AWDL Protection:
+- Ping Protection:
   - Intervention counter and explanatory status.
 - Connection Settings:
   - Ping target selection.
@@ -167,7 +174,7 @@ Data retention behavior:
 
 Controls:
 
-- AWDL Blocking toggle.
+- Ping Protection setup and status.
 - Launch at Login.
 - Show Dock Icon.
 - Menu Dropdown Metrics (show current ping and interventions in menu dropdown).
@@ -187,7 +194,7 @@ Controls:
 
 Tools:
 
-- Test Helper Response.
+- Test the registered helper and signed XPC connection.
 - Open Console logs.
 - Export Diagnostics bundle.
 - Re-register Helper.
@@ -198,8 +205,9 @@ Tools:
 Menu bar:
 
 - Primary AWDL toggle actions.
+- Start or end a Protected Session.
 - Optional live metrics in dropdown.
-- Settings/About/Update actions.
+- Settings, About, Support, and update actions.
 
 App menu (frontmost app state):
 
@@ -210,9 +218,10 @@ App menu (frontmost app state):
 
 Update stack:
 
-- Framework: Sparkle 2.x.
+- Framework: Sparkle 2.9.4.
 - Feed URL: `https://oliverames.github.io/ping-warden/appcast.xml`.
 - Signature model: EdDSA (`SUPublicEDKey` in app plist).
+- Signed feeds and pre-extraction archive verification are required.
 
 Operational details:
 
@@ -230,14 +239,12 @@ Release wiring:
 Security controls include:
 
 - Privileged helper exposed only through XPC interface.
-- Optional code-signing requirements on incoming XPC connections in signed builds.
-- Team ID-based signature validation in helper bootstrap path.
+- Mandatory code-signing requirements for the app and widget XPC clients.
+- Exact Team ID and bundle identifier validation in the helper bootstrap path.
+- Unsigned or ad-hoc helper builds fail closed instead of falling back to UID-only access.
+- Shared defaults and distributed notifications never authorize privileged changes.
 - Bounded error handling and controlled shutdown paths.
-
-Notes:
-
-- Unsigned/ad-hoc debug contexts are treated differently for local development.
-- Production distribution should use Developer ID signing and notarization.
+- Developer ID signing, Hardened Runtime, notarization, and stapling are release gates.
 
 ## 12. Diagnostics and Health Checks
 
@@ -252,14 +259,19 @@ Built-in diagnostics surface:
 
 Export diagnostics:
 
-- Generates support-friendly snapshot data from app state and runtime checks.
+- Generates a local support snapshot with owner-only permissions.
+- Redacts custom ping targets to a category before writing.
+- Shows the contents for review and never uploads the file automatically.
 
 ## 13. Performance Characteristics
 
 Design choices for low overhead:
 
 - Event-driven helper thread using `poll()` rather than busy loops.
-- Atomic counters and flags in helper for thread-safe fast paths.
+- One reference-counted telemetry stream shared by dashboard, menu, and sessions.
+- Rolling bounded history with statistics calculated off the main thread.
+- Five-minute hostname and address caching with cancellable probe deadlines.
+- Game Mode uses event-triggered checks plus a 10-second inactive safety interval.
 - Narrow command surface over XPC.
 - Dashboard sampling rate configurable by user.
 
@@ -291,14 +303,17 @@ Key project areas:
 
 ## 15. Release and Distribution
 
-Typical release workflow:
+Run the release command from a clean commit that is already pushed:
 
-1. Bump versions in project/plists.
-2. Build and notarize release artifact.
-3. Sign Sparkle update payload.
-4. Insert/update appcast item with version, URL, signature, and size.
-5. Publish GitHub release.
-6. Verify Sparkle discovery from older installed app builds.
+```bash
+cd PingWarden/PingWarden
+bash release.sh X.Y.Z ../../RELEASE_NOTES.md
+```
+
+The command creates a fresh unsigned archive and dSYMs, validates and signs the
+app, helper, and widget, notarizes and staples the app and DMG, mount-tests the
+DMG, signs the Sparkle archive and appcast, publishes the GitHub release and
+Sentry dSYMs, and updates `gh-pages`.
 
 Important:
 
@@ -321,7 +336,7 @@ Other practical limits:
 
 Recommended usage:
 
-- Enable blocking before latency-sensitive sessions.
+- Start a Protected Session before a latency-sensitive game or call.
 - Use dashboard target auto-select periodically if your network path changes.
 - Keep update interval moderate unless actively investigating jitter.
 - Use diagnostics export before opening support issues.
@@ -358,7 +373,7 @@ Release/update:
 ## 20. Credits
 
 - [jamestut/awdlkiller](https://github.com/jamestut/awdlkiller)
-- [james-howard/AWDLControl](https://github.com/james-howard/AWDLControl) — SMAppService + XPC architecture inspiration
+- [james-howard/AWDLControl](https://github.com/james-howard/AWDLControl), SMAppService and XPC architecture inspiration
 
 ## 21. License
 

@@ -152,6 +152,11 @@ final class XPCReconnectPolicyTests: XCTestCase {
 }
 
 final class TCPProbeTests: XCTestCase {
+    override func setUp() {
+        super.setUp()
+        TCPProbe.resetAddressCacheForTesting()
+    }
+
     /// A 300-char label violates RFC 1035 so `getaddrinfo` rejects it
     /// without a DNS round-trip — deterministic offline test of the
     /// resolver-failure cleanup path.
@@ -178,6 +183,29 @@ final class TCPProbeTests: XCTestCase {
         let unwrappedLatency = try XCTUnwrap(latency, "probe should return non-nil latency")
         XCTAssertGreaterThanOrEqual(unwrappedLatency, 0)
         XCTAssertTrue(TCPProbe.connect(host: "127.0.0.1", port: port, timeoutSeconds: 2))
+    }
+
+    func testHostnameResolutionIsCachedAcrossProbes() throws {
+        let port = try XCTUnwrap(Self.startLoopbackListener(), "failed to bind loopback listener")
+
+        XCTAssertNotNil(TCPProbe.measureLatency(host: "localhost", port: port, timeoutSeconds: 2))
+        XCTAssertEqual(TCPProbe.addressCacheEntryCountForTesting, 1)
+
+        XCTAssertNotNil(TCPProbe.measureLatency(host: "localhost", port: port, timeoutSeconds: 2))
+        XCTAssertEqual(TCPProbe.addressCacheEntryCountForTesting, 1)
+    }
+
+    func testPreCancelledProbeSkipsResolutionAndConnection() {
+        let cancellationToken = TCPProbe.CancellationToken()
+        cancellationToken.cancel()
+
+        XCTAssertNil(TCPProbe.measureLatency(
+            host: "localhost",
+            port: 53,
+            timeoutSeconds: 2,
+            cancellationToken: cancellationToken
+        ))
+        XCTAssertEqual(TCPProbe.addressCacheEntryCountForTesting, 0)
     }
 
     private static func startLoopbackListener() -> UInt16? {
@@ -215,6 +243,69 @@ final class TCPProbeTests: XCTestCase {
         // process — `listen()` keeps the kernel queue alive so the probe's
         // connect() succeeds without an accept loop racing it.
         return UInt16(bigEndian: boundAddr.sin_port)
+    }
+}
+
+final class RollingHistoryTests: XCTestCase {
+    func testPruningAndTrimmingPreserveChronologicalOrder() {
+        var history = RollingHistory<Int>()
+        (0..<10).forEach { history.append($0) }
+
+        history.removePrefix { $0 < 4 }
+        history.trimToLast(3)
+
+        XCTAssertEqual(history.elements, [7, 8, 9])
+        XCTAssertEqual(history.count, 3)
+        XCTAssertEqual(history.last(where: { $0.isMultiple(of: 2) }), 8)
+    }
+
+    func testClearMakesHistoryEmptyWithoutBreakingReuse() {
+        var history = RollingHistory<Int>()
+        history.append(1)
+        history.append(2)
+        history.removeAll(keepingCapacity: true)
+        history.append(3)
+
+        XCTAssertEqual(history.elements, [3])
+    }
+}
+
+final class TelemetryDemandResolverTests: XCTestCase {
+    func testHigherPriorityConsumerChoosesTarget() throws {
+        let menuID = UUID()
+        let dashboardID = UUID()
+        let demands = [
+            TelemetryDemand(consumerID: menuID, host: "8.8.8.8", port: 53, interval: 2, priority: 10, revision: 2),
+            TelemetryDemand(consumerID: dashboardID, host: "1.1.1.1", port: 53, interval: 5, priority: 100, revision: 1)
+        ]
+
+        let resolved = try XCTUnwrap(TelemetryDemandResolver.resolve(demands))
+        XCTAssertEqual(resolved.host, "1.1.1.1")
+        XCTAssertEqual(resolved.interval, 5)
+    }
+
+    func testMatchingConsumersUseFastestRequestedInterval() throws {
+        let demands = [
+            TelemetryDemand(consumerID: UUID(), host: "8.8.8.8", port: 53, interval: 5, priority: 100, revision: 1),
+            TelemetryDemand(consumerID: UUID(), host: "8.8.8.8", port: 53, interval: 2, priority: 10, revision: 2)
+        ]
+
+        let resolved = try XCTUnwrap(TelemetryDemandResolver.resolve(demands))
+        XCTAssertEqual(resolved.interval, 2)
+    }
+
+    func testMostRecentDemandBreaksEqualPriorityTie() throws {
+        let demands = [
+            TelemetryDemand(consumerID: UUID(), host: "8.8.8.8", port: 53, interval: 2, priority: 10, revision: 1),
+            TelemetryDemand(consumerID: UUID(), host: "1.1.1.1", port: 53, interval: 2, priority: 10, revision: 2)
+        ]
+
+        let resolved = try XCTUnwrap(TelemetryDemandResolver.resolve(demands))
+        XCTAssertEqual(resolved.host, "1.1.1.1")
+    }
+
+    func testNoConsumersStopsTelemetry() {
+        XCTAssertNil(TelemetryDemandResolver.resolve([]))
     }
 }
 

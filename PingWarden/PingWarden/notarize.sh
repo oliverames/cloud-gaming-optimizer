@@ -15,6 +15,15 @@ set -euo pipefail
 # Resolve paths relative to this script so execution is cwd-independent.
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
+REPO_ROOT="$(cd "$PROJECT_ROOT/.." && pwd)"
+VALIDATION_SCRIPT="$REPO_ROOT/scripts/release_validation.sh"
+if [ ! -f "$VALIDATION_SCRIPT" ]; then
+    echo "Error: release validation library not found at $VALIDATION_SCRIPT" >&2
+    exit 1
+fi
+# The path is resolved from this script's repository root.
+# shellcheck disable=SC1090,SC1091
+source "$VALIDATION_SCRIPT"
 
 # Configuration
 APP_NAME="Ping Warden"
@@ -25,11 +34,12 @@ if [ -z "$VERSION" ]; then
     echo "Usage: ./notarize.sh <version>" >&2
     exit 1
 fi
-BUNDLE_ID="com.amesvt.pingwarden"
+validate_release_version "$VERSION"
 KEYCHAIN_PROFILE="${KEYCHAIN_PROFILE:-notarytool-profile}"  # Must match setup in NOTARIZATION_GUIDE.md
 TEAM_ID="PV3W52NDZ3"  # Apple Developer Team ID
 DEVELOPER_ID_IDENTITY="${DEVELOPER_ID_IDENTITY:-Developer ID Application: Oliver Ames (${TEAM_ID})}"
 NOTARYTOOL_ARGS=()
+SIGN_ONLY_OUTPUT="${SIGN_ONLY_OUTPUT:-}"
 
 if [ -n "${NOTARYTOOL_KEY:-}" ] && [ -n "${NOTARYTOOL_KEY_ID:-}" ] && [ -n "${NOTARYTOOL_ISSUER_ID:-}" ]; then
     NOTARYTOOL_ARGS=(--key "$NOTARYTOOL_KEY" --key-id "$NOTARYTOOL_KEY_ID" --issuer "$NOTARYTOOL_ISSUER_ID")
@@ -39,7 +49,7 @@ fi
 
 # Pre-flight: confirm notarytool credentials are configured before we burn time
 # building/staging an archive that we can't actually submit.
-if ! xcrun notarytool history "${NOTARYTOOL_ARGS[@]}" >/dev/null 2>&1; then
+if [ -z "$SIGN_ONLY_OUTPUT" ] && ! xcrun notarytool history "${NOTARYTOOL_ARGS[@]}" >/dev/null 2>&1; then
     echo "Error: notarytool credentials are not configured or not readable." >&2
     echo "Provide either keychain profile '$KEYCHAIN_PROFILE' or NOTARYTOOL_KEY, NOTARYTOOL_KEY_ID, and NOTARYTOOL_ISSUER_ID." >&2
     exit 1
@@ -55,15 +65,6 @@ APP_ENTITLEMENTS="$PROJECT_ROOT/PingWarden/PingWarden.entitlements"
 WIDGET_ENTITLEMENTS="$PROJECT_ROOT/PingWardenWidget/PingWardenWidget.entitlements"
 STAGING_DIR=""
 STAGED_APP_PATH=""
-APP_INFO_PLIST_SRC="$PROJECT_ROOT/PingWarden/Info.plist"
-
-# Cross-check the version argument against the app's Info.plist so a DMG can
-# never be produced whose Sparkle version metadata mismatches its contents.
-PLIST_VERSION=$(/usr/libexec/PlistBuddy -c "Print :CFBundleShortVersionString" "$APP_INFO_PLIST_SRC" 2>/dev/null || true)
-if [ -n "$PLIST_VERSION" ] && [ "$PLIST_VERSION" != "$VERSION" ]; then
-    echo "Error: version mismatch — argument is $VERSION but Info.plist says $PLIST_VERSION." >&2
-    exit 1
-fi
 
 # Colors
 GREEN='\033[0;32m'
@@ -112,6 +113,14 @@ echo "Preparing staging copy..."
 rsync -a "$APP_PATH/" "$STAGED_APP_PATH/"
 xattr -cr "$STAGED_APP_PATH" 2>/dev/null || true
 echo -e "${GREEN}✓${NC} Staging copy ready"
+
+# The staged bundle, not source metadata, is the release payload. This catches
+# an old app left in build/ before any signing or notarization work begins.
+if ! validate_app_artifact "$STAGED_APP_PATH" "$VERSION" 0; then
+    echo -e "${RED}Error: staged app metadata validation failed${NC}" >&2
+    exit 1
+fi
+echo -e "${GREEN}✓${NC} Staged app metadata matches release v$VERSION (build $VALIDATED_BUNDLE_VERSION)"
 
 # Step 1.5: Validate Sparkle configuration used at runtime
 SPARKLE_FEED_URL=$(/usr/libexec/PlistBuddy -c "Print :SUFeedURL" "$STAGED_APP_PATH/Contents/Info.plist" 2>/dev/null || true)
@@ -220,33 +229,29 @@ if codesign -d --entitlements :- "$STAGED_APP_PATH" 2>/dev/null | grep -q "com.a
     exit 1
 fi
 
-# Step 2: Verify code signing
+# Step 2: Verify code signing and re-check the final staged payload
 echo ""
 echo "Verifying code signature..."
-# Buffer the output before grep (same SIGPIPE/pipefail hazard documented for
-# CODESIGN_INFO above: `grep -q` exits at first match while codesign is still
-# writing, turning a *successful* verify into exit 141).
-DEEP_VERIFY_OUTPUT="$(codesign --verify --deep --strict --verbose=2 "$STAGED_APP_PATH" 2>&1 || true)"
-if ! printf '%s\n' "$DEEP_VERIFY_OUTPUT" | grep -q "satisfies"; then
-    echo -e "${RED}Error: App is not properly code signed${NC}"
-    echo "Make sure you built with Developer ID Application certificate"
-    printf '%s\n' "$DEEP_VERIFY_OUTPUT"
+if ! validate_app_artifact "$STAGED_APP_PATH" "$VERSION" 1; then
+    echo -e "${RED}Error: final staged app validation failed${NC}"
     exit 1
 fi
-
-# Check for Developer ID signature (not ad-hoc)
-SIGNING_IDENTITY=$(codesign -dvv "$STAGED_APP_PATH" 2>&1 | grep "Authority=Developer ID Application" || true)
-if [ -z "$SIGNING_IDENTITY" ]; then
-    echo -e "${RED}Error: App is not signed with Developer ID Application certificate${NC}"
-    echo "Current signature:"
-    codesign -dvv "$STAGED_APP_PATH" 2>&1 | grep "Authority"
-    echo ""
-    echo "Please sign with Developer ID certificate in Xcode"
-    exit 1
-fi
-
 echo -e "${GREEN}✓${NC} Code signature valid"
-echo "  ${SIGNING_IDENTITY}"
+echo "  Developer ID Team: $TEAM_ID"
+
+# A local signing-only mode exercises the exact distribution-signing path
+# before Apple submission. The destination must not already exist so this test
+# mode can never overwrite an installed app or another release artifact.
+if [ -n "$SIGN_ONLY_OUTPUT" ]; then
+    if [ -e "$SIGN_ONLY_OUTPUT" ]; then
+        echo -e "${RED}Error: SIGN_ONLY_OUTPUT already exists: $SIGN_ONLY_OUTPUT${NC}" >&2
+        exit 1
+    fi
+    mkdir -p "$SIGN_ONLY_OUTPUT"
+    rsync -a "$STAGED_APP_PATH/" "$SIGN_ONLY_OUTPUT/"
+    echo -e "${GREEN}✓${NC} Signed local test app written to $SIGN_ONLY_OUTPUT"
+    exit 0
+fi
 
 # Step 3: Create ZIP for notarization
 echo ""
@@ -327,6 +332,14 @@ echo ""
 echo "Stapling DMG..."
 xcrun stapler staple "$DMG_NAME"
 echo -e "${GREEN}✓${NC} DMG stapled"
+
+echo ""
+echo "Validating final mounted DMG payload..."
+if ! validate_dmg_artifact "$DMG_NAME" "$VERSION" 1; then
+    echo -e "${RED}Error: final DMG artifact validation failed${NC}" >&2
+    exit 1
+fi
+echo -e "${GREEN}✓${NC} Mounted DMG payload, Gatekeeper, and notarization validated"
 
 # Summary
 echo ""

@@ -12,7 +12,8 @@
 import Foundation
 import AppKit
 
-/// Utility to detect and help resolve Gatekeeper quarantine issues
+/// Utility to detect and explain Gatekeeper quarantine issues without
+/// bypassing macOS security controls.
 struct QuarantineHelper {
     
     /// Check if the app bundle has quarantine attributes
@@ -66,72 +67,30 @@ struct QuarantineHelper {
     }
 
     /// Main-thread only (presents modal alerts).
+    @MainActor
     private static func presentQuarantineHelpAlert() {
-        // Build the remediation command from the actual bundle location —
-        // the app may be running from ~/Downloads or a renamed bundle.
-        let removalCommand = "xattr -cr \"\(Bundle.main.bundlePath)\""
-
         do {
             let alert = NSAlert()
             alert.messageText = "First Time Setup"
             alert.informativeText = """
-            Ping Warden is not code-signed by Apple, which is normal for open-source apps.
-            
-            If macOS prevented you from opening the app, you can fix this by:
-            
-            1. Opening Terminal
-            2. Running this command:
+            macOS could not verify this copy of Ping Warden. Download the current signed and notarized release from the official GitHub Releases page.
 
-            \(removalCommand)
-
-            Then relaunch the app.
-            
-            This only needs to be done once!
+            If you built this copy yourself, open it from Finder using Control-click, then choose Open and review the system prompt. Ping Warden will never ask you to remove quarantine attributes in Terminal.
             """
-            alert.alertStyle = .informational
-            alert.addButton(withTitle: "Copy Command")
-            alert.addButton(withTitle: "I Already Did This")
-            alert.addButton(withTitle: "More Info")
+            alert.alertStyle = .warning
+            alert.addButton(withTitle: "Open Releases")
+            alert.addButton(withTitle: "Cancel")
             
             let response = alert.runModal()
             
             switch response {
-            case .alertFirstButtonReturn: // Copy Command
-                let pasteboard = NSPasteboard.general
-                pasteboard.clearContents()
-                pasteboard.setString(removalCommand, forType: .string)
-                
-                let confirmAlert = NSAlert()
-                confirmAlert.messageText = "Command Copied!"
-                confirmAlert.informativeText = "The command has been copied to your clipboard.\n\nPaste it into Terminal and press Enter."
-                confirmAlert.alertStyle = .informational
-                confirmAlert.addButton(withTitle: "OK")
-                confirmAlert.runModal()
-                
-            case .alertThirdButtonReturn: // More Info
-                if let url = URL(string: "https://github.com/oliverames/ping-warden#installation") {
+            case .alertFirstButtonReturn:
+                if let url = URL(string: "https://github.com/oliverames/ping-warden/releases/latest") {
                     NSWorkspace.shared.open(url)
                 }
-                
-            default: // I Already Did This
+            default:
                 break
             }
         }
-    }
-    
-    /// Attempt to remove quarantine attributes (requires admin privileges)
-    /// This generally doesn't work from within the app itself, but worth trying
-    static func attemptQuarantineRemoval() -> Bool {
-        guard let bundlePath = Bundle.main.bundlePath as NSString?,
-              let path = bundlePath.utf8String else {
-            return false
-        }
-
-        let attrName = "com.apple.quarantine"
-        
-        // Try to remove quarantine attribute
-        let result = Darwin.removexattr(path, attrName, 0)
-        
-        return result == 0
     }
 }

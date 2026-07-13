@@ -205,6 +205,17 @@ class PingWardenMonitor: @unchecked Sendable {
         return active
     }
 
+    /// Adopt state that a signed extension already applied directly through
+    /// the helper's authenticated XPC listener. The distributed notification
+    /// that triggers this path is only a display invalidation signal and never
+    /// causes a privileged command.
+    func adoptExternallyAppliedMonitoringState(_ active: Bool) {
+        stateLock.lock()
+        _isMonitoring = active
+        stateLock.unlock()
+        notifyStateChange()
+    }
+
     /// Register for monitor state changes. Returns a token that can be removed later.
     @discardableResult
     func addStateObserver(_ observer: @escaping @Sendable () -> Void) -> UUID {
@@ -547,58 +558,6 @@ class PingWardenMonitor: @unchecked Sendable {
         })
     }
 
-    /// Test the helper response time (for Testing Mode feature)
-    /// Note: This test only works when monitoring is active, as it relies on
-    /// the helper bringing AWDL back down after we bring it up.
-    func testHelperResponseTime(iterations: Int = 5, completion: @escaping @Sendable ([(passed: Bool, responseTime: TimeInterval)]) -> Void) {
-        log.info("Testing helper response time (\(iterations) iterations)...")
-
-        // Warn if monitoring is not active - test results won't be meaningful
-        guard isMonitoringActive else {
-            log.warning("testHelperResponseTime called but monitoring is not active - test will fail")
-            DispatchQueue.main.async {
-                // Return all failures since monitoring isn't active
-                let results = (0..<iterations).map { _ in (passed: false, responseTime: 0.0) }
-                completion(results)
-            }
-            return
-        }
-
-        let results = LockedValue<[(passed: Bool, responseTime: TimeInterval)]>([])
-
-        DispatchQueue.global(qos: .userInitiated).async {
-            for i in 0..<iterations {
-                let startTime = Date()
-
-                // Bring AWDL up
-                self.runIfconfig(up: true)
-
-                // Small delay for system to process
-                Thread.sleep(forTimeInterval: 0.001)
-
-                // Check if AWDL is still down (helper should have caught it)
-                let status = self.getAWDLInterfaceStatus()
-                let endTime = Date()
-
-                let responseTime = endTime.timeIntervalSince(startTime)
-                let passed = !status.contains("UP") || status.contains("<DOWN")
-
-                results.withValue { $0.append((passed: passed, responseTime: responseTime)) }
-                log.debug("Test \(i + 1): passed=\(passed), time=\(String(format: "%.3f", responseTime * 1000))ms")
-
-                // Small delay between tests
-                if i < iterations - 1 {
-                    Thread.sleep(forTimeInterval: 0.1)
-                }
-            }
-
-            let finalResults = results.withValue { $0 }
-            DispatchQueue.main.async {
-                completion(finalResults)
-            }
-        }
-    }
-
     // MARK: - Legacy API Support (for compatibility)
 
     /// Legacy method - redirects to registerHelper
@@ -612,7 +571,7 @@ class PingWardenMonitor: @unchecked Sendable {
                 DispatchQueue.main.async {
                     let alert = NSAlert()
                     alert.messageText = "Setup Complete!"
-                    alert.informativeText = "Ping Warden is now running.\n\nYour network is protected from wireless interference that causes lag spikes.\n\nYou can toggle protection from the menu bar."
+                    alert.informativeText = "Ping Warden is now running.\n\nAWDL is blocked while Ping Protection is active, which keeps it from interrupting latency-sensitive traffic.\n\nYou can toggle protection from the menu bar."
                     alert.alertStyle = .informational
                     alert.addButton(withTitle: "OK")
                     alert.runModal()
@@ -1000,34 +959,6 @@ class PingWardenMonitor: @unchecked Sendable {
         } catch {
             log.error("Error getting AWDL status: \(error.localizedDescription)")
             return "Error: \(error.localizedDescription)"
-        }
-    }
-
-    /// Run ifconfig to bring AWDL up or down (for testing only).
-    /// Returns true if the command succeeded. The unprivileged app typically
-    /// cannot modify network interfaces, so this is expected to fail — the
-    /// test relies on the *helper* reacting to the route change.
-    @discardableResult
-    private func runIfconfig(up: Bool) -> Bool {
-        let task = Process()
-        task.executableURL = URL(fileURLWithPath: "/sbin/ifconfig")
-        task.arguments = ["awdl0", up ? "up" : "down"]
-        // Output is not consumed here; route both streams to /dev/null so a
-        // verbose subprocess cannot fill an unread pipe buffer and block.
-        task.standardOutput = FileHandle.nullDevice
-        task.standardError = FileHandle.nullDevice
-
-        do {
-            try task.run()
-            task.waitUntilExit()
-            if task.terminationStatus != 0 {
-                log.debug("ifconfig awdl0 \(up ? "up" : "down") exited with status \(task.terminationStatus) (expected for unprivileged process)")
-                return false
-            }
-            return true
-        } catch {
-            log.error("Error running ifconfig: \(error.localizedDescription)")
-            return false
         }
     }
 

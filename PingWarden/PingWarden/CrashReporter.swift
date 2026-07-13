@@ -7,7 +7,7 @@
 //  thanks to the `#if canImport(Sentry)` guards.
 //
 //  Privacy posture (matches the app's stated promise):
-//    • Default ON — anonymous crashes only. Users opt out via
+//    • Default OFF — users opt in via
 //      Settings → Advanced → Privacy. The choice persists; only fresh
 //      installs and existing users launching v2.3.1 see the default.
 //    • No IP address (sendDefaultPii = false).
@@ -37,9 +37,9 @@ enum CrashReporter {
     private static let dsn = "https://3492628142810aa2deb988baaec35d0c@o4511410883985408.ingest.us.sentry.io/4511410888704000"
 
     /// Initialize Sentry if (a) the SDK is linked and (b) the user has not
-    /// opted out. Call once at app launch, before the first opportunity for
-    /// a crash. Toggle changes at runtime require an app restart to take
-    /// effect.
+    /// opted in. Call once at app launch, before the first opportunity for a
+    /// crash. Turning reporting off is enforced immediately by `beforeSend`;
+    /// turning it on requires a relaunch so the SDK can initialize cleanly.
     static func startIfEnabled() {
         guard PingWardenPreferences.shared.isCrashReportingEnabled else {
             log.info("Crash reporting opted out by user; Sentry not initialized")

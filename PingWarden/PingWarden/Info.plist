@@ -15,9 +15,9 @@
 	<key>CFBundlePackageType</key>
 	<string>APPL</string>
 	<key>CFBundleShortVersionString</key>
-	<string>2.5.0</string>
+	<string>3.0.0</string>
 	<key>CFBundleVersion</key>
-	<string>2.5.0</string>
+	<string>30000</string>
 	<key>GCSupportsControllerUserInteraction</key>
 	<false/>
 	<key>LSMinimumSystemVersion</key>
@@ -34,5 +34,9 @@
 	<string>https://oliverames.github.io/ping-warden/appcast.xml</string>
 	<key>SUPublicEDKey</key>
 	<string>NIhfyD083qOzYZteoMsBOljz/u7/ptMziiHheqt3mns=</string>
+	<key>SURequireSignedFeed</key>
+	<true/>
+	<key>SUVerifyUpdateBeforeExtraction</key>
+	<true/>
 </dict>
 </plist>

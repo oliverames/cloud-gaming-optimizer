@@ -2,10 +2,8 @@
 //  DonationPromptView.swift
 //  PingWarden
 //
-//  One-shot sheet that asks the user to chip in via Buy Me a Coffee.
-//  Surfaced on first launch and once per minor version after that; the
-//  decision lives in `VersionPromptPolicy` so it's exercised by the test
-//  suite, not buried in view code.
+//  Contextual sheet that asks for support after Ping Warden has demonstrated
+//  value. Eligibility lives in SupportPromptPolicy so it stays testable.
 //
 
 import SwiftUI
@@ -17,6 +15,8 @@ struct DonationPromptView: View {
     let onSupport: () -> Void
     let onMaybeLater: () -> Void
     let onDontAskAgain: () -> Void
+    var completedSessionCount: Int = 0
+    var lifetimeInterventionCount: Int = 0
 
     @ScaledMetric(relativeTo: .largeTitle) private var heroIconSize: CGFloat = 44
 
@@ -29,7 +29,7 @@ struct DonationPromptView: View {
                 .padding(.top, 28)
 
             VStack(spacing: 12) {
-                Text("Like Ping Warden?")
+                Text("Enjoying Ping Warden?")
                     .font(.title2)
                     .fontWeight(.semibold)
 
@@ -46,7 +46,7 @@ struct DonationPromptView: View {
                 Button {
                     onSupport()
                 } label: {
-                    Label("Buy me a coffee", systemImage: "cup.and.saucer")
+                    Label("Support Ping Warden", systemImage: "cup.and.saucer")
                         .frame(maxWidth: .infinity)
                 }
                 .buttonStyle(.borderedProminent)
@@ -76,16 +76,24 @@ struct DonationPromptView: View {
         .accessibilityElement(children: .contain)
     }
 
-    /// First-person ask in plain language. No em dashes, no corporate
-    /// register, no guilt-trip. The "no pressure" close is load-bearing —
-    /// without it the rest reads as cornering the user.
     private var messageBody: String {
-        """
-        Ping Warden is a one-person side project. I work on it around a full-time job and a young family, and I keep at it because you're using it.
+        let proof: String
+        if lifetimeInterventionCount > 0 {
+            let noun = lifetimeInterventionCount == 1 ? "interruption" : "interruptions"
+            proof = "The helper has recorded \(lifetimeInterventionCount) wireless \(noun) on this Mac."
+        } else if completedSessionCount > 0 {
+            let noun = completedSessionCount == 1 ? "session" : "sessions"
+            proof = "You have completed \(completedSessionCount) protected \(noun) on this Mac."
+        } else {
+            proof = "You have been using Ping Warden."
+        }
 
-        If it has saved your evening once or twice, a few bucks at the coffee link helps me justify the next feature instead of guiltily glancing at my todo list at 11pm.
+        return """
+        \(proof)
 
-        No pressure. It's free either way.
+        If you find it useful, you can support the next release.
+
+        Ping Warden stays free either way.
         """
     }
 }

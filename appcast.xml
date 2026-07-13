@@ -68,7 +68,7 @@ hr { border: 0; border-top: 1px solid #e5e5ea; margin: 16px 0; }
         type="application/octet-stream"
         sparkle:edSignature="HNUXkOjw+kvBTaJaaRWFr5SzSEiN0CzJLJTeEI7GNSjeCjVR4ADpbNZmsCAngzqWS86jSLw4Yk0fNPkIcwbSDg=="
       />
-      <sparkle:minimumSystemVersion>26.0</sparkle:minimumSystemVersion>
+      <sparkle:minimumSystemVersion>13.0</sparkle:minimumSystemVersion>
     </item>
     <item>
       <title>Version 2.4.2</title>
@@ -135,7 +135,7 @@ hr { border: 0; border-top: 1px solid #e5e5ea; margin: 16px 0; }
         type="application/octet-stream"
         sparkle:edSignature="SIIujAEpGZR0wwHkwVKrsQlcgN72auxtTDTK0yWDAte0yFD8F5oTJSjQsfT1bzLtuvMQNl0q7Ab5KPYyojF8DQ=="
       />
-      <sparkle:minimumSystemVersion>26.0</sparkle:minimumSystemVersion>
+      <sparkle:minimumSystemVersion>13.0</sparkle:minimumSystemVersion>
     </item>
     <item>
       <title>Version 2.4.1</title>
@@ -200,7 +200,7 @@ hr { border: 0; border-top: 1px solid #e5e5ea; margin: 16px 0; }
         type="application/octet-stream"
         sparkle:edSignature="qQAowRtOr0GAPRLRnDWRgdxKCTVvw45OiGS18o6HaJDBs080pD9+9LXhosREejaTLJwr6KejsffoI175TW3vDA=="
       />
-      <sparkle:minimumSystemVersion>26.0</sparkle:minimumSystemVersion>
+      <sparkle:minimumSystemVersion>13.0</sparkle:minimumSystemVersion>
     </item>
     <item>
       <title>Version 2.4.0</title>
@@ -281,7 +281,7 @@ hr { border: 0; border-top: 1px solid #e5e5ea; margin: 16px 0; }
         type="application/octet-stream"
         sparkle:edSignature="qyDrx5j8CwoQPS5HwfyaDmj5z1rVVKlOpHPBCmeczuT8EJ96OHOHV+y+PpjaeSfrsDgCOjF0nYUi2HdUL3OPDA=="
       />
-      <sparkle:minimumSystemVersion>26.0</sparkle:minimumSystemVersion>
+      <sparkle:minimumSystemVersion>13.0</sparkle:minimumSystemVersion>
     </item>
     <item>
       <title>Version 2.3.4</title>
@@ -732,3 +732,7 @@ hr { border: 0; border-top: 1px solid #e5e5ea; margin: 16px 0; }
     </item>
   </channel>
 </rss>
+<!-- sparkle-signatures:
+edSignature: zjXKjUYreqrE4wyOAeqtSb+rgsVehZl6mF99X4TmMAJCd969PSkEuQr4dNUEq0JeKe4vASK2hVq1aHe7PRw+AQ==
+length: 32549
+-->

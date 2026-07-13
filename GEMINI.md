@@ -85,8 +85,15 @@ xcrun notarytool store-credentials "notarytool-profile"
 
 **Beta releases:** prefix step 4 with `BETA_CHANNEL=1` (same env-flag pattern as the existing `CRITICAL_UPDATE=1`). The script writes to `appcast-beta.xml` on `gh-pages` instead of `appcast.xml`, uses distinct channel metadata, and writes a different commit message. Same EdDSA signing, same DMG packaging, same GitHub release flow — beta is a Sparkle-layer concept only. Users opted into the beta channel via Settings → Advanced → Updates get routed there by `SPUUpdaterDelegate.feedURLString(for:)`.
 ```bash
-BETA_CHANNEL=1 bash release.sh 2.4.0-beta.1 ../../RELEASE_NOTES.md
+BETA_CHANNEL=1 bash release.sh 3.1.0-beta.1 ../../RELEASE_NOTES.md
 ```
+
+The canonical release path is now one command from a clean, pushed commit:
+`cd PingWarden/PingWarden && bash release.sh X.Y.Z ../../RELEASE_NOTES.md`.
+It creates and validates the unsigned archive and dSYMs itself before running
+the signing, notarization, DMG, appcast, GitHub, Sentry, and `gh-pages` steps.
+The numbered commands above remain useful only for a standalone notarization
+test.
 
 Sparkle EdDSA key is in keychain account `"ed25519"`. Notarytool profile: `"notarytool-profile"`.
 
@@ -120,4 +127,3 @@ Sparkle EdDSA key is in keychain account `"ed25519"`. Notarytool profile: `"nota
 - **`xcodebuild -exportArchive` is broken** in Xcode 26 — use the rsync workaround in the Release Process section above.
 - **SMAppService requires `/Applications`**: The daemon registration (`SMAppService.daemon(plistName:)`) refuses to register when the app runs from Xcode's DerivedData. To test the full helper registration flow, build in Release, copy to `/Applications`, and launch from there. Running from Xcode is fine for non-helper UI work.
 - **Appcast on `gh-pages` branch**: After releasing, you must switch to `gh-pages`, update `appcast.xml`, push, then switch back. Easy to forget.
-

@@ -34,16 +34,69 @@ enum TCPProbe {
         let addressBytes: [UInt8]
     }
 
+    final class CancellationToken: @unchecked Sendable {
+        private let lock = NSLock()
+        private var cancelled = false
+
+        func cancel() {
+            lock.lock()
+            cancelled = true
+            lock.unlock()
+        }
+
+        var isCancelled: Bool {
+            lock.lock()
+            defer { lock.unlock() }
+            return cancelled
+        }
+    }
+
+    private struct AddressCacheKey: Hashable {
+        let host: String
+        let port: UInt16
+    }
+
+    private struct AddressCacheEntry {
+        let addresses: [ResolvedAddress]
+        let expiresAt: Date
+    }
+
+    private static let addressCacheLock = NSLock()
+    private nonisolated(unsafe) static var addressCache: [AddressCacheKey: AddressCacheEntry] = [:]
+    private static let addressCacheTTL: TimeInterval = 5 * 60
+    private static let addressCacheLimit = 128
+
     /// Measure TCP connect latency in milliseconds. Returns nil on failure
     /// (resolution failure/timeout, or no address accepted the connection).
-    static func measureLatency(host: String, port: UInt16, timeoutSeconds: Int = 1) -> Double? {
-        guard let addresses = resolveAddresses(host: host, port: port, timeoutSeconds: timeoutSeconds),
+    static func measureLatency(
+        host: String,
+        port: UInt16,
+        timeoutSeconds: Int = 1,
+        cancellationToken: CancellationToken? = nil
+    ) -> Double? {
+        let sanitizedTimeout = max(1, timeoutSeconds)
+        let deadline = DispatchTime.now() + .seconds(sanitizedTimeout)
+        guard cancellationToken?.isCancelled != true,
+              let addresses = resolveAddresses(
+                  host: host,
+                  port: port,
+                  deadline: deadline,
+                  cancellationToken: cancellationToken
+              ),
               !addresses.isEmpty else {
             return nil
         }
 
         for address in addresses {
-            if let latencyMs = connectSingle(address, timeoutSeconds: timeoutSeconds) {
+            guard cancellationToken?.isCancelled != true,
+                  DispatchTime.now() < deadline else {
+                return nil
+            }
+            if let latencyMs = connectSingle(
+                address,
+                deadline: deadline,
+                cancellationToken: cancellationToken
+            ) {
                 return latencyMs
             }
         }
@@ -65,9 +118,19 @@ enum TCPProbe {
     /// deadline-bounded detached thread — off the 2-second probe hot path.
     /// On timeout the probe reports failure and the orphaned thread finishes
     /// on its own.
-    private static func resolveAddresses(host: String, port: UInt16, timeoutSeconds: Int) -> [ResolvedAddress]? {
+    private static func resolveAddresses(
+        host: String,
+        port: UInt16,
+        deadline: DispatchTime,
+        cancellationToken: CancellationToken?
+    ) -> [ResolvedAddress]? {
         if isIPLiteral(host) {
             return resolveAddressesBlocking(host: host, port: port, numericOnly: true)
+        }
+
+        let cacheKey = AddressCacheKey(host: host.lowercased(), port: port)
+        if let cached = cachedAddresses(for: cacheKey) {
+            return cached
         }
 
         final class ResultBox: @unchecked Sendable {
@@ -84,12 +147,57 @@ enum TCPProbe {
         thread.stackSize = 512 * 1024
         thread.start()
 
-        // Allow at least 2 s for DNS even when the connect timeout is 1 s.
-        let resolverDeadline = DispatchTime.now() + max(2.0, Double(timeoutSeconds) * 2.0)
-        guard box.semaphore.wait(timeout: resolverDeadline) == .success else {
+        while true {
+            guard cancellationToken?.isCancelled != true else { return nil }
+            let remainingMilliseconds = millisecondsRemaining(until: deadline)
+            guard remainingMilliseconds > 0 else { return nil }
+            let sliceDeadline = DispatchTime.now() + .milliseconds(Int(min(remainingMilliseconds, 100)))
+            if box.semaphore.wait(timeout: sliceDeadline) == .success {
+                break
+            }
+        }
+        guard let addresses = box.addresses, !addresses.isEmpty else { return nil }
+        cacheAddresses(addresses, for: cacheKey)
+        return addresses
+    }
+
+    private static func cachedAddresses(for key: AddressCacheKey) -> [ResolvedAddress]? {
+        addressCacheLock.lock()
+        defer { addressCacheLock.unlock() }
+        guard let entry = addressCache[key] else { return nil }
+        guard entry.expiresAt > Date() else {
+            addressCache.removeValue(forKey: key)
             return nil
         }
-        return box.addresses
+        return entry.addresses
+    }
+
+    private static func cacheAddresses(_ addresses: [ResolvedAddress], for key: AddressCacheKey) {
+        addressCacheLock.lock()
+        let now = Date()
+        addressCache = addressCache.filter { $0.value.expiresAt > now }
+        if addressCache[key] == nil,
+           addressCache.count >= addressCacheLimit,
+           let oldestKey = addressCache.min(by: { $0.value.expiresAt < $1.value.expiresAt })?.key {
+            addressCache.removeValue(forKey: oldestKey)
+        }
+        addressCache[key] = AddressCacheEntry(
+            addresses: addresses,
+            expiresAt: now.addingTimeInterval(addressCacheTTL)
+        )
+        addressCacheLock.unlock()
+    }
+
+    static func resetAddressCacheForTesting() {
+        addressCacheLock.lock()
+        addressCache.removeAll()
+        addressCacheLock.unlock()
+    }
+
+    static var addressCacheEntryCountForTesting: Int {
+        addressCacheLock.lock()
+        defer { addressCacheLock.unlock() }
+        return addressCache.count
     }
 
     private static func isIPLiteral(_ host: String) -> Bool {
@@ -148,7 +256,11 @@ enum TCPProbe {
 
     /// Attempt one address; returns the handshake latency in milliseconds on
     /// success, nil on failure/timeout.
-    private static func connectSingle(_ resolved: ResolvedAddress, timeoutSeconds: Int) -> Double? {
+    private static func connectSingle(
+        _ resolved: ResolvedAddress,
+        deadline: DispatchTime,
+        cancellationToken: CancellationToken?
+    ) -> Double? {
         let socketFD = socket(resolved.family, resolved.socktype, resolved.proto)
         guard socketFD >= 0 else {
             return nil
@@ -161,7 +273,7 @@ enum TCPProbe {
             return nil
         }
 
-        let startTime = Date()
+        let startTime = DispatchTime.now()
         let connectResult = resolved.addressBytes.withUnsafeBytes { raw -> Int32 in
             guard let base = raw.baseAddress else { return -1 }
             let sockaddrPtr = base.assumingMemoryBound(to: sockaddr.self)
@@ -178,18 +290,20 @@ enum TCPProbe {
         // Wait for the socket to become writable (connect finished or failed),
         // retrying on EINTR without extending the overall deadline.
         var pollFD = pollfd(fd: socketFD, events: Int16(POLLOUT), revents: 0)
-        let deadline = Date().addingTimeInterval(TimeInterval(timeoutSeconds))
         while true {
-            let remainingMs = Int32((deadline.timeIntervalSinceNow * 1000).rounded(.up))
+            guard cancellationToken?.isCancelled != true else { return nil }
+            let remainingMs = millisecondsRemaining(until: deadline)
             guard remainingMs > 0 else {
                 return nil
             }
-            let pollResult = poll(&pollFD, 1, remainingMs)
+            // Short slices make cancellation observable without extending the
+            // single end-to-end deadline shared by DNS and every address.
+            let pollResult = poll(&pollFD, 1, min(remainingMs, 100))
             if pollResult > 0 {
                 break
             }
             if pollResult == 0 {
-                return nil  // Timed out
+                continue
             }
             if errno != EINTR {
                 return nil
@@ -205,8 +319,17 @@ enum TCPProbe {
         return elapsedMs(since: startTime)
     }
 
-    private static func elapsedMs(since start: Date) -> Double {
-        Date().timeIntervalSince(start) * 1000.0
+    private static func elapsedMs(since start: DispatchTime) -> Double {
+        let elapsedNanoseconds = DispatchTime.now().uptimeNanoseconds - start.uptimeNanoseconds
+        return Double(elapsedNanoseconds) / 1_000_000.0
+    }
+
+    private static func millisecondsRemaining(until deadline: DispatchTime) -> Int32 {
+        let now = DispatchTime.now().uptimeNanoseconds
+        guard deadline.uptimeNanoseconds > now else { return 0 }
+        let remainingNanoseconds = deadline.uptimeNanoseconds - now
+        let roundedMilliseconds = (remainingNanoseconds + 999_999) / 1_000_000
+        return Int32(min(roundedMilliseconds, UInt64(Int32.max)))
     }
 
     /// Platform-qualified connect(2). The enum's own `connect(host:port:)`

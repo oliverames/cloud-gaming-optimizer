@@ -1,100 +1,57 @@
-# Quick Start Guide
+# Quick start
 
-## 🚀 Get Started in 3 Steps
+Ping Protection keeps Apple's AWDL network interface offline. While it is active, AirDrop, AirPlay, Handoff, and other nearby-device features may be unavailable. You can turn protection off at any time or pause it for 10 minutes from the menu bar.
 
-### 1️⃣ Install
+## Install and verify
 
-1. [Download the DMG](https://github.com/oliverames/ping-warden/releases/latest)
-2. Open the DMG
-3. Drag `Ping Warden.app` to Applications
-4. Launch from Applications or Spotlight
+### 1. Install Ping Warden
 
----
+1. [Download the latest DMG](https://github.com/oliverames/ping-warden/releases/latest).
+2. Open the DMG and drag Ping Warden to Applications.
+3. Launch Ping Warden from Applications or Spotlight.
 
-### 2️⃣ First Launch
+### 2. Approve the helper
 
-1. Click **"Set Up Now"**
-2. **Approve** in System Settings → Login Items
-3. ✅ Done!
+1. Click **Set Up Now** in the welcome window.
+2. Approve Ping Warden in System Settings when macOS asks.
+3. Return to Ping Warden after the approval is complete.
 
----
+The helper needs one-time approval because changing the AWDL interface requires elevated access.
 
-### 3️⃣ Use It
+### 3. Turn on Ping Protection
 
-Click the antenna icon `📡` in your menu bar to:
-- Toggle AWDL blocking
-- View status
-- Adjust settings
+Open the menu bar menu and choose **Enable Ping Protection**. The menu bar icon will show that protection is active.
 
-**Icon meanings:**
-- `📡` with slash = Blocking (low latency) ✅
-- `📡` no slash = Allowing (AirDrop works) 
+### 4. Verify the connection
 
----
+Open the dashboard and confirm that Ping Protection is active. Leave it open during a normal game or call to compare live latency, jitter, and packet loss. The intervention count increases whenever macOS tries to reactivate AWDL and Ping Warden blocks it.
 
-## 🎮 Gaming Setup
+For a helper health check, open **Settings > Advanced** and click **Run Test**.
 
-For automatic activation during games:
+## Automatic protection for games
 
-1. Open **Settings** → **Automation**
-2. Enable **"Game Mode Auto-Detect"**
-3. Grant **Screen Recording** permission
-4. Done! It activates automatically when you game
+1. Open **Settings > Automation**.
+2. Turn on **Game Mode Auto-Detect**.
+3. Grant Screen Recording access when macOS asks, then restart Ping Warden if prompted.
 
----
+Ping Warden turns protection on for recognized fullscreen games and restores your previous state when the game closes. Some games do not declare the metadata that macOS uses for Game Mode; use the menu bar toggle for those titles.
 
-## 🎛️ Control Center Setup (Optional)
+## Control Center widget
 
-For quick toggle from Control Center:
+The Control Center widget requires [macOS Tahoe 26](https://support.apple.com/en-us/122868) or newer and a signed release build.
 
-1. Settings → Automation → Enable "Control Center Widget"
-2. System Settings → Control Center
-3. Scroll to "Ping Warden"
-4. Add to menu bar or Control Center
+1. Open **Settings > Automation** and turn on **Control Center Widget**.
+2. Open **System Settings > Control Center**.
+3. Find Ping Warden and add it to Control Center or the menu bar.
 
-Requires macOS 26 or newer and a signed Ping Warden release build.
+## Everyday controls
 
----
+- Choose **Pause Blocking (10 Minutes)** when you need AirDrop, AirPlay, or Handoff briefly.
+- Turn on **Launch at Login** under **Settings > General** if you want protection available after every restart.
+- Use **Settings > Advanced > Export Diagnostics** to create a local support snapshot you can review before sharing.
 
-## 📊 Verify It's Working
+## Get help
 
-### Quick Test
-
-1. Enable blocking (menu bar icon should show slash)
-2. Settings → Advanced → "Run Test"
-3. All tests should **PASS** with <1ms response time
-
-### Real-World Test
-
-**Before:**
-```bash
-ping -c 10 8.8.8.8
-# Check for occasional 100-300ms spikes
-```
-
-**After enabling Ping Warden:**
-```bash
-ping -c 10 8.8.8.8
-# Spikes should be gone! Stable <10ms pings
-```
-
----
-
-## 🆘 Need Help?
-
-- 📖 [Full README](README.md)
-- 🔧 [Troubleshooting Guide](TROUBLESHOOTING.md)
-- 🐛 [Report an Issue](https://github.com/oliverames/ping-warden/issues)
-
----
-
-## 💡 Pro Tips
-
-1. **Launch at login** - Settings → General → Enable "Launch at Login"
-2. **Hide dock icon** - Settings → General → Disable "Show Dock Icon"
-3. **Manual toggle** - Useful when a fullscreen app is not marked as a game
-4. **Check status** - Menu bar icon shows current state at a glance
-
----
-
-**That's it! Enjoy lag-free gaming and calls! 🎮📞**
+- Read the [Troubleshooting guide](TROUBLESHOOTING.md).
+- Read the [full documentation](README.md).
+- [Report a bug](https://github.com/oliverames/ping-warden/issues/new?template=bug_report.md) with the exported diagnostics attached after you review it.

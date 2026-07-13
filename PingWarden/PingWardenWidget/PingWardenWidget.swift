@@ -41,6 +41,6 @@ struct PingWardenWidget: ControlWidget {
             .tint(.blue)
         }
         .displayName("Ping Protection")
-        .description("Toggle Ping Protection to reduce latency spikes")
+        .description("Keep AWDL from interrupting latency-sensitive traffic")
     }
 }

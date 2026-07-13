@@ -28,17 +28,13 @@
 	</dict>
 
 	<key>RunAtLoad</key>
-	<true/>
+	<false/>
 
 	<!-- Run as root to allow ioctl on network interfaces -->
 	<key>UserName</key>
 	<string>root</string>
 
-	<!-- Keep helper alive for responsive network control -->
-	<key>KeepAlive</key>
-	<dict>
-		<key>SuccessfulExit</key>
-		<false/>
-	</dict>
+	<!-- MachServices launches the helper on demand. The daemon exits after
+	     its signed clients disconnect and the connection grace period ends. -->
 </dict>
 </plist>

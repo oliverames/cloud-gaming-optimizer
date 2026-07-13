@@ -64,17 +64,9 @@ final class PingWardenPreferences: @unchecked Sendable {
                 return
             }
             defaults.set(newValue, forKey: monitoringEnabledKey)
-            // Note: synchronize() is deprecated since macOS 10.14 - the system
-            // automatically synchronizes UserDefaults at appropriate times
-
-            // Use distributed notification for cross-process communication
-            // NotificationCenter.default only works within the same process
-            DistributedNotificationCenter.default().postNotificationName(
-                .awdlMonitoringStateChanged,
-                object: nil,
-                userInfo: nil,
-                deliverImmediately: true
-            )
+            // The App Intent applies the privileged operation over authenticated
+            // XPC before publishing this display state. This setter deliberately
+            // has no command side effect.
         }
     }
 
@@ -103,12 +95,6 @@ final class PingWardenPreferences: @unchecked Sendable {
                 return
             }
             defaults.set(newValue, forKey: effectiveMonitoringEnabledKey)
-            DistributedNotificationCenter.default().postNotificationName(
-                .awdlEffectiveMonitoringStateChanged,
-                object: nil,
-                userInfo: nil,
-                deliverImmediately: true
-            )
         }
     }
 

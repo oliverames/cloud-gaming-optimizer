@@ -6,31 +6,17 @@ on:
   pull_request:
     branches: [main]
 
-# Note: This workflow verifies the code compiles but does not produce
-# a distributable app. For distribution builds, use build.sh on a Mac
-# with a valid Developer ID certificate installed.
+# CI builds the complete unsigned application bundle. Distribution signing and
+# notarization remain local release operations because they require private
+# Developer ID and notary credentials.
 
 jobs:
   build:
-    runs-on: macos-14
+    runs-on: macos-26
 
     steps:
     - name: Checkout
       uses: actions/checkout@v5
-
-    - name: Select Xcode
-      run: |
-        # Prefer Xcode 16 (any minor), fall back to the runner default. The
-        # exact path of /Applications/Xcode_16.app rotates with the runner
-        # image, so glob for the highest 16.x available.
-        candidate=$(ls -d /Applications/Xcode_16*.app 2>/dev/null | sort -V | tail -1 || true)
-        if [ -z "$candidate" ]; then
-          echo "No Xcode_16*.app found; using runner default."
-          ls -d /Applications/Xcode*.app 2>/dev/null || true
-        else
-          echo "Selecting $candidate"
-          sudo xcode-select -s "$candidate/Contents/Developer"
-        fi
 
     - name: Show Xcode version
       run: xcodebuild -version
@@ -38,6 +24,7 @@ jobs:
     - name: Validate appcast XML
       run: |
         xmllint --noout appcast.xml
+        grep -q '<!-- sparkle-signatures:' appcast.xml
         echo "✓ appcast.xml is valid XML"
 
     - name: Validate version consistency
@@ -45,85 +32,71 @@ jobs:
         APP_VERSION=$(/usr/libexec/PlistBuddy -c "Print :CFBundleShortVersionString" PingWarden/PingWarden/Info.plist)
         HELPER_VERSION=$(/usr/libexec/PlistBuddy -c "Print :CFBundleShortVersionString" PingWarden/PingWardenHelper/Info.plist)
         WIDGET_VERSION=$(/usr/libexec/PlistBuddy -c "Print :CFBundleShortVersionString" PingWarden/PingWardenWidget/Info.plist)
+        APP_BUILD=$(/usr/libexec/PlistBuddy -c "Print :CFBundleVersion" PingWarden/PingWarden/Info.plist)
+        HELPER_BUILD=$(/usr/libexec/PlistBuddy -c "Print :CFBundleVersion" PingWarden/PingWardenHelper/Info.plist)
+        WIDGET_BUILD=$(/usr/libexec/PlistBuddy -c "Print :CFBundleVersion" PingWarden/PingWardenWidget/Info.plist)
 
         if [ "$APP_VERSION" != "$HELPER_VERSION" ] || [ "$APP_VERSION" != "$WIDGET_VERSION" ]; then
           echo "ERROR: Version mismatch across targets"
           echo "app=$APP_VERSION helper=$HELPER_VERSION widget=$WIDGET_VERSION"
           exit 1
         fi
-        echo "✓ Target versions are consistent ($APP_VERSION)"
+        if [ "$APP_BUILD" != "$HELPER_BUILD" ] || [ "$APP_BUILD" != "$WIDGET_BUILD" ]; then
+          echo "ERROR: Build-version mismatch across targets"
+          echo "app=$APP_BUILD helper=$HELPER_BUILD widget=$WIDGET_BUILD"
+          exit 1
+        fi
+        if [[ ! "$APP_BUILD" =~ ^[0-9]+(\.[0-9]+){0,2}$ ]]; then
+          echo "ERROR: CFBundleVersion must contain one to three dot-separated integers: $APP_BUILD"
+          exit 1
+        fi
+        echo "✓ Target versions are consistent ($APP_VERSION, build $APP_BUILD)"
 
     - name: Run core logic tests
       run: swift test
 
-    - name: Build Helper (verification only)
+    - name: Build complete app
       run: |
-        echo "Building PingWardenHelper..."
-        xcodebuild -project PingWarden/PingWarden.xcodeproj \
-                   -target PingWardenHelper \
-                   -configuration Release \
-                   CODE_SIGN_IDENTITY="" \
-                   CODE_SIGNING_REQUIRED=NO \
-                   CODE_SIGNING_ALLOWED=NO \
-                   ONLY_ACTIVE_ARCH=NO \
-                   -quiet
-        echo "Helper binary built successfully"
-        ls -la PingWarden/build/Release/PingWardenHelper
-
-    # The main app target depends on PingWardenWidget, and the widget uses
-    # ControlWidget APIs that require the macOS 26 (Tahoe) SDK. GitHub-hosted
-    # runners don't yet ship with Xcode 26, so we cannot build the app target
-    # in CI. Distribution builds happen locally with a Developer ID
-    # certificate; CI verifies the parts of the codebase that *do* compile on
-    # the available SDK: the helper (Obj-C, no widget dep) plus the pure-
-    # Foundation Swift core via the smoke test step above.
+        xcodebuild build \
+          -project PingWarden/PingWarden.xcodeproj \
+          -scheme PingWarden \
+          -configuration Release \
+          -destination 'generic/platform=macOS' \
+          -derivedDataPath "$RUNNER_TEMP/PingWardenDerivedData" \
+          CODE_SIGN_IDENTITY="" \
+          CODE_SIGNING_REQUIRED=NO \
+          CODE_SIGNING_ALLOWED=NO \
+          ONLY_ACTIVE_ARCH=NO
 
     - name: Verify Build Artifacts
       run: |
         echo "=== Build Verification Results ==="
         echo ""
-        echo "Helper binary:"
-        ls -la "PingWarden/build/Release/PingWardenHelper"
-        file "PingWarden/build/Release/PingWardenHelper"
+        APP="$RUNNER_TEMP/PingWardenDerivedData/Build/Products/Release/Ping Warden.app"
+        echo "Application bundle:"
+        ls -ld "$APP"
+        file "$APP/Contents/MacOS/Ping Warden"
         echo ""
-        echo "Helper plist (source):"
-        ls -la "PingWarden/PingWardenHelper/com.amesvt.pingwarden.helper.plist"
+        echo "Embedded privileged helper:"
+        file "$APP/Contents/MacOS/PingWardenHelper"
+        echo ""
+        echo "Embedded widget:"
+        ls -ld "$APP/Contents/PlugIns/PingWardenWidget.appex"
         echo ""
         echo "=== Build verification passed ==="
 
     - name: Verify Bundle Structure Requirements
       run: |
-        echo "Checking required files for app bundling..."
-
-        if [ ! -f "PingWarden/build/Release/PingWardenHelper" ]; then
-          echo "ERROR: Helper binary missing"
+        APP="$RUNNER_TEMP/PingWardenDerivedData/Build/Products/Release/Ping Warden.app"
+        RELEASE_VERSION=$(/usr/libexec/PlistBuddy -c 'Print :CFBundleShortVersionString' PingWarden/PingWarden/Info.plist)
+        source scripts/release_validation.sh
+        if validate_app_artifact "$APP" 9.9.9 0; then
+          echo "ERROR: stale-artifact validation probe unexpectedly passed"
           exit 1
         fi
-        echo "✓ Helper binary present"
-
-        if [ ! -f "PingWarden/PingWardenHelper/com.amesvt.pingwarden.helper.plist" ]; then
-          echo "ERROR: Helper plist missing"
-          exit 1
-        fi
-        echo "✓ Helper plist present"
-
-        # Sanity-check that the main app sources are present even though we
-        # don't compile the app target in CI.
-        if [ ! -f "PingWarden/PingWarden/PingWardenApp.swift" ]; then
-          echo "ERROR: Main app entry point missing"
-          exit 1
-        fi
-        echo "✓ Main app source present"
-
-        if [ ! -f "PingWarden/PingWardenWidget/PingWardenWidget.swift" ] && \
-           [ ! -d "PingWarden/PingWardenWidget" ]; then
-          echo "ERROR: Widget sources missing"
-          exit 1
-        fi
-        echo "✓ Widget sources present"
-
-        echo ""
-        echo "All bundle structure requirements verified."
+        echo "✓ Stale-artifact validation probe failed as expected"
+        validate_app_artifact "$APP" "$RELEASE_VERSION" 0
+        echo "✓ Complete bundle structure and release metadata verified"
 
   # The core package (PingWarden/PingWarden/Core) is pure Foundation/POSIX
   # and compiles on Linux; running the suite here catches portability
@@ -139,7 +112,7 @@ jobs:
       run: swift test
 
   shell-lint:
-    runs-on: macos-14
+    runs-on: macos-26
     steps:
     - name: Checkout
       uses: actions/checkout@v5
@@ -155,6 +128,7 @@ jobs:
           PingWarden/PingWarden/release.sh
           PingWarden/create-dmg.sh
           scripts/render_release_notes.sh
+          scripts/release_validation.sh
           scripts/run-smoke-tests.sh
         )
         for f in "${scripts[@]}"; do

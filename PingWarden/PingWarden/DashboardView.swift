@@ -165,6 +165,7 @@ private struct DashboardCardBackground: ViewModifier {
 
 struct DashboardSettingsContent: View {
     @StateObject private var viewModel = DashboardViewModel()
+    @ObservedObject private var sessionCoordinator = ProtectedSessionCoordinator.shared
 
     var body: some View {
         Group {
@@ -192,6 +193,8 @@ struct DashboardSettingsContent: View {
 
     private var cardStack: some View {
         VStack(alignment: .leading, spacing: DashboardLayout.sectionSpacing) {
+            ProtectedSessionCard(coordinator: sessionCoordinator)
+
             // Current Status Card
             StatusCard(viewModel: viewModel)
 
@@ -210,6 +213,195 @@ struct DashboardSettingsContent: View {
             // User-defined servers (issue #29)
             CustomServersCard(viewModel: viewModel)
         }
+    }
+}
+
+// MARK: - Protected sessions
+
+struct ProtectedSessionCard: View {
+    @ObservedObject var coordinator: ProtectedSessionCoordinator
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 14) {
+            HStack(alignment: .firstTextBaseline) {
+                VStack(alignment: .leading, spacing: 3) {
+                    Text("Protected Session")
+                        .font(.headline)
+                    Text(coordinator.isActive ? activeSubtitle : "Measure one game or call from start to finish")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
+
+                Spacer()
+
+                if coordinator.isActive {
+                    Button("End Session") {
+                        Task { await coordinator.stop() }
+                    }
+                    .buttonStyle(.borderedProminent)
+                    .tint(.red)
+                    .keyboardShortcut(".", modifiers: [.command, .shift])
+                } else {
+                    Button("Start Session") {
+                        Task { await coordinator.start() }
+                    }
+                    .buttonStyle(.borderedProminent)
+                    .keyboardShortcut("s", modifiers: [.command, .shift])
+                }
+            }
+
+            if let error = coordinator.lastError {
+                Label(error, systemImage: "exclamationmark.triangle.fill")
+                    .font(.caption)
+                    .foregroundStyle(.red)
+                    .accessibilityLabel("Session error: \(error)")
+            }
+
+            if coordinator.isActive {
+                activeSessionBody
+            } else if let summary = coordinator.latestSummary {
+                SessionRecapView(summary: summary)
+            } else {
+                Label(
+                    "Session recaps stay on this Mac and never include hostnames, IP addresses, or game names.",
+                    systemImage: "lock.shield"
+                )
+                .font(.caption)
+                .foregroundStyle(.secondary)
+            }
+
+            if !coordinator.history.isEmpty && !coordinator.isActive {
+                DisclosureGroup("Recent Sessions (\(coordinator.history.count))") {
+                    VStack(spacing: 8) {
+                        ForEach(coordinator.history.prefix(5)) { summary in
+                            RecentSessionRow(summary: summary)
+                        }
+                        HStack {
+                            Spacer()
+                            Button("Clear Session History", role: .destructive) {
+                                coordinator.clearHistory()
+                            }
+                            .buttonStyle(.borderless)
+                            .font(.caption)
+                        }
+                    }
+                    .padding(.top, 8)
+                }
+                .font(.caption)
+            }
+        }
+        .dashboardCardStyle()
+    }
+
+    private var activeSubtitle: String {
+        let trigger = coordinator.activeTrigger == .gameMode ? "Game Mode" : "Manual"
+        return "\(trigger) session, \(Self.durationText(coordinator.elapsed))"
+    }
+
+    private var activeSessionBody: some View {
+        HStack(spacing: 12) {
+            Group {
+                if #available(macOS 14.0, *) {
+                    Image(systemName: "record.circle.fill")
+                        .symbolEffect(.pulse, options: .repeating)
+                } else {
+                    Image(systemName: "record.circle.fill")
+                }
+            }
+            .foregroundStyle(.red)
+            .accessibilityHidden(true)
+            VStack(alignment: .leading, spacing: 3) {
+                Text("Recording local latency measurements")
+                    .font(.subheadline)
+                Text("Ending the session creates a privacy-scrubbed recap.")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
+        }
+        .accessibilityElement(children: .combine)
+        .accessibilityLabel("Protected session active for \(Self.durationText(coordinator.elapsed))")
+    }
+
+    fileprivate static func durationText(_ duration: TimeInterval) -> String {
+        let formatter = DateComponentsFormatter()
+        formatter.allowedUnits = duration >= 3600 ? [.hour, .minute] : [.minute, .second]
+        formatter.unitsStyle = .abbreviated
+        formatter.zeroFormattingBehavior = .pad
+        return formatter.string(from: max(0, duration)) ?? "0m"
+    }
+}
+
+private struct SessionRecapView: View {
+    let summary: ProtectedSessionSummary
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            HStack {
+                Label("Latest Session", systemImage: "checkmark.shield.fill")
+                    .font(.subheadline)
+                    .foregroundStyle(.green)
+                Spacer()
+                ShareLink(item: summary.privacySafeShareText) {
+                    Label("Share Recap", systemImage: "square.and.arrow.up")
+                }
+                .buttonStyle(.borderless)
+                .help("Share a recap without network targets or raw samples")
+            }
+
+            ViewThatFits(in: .horizontal) {
+                HStack(spacing: 24) { metrics }
+                VStack(alignment: .leading, spacing: 8) { metrics }
+            }
+
+            Text("Interventions count AWDL activity that Ping Warden blocked. They do not prove that a specific latency spike was avoided.")
+                .font(.caption2)
+                .foregroundStyle(.secondary)
+        }
+    }
+
+    @ViewBuilder
+    private var metrics: some View {
+        SessionMetric(label: "Duration", value: ProtectedSessionCard.durationText(summary.duration))
+        SessionMetric(label: "Median", value: String(format: "%.0f ms", summary.medianLatencyMs))
+        SessionMetric(label: "P95", value: String(format: "%.0f ms", summary.p95LatencyMs))
+        SessionMetric(label: "Jitter", value: String(format: "%.0f ms", summary.jitterMs))
+        SessionMetric(label: "Loss", value: String(format: "%.1f%%", summary.packetLossPercent))
+        SessionMetric(label: "Blocked", value: "\(summary.interventionCount)")
+    }
+}
+
+private struct SessionMetric: View {
+    let label: String
+    let value: String
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 2) {
+            Text(label)
+                .font(.caption2)
+                .foregroundStyle(.secondary)
+            Text(value)
+                .font(.subheadline)
+                .fontWeight(.semibold)
+        }
+        .accessibilityElement(children: .combine)
+    }
+}
+
+private struct RecentSessionRow: View {
+    let summary: ProtectedSessionSummary
+
+    var body: some View {
+        HStack {
+            VStack(alignment: .leading, spacing: 2) {
+                Text(summary.startedAt, format: .dateTime.month().day().hour().minute())
+                Text("\(ProtectedSessionCard.durationText(summary.duration)), \(summary.sampleCount) samples")
+                    .foregroundStyle(.secondary)
+            }
+            Spacer()
+            Text("\(summary.interventionCount) blocked")
+                .foregroundStyle(.secondary)
+        }
+        .accessibilityElement(children: .combine)
     }
 }
 
@@ -354,6 +546,7 @@ struct MetricRow: View {
 
 struct PingGraphCard: View {
     @ObservedObject var viewModel: DashboardViewModel
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @ScaledMetric(relativeTo: .largeTitle) private var emptyChartIconSize: CGFloat = 36
 
     private let timeframeOptions: [(minutes: Int, label: String)] = [
@@ -630,8 +823,12 @@ struct PingGraphCard: View {
             selection: Binding(
                 get: { viewModel.selectedTimeframe },
                 set: { newTimeframe in
-                    withAnimation(.easeInOut(duration: 0.2)) {
+                    if reduceMotion {
                         viewModel.selectedTimeframe = newTimeframe
+                    } else {
+                        withAnimation(.easeInOut(duration: 0.2)) {
+                            viewModel.selectedTimeframe = newTimeframe
+                        }
                     }
                 }
             )
@@ -801,7 +998,7 @@ struct InterventionsCard: View {
                 .font(.caption)
                 .foregroundStyle(.secondary)
 
-            // ViewThatFits drops the "lag spikes / prevented" caption below
+            // ViewThatFits drops the interruption caption below
             // the hero count when the @ScaledMetric font + caption width
             // would overflow the card (AX5 + narrow windows).
             ViewThatFits(in: .horizontal) {
@@ -816,7 +1013,7 @@ struct InterventionsCard: View {
             }
         }
         .accessibilityElement(children: .combine)
-        .accessibilityLabel("Interventions today: \(viewModel.interventionCount) lag spikes prevented")
+        .accessibilityLabel("Interventions today: \(viewModel.interventionCount) wireless interruptions blocked")
     }
 
     private var interventionCountText: some View {
@@ -827,7 +1024,7 @@ struct InterventionsCard: View {
     }
 
     private var interventionUnitText: some View {
-        Text("lag spikes prevented")
+        Text("wireless interruptions blocked")
             .font(.caption)
             .foregroundStyle(.secondary)
             .fixedSize(horizontal: false, vertical: true)

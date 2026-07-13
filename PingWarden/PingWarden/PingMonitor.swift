@@ -17,6 +17,7 @@ private let log = Logger(subsystem: "com.amesvt.pingwarden", category: "PingMoni
 /// Monitors network latency in real-time using TCP connection timing
 /// Designed for cloud gaming - shows current ping, jitter, packet loss
 class PingMonitor: @unchecked Sendable {
+    static let shared = PingMonitor()
     
     // MARK: - Types
     
@@ -29,6 +30,12 @@ class PingMonitor: @unchecked Sendable {
         var latencyMs: Double {
             latency * 1000.0
         }
+    }
+
+    struct Snapshot {
+        let latestResult: PingResult
+        let statistics: NetworkStatistics
+        let history: [PingResult]
     }
     
     enum Quality {
@@ -59,7 +66,7 @@ class PingMonitor: @unchecked Sendable {
     // MARK: - Properties
     
     private var timer: Timer?
-    private var history: [PingResult] = []
+    private var history = RollingHistory<PingResult>()
     private let historyLock = NSLock()
     private let stateLock = NSLock()
     private let queue = DispatchQueue(label: "com.amesvt.pingwarden.pingmonitor", qos: .utility)
@@ -68,6 +75,10 @@ class PingMonitor: @unchecked Sendable {
     private let connectionTimeoutSeconds: Int = 1
     private var activeSessionID: UInt64 = 0
     private var inFlightSessionID: UInt64?
+    private let legacyConsumerID = UUID()
+    private var telemetryDemands: [UUID: TelemetryDemand] = [:]
+    private var demandRevision: UInt64 = 0
+    private var observers: [UUID: (Snapshot) -> Void] = [:]
     
     /// Current server to ping
     var server: String = "8.8.8.8"
@@ -105,50 +116,69 @@ class PingMonitor: @unchecked Sendable {
     
     // MARK: - Public Methods
     
-    /// Start monitoring with specified server and interval.
-    /// A start while already running is a no-op — callers must stop() first
-    /// to retarget. (Config used to be written before this guard, silently
-    /// retargeting the running monitor's next tick and mixing two hosts'
-    /// samples in one history window.)
+    /// Legacy single-owner entry point. New callers should use the consumer
+    /// overload so several UI surfaces can share one physical probe stream.
     func start(server: String? = nil, port: UInt16? = nil, interval: TimeInterval? = nil) {
-        guard !isMonitoring else {
-            log.warning("Ping monitor already running - ignoring start (stop() first to retarget)")
-            return
-        }
+        start(
+            consumerID: legacyConsumerID,
+            server: server ?? self.server,
+            port: port ?? self.port,
+            interval: interval ?? self.interval
+        )
+    }
 
-        if let server = server { self.server = server }
-        if let port = port { self.port = port }
-        if let interval = interval { self.interval = interval }
-        
-        log.info("Starting ping monitor: \(self.server):\(self.port) every \(self.interval)s")
-        let sessionID = beginSession()
-        
-        // Perform immediate ping
-        performPing(sessionID: sessionID)
-        
-        // Schedule repeating timer on main thread
+    /// Register or update one consumer's telemetry demand. All consumers that
+    /// request the selected target share a single timer and use the fastest
+    /// requested interval. Higher-priority consumers choose the target.
+    func start(
+        consumerID: UUID,
+        server: String,
+        port: UInt16,
+        interval: TimeInterval,
+        priority: Int = 0,
+        resetHistory: Bool = false
+    ) {
         runOnMainThreadSync { [weak self] in
             guard let self else { return }
-            self.timer?.invalidate()
-            self.timer = Timer.scheduledTimer(withTimeInterval: self.interval, repeats: true) { [weak self] _ in
-                self?.performPing(sessionID: sessionID)
-            }
-            // Ensure timer continues during UI interactions
-            if let timer = self.timer {
-                RunLoop.main.add(timer, forMode: .common)
-            }
+            self.demandRevision &+= 1
+            self.telemetryDemands[consumerID] = TelemetryDemand(
+                consumerID: consumerID,
+                host: server,
+                port: port,
+                interval: interval,
+                priority: priority,
+                revision: self.demandRevision
+            )
+            self.reconcileTelemetryDemands(resetHistory: resetHistory)
         }
     }
     
     /// Stop monitoring
     func stop() {
-        log.info("Stopping ping monitor")
-        
+        stop(consumerID: legacyConsumerID)
+    }
+
+    func stop(consumerID: UUID) {
         runOnMainThreadSync { [weak self] in
-            self?.timer?.invalidate()
-            self?.timer = nil
+            guard let self else { return }
+            self.telemetryDemands.removeValue(forKey: consumerID)
+            self.reconcileTelemetryDemands()
         }
-        endSession()
+    }
+
+    @discardableResult
+    func addObserver(_ observer: @escaping (Snapshot) -> Void) -> UUID {
+        let token = UUID()
+        stateLock.lock()
+        observers[token] = observer
+        stateLock.unlock()
+        return token
+    }
+
+    func removeObserver(_ token: UUID) {
+        stateLock.lock()
+        observers.removeValue(forKey: token)
+        stateLock.unlock()
     }
 
     deinit {
@@ -183,14 +213,14 @@ class PingMonitor: @unchecked Sendable {
     func getHistory(lastMinutes: Int = 60) -> [PingResult] {
         let cutoff = Date().addingTimeInterval(-TimeInterval(lastMinutes * 60))
         return withHistoryLock {
-            history.filter { $0.timestamp > cutoff }
+            history.elements.filter { $0.timestamp > cutoff }
         }
     }
     
     /// Clear history
     func clearHistory() {
         withHistoryLock {
-            history.removeAll()
+            history.removeAll(keepingCapacity: true)
         }
     }
     
@@ -238,12 +268,24 @@ class PingMonitor: @unchecked Sendable {
             }
 
             // Store in history
-            self.addToHistory(result, interval: configuredInterval)
+            guard self.addToHistoryIfCurrent(
+                result,
+                interval: configuredInterval,
+                sessionID: sessionID
+            ) else {
+                return
+            }
+
+            // Statistics and the retained-history snapshot are derived on the
+            // utility queue. The main thread only publishes the finished value.
+            let snapshot = self.makeSnapshot(latestResult: result)
 
             // Notify callbacks on main thread
             DispatchQueue.main.async {
+                guard self.isSessionCurrent(sessionID) else { return }
                 self.onPingResult?(result)
-                self.onStatsUpdate?(self.getStatistics())
+                self.onStatsUpdate?(snapshot.statistics)
+                self.observerCallbacks().forEach { $0(snapshot) }
             }
 
             if success {
@@ -302,21 +344,28 @@ class PingMonitor: @unchecked Sendable {
         }
     }
     
-    private func addToHistory(_ result: PingResult, interval: TimeInterval) {
+    private func addToHistoryIfCurrent(
+        _ result: PingResult,
+        interval: TimeInterval,
+        sessionID: UInt64
+    ) -> Bool {
+        stateLock.lock()
+        defer { stateLock.unlock() }
+        guard activeSessionID == sessionID else { return false }
+
         withHistoryLock {
             history.append(result)
             
             // Time-based retention keeps behavior consistent across intervals.
             let cutoff = Date().addingTimeInterval(-historyRetentionSeconds)
-            history.removeAll { $0.timestamp < cutoff }
+            history.removePrefix { $0.timestamp < cutoff }
             
             // Cap history by expected sample volume to avoid unbounded growth.
             let effectiveInterval = max(interval, 0.2)
             let maxHistorySize = Int((historyRetentionSeconds / effectiveInterval).rounded(.up))
-            if history.count > maxHistorySize {
-                history.removeFirst(history.count - maxHistorySize)
-            }
+            history.trimToLast(maxHistorySize)
         }
+        return true
     }
     
     private func runOnMainThreadSync(_ block: @escaping () -> Void) {
@@ -330,8 +379,72 @@ class PingMonitor: @unchecked Sendable {
     private func snapshotRecentResults() -> [PingResult] {
         withHistoryLock {
             let cutoff = Date().addingTimeInterval(-statsWindowSeconds)
-            return history.filter { $0.timestamp > cutoff }
+            return history.elements.filter { $0.timestamp > cutoff }
         }
+    }
+
+    private func makeSnapshot(latestResult: PingResult) -> Snapshot {
+        let retainedHistory = withHistoryLock { history.elements }
+        let cutoff = Date().addingTimeInterval(-statsWindowSeconds)
+        let recentSamples = retainedHistory.lazy
+            .filter { $0.timestamp > cutoff }
+            .map { PingSample(latencyMs: $0.latencyMs, success: $0.success, timestamp: $0.timestamp) }
+        let computed = PingStatistics.calculate(from: Array(recentSamples))
+        let statistics = NetworkStatistics(
+            currentPing: computed.currentPing,
+            averagePing: computed.averagePing,
+            minimumPing: computed.minimumPing,
+            maximumPing: computed.maximumPing,
+            jitter: computed.jitter,
+            packetLoss: computed.packetLoss,
+            quality: Self.mapQuality(computed.quality)
+        )
+        return Snapshot(latestResult: latestResult, statistics: statistics, history: retainedHistory)
+    }
+
+    private func observerCallbacks() -> [(Snapshot) -> Void] {
+        stateLock.lock()
+        defer { stateLock.unlock() }
+        return Array(observers.values)
+    }
+
+    private func reconcileTelemetryDemands(resetHistory: Bool = false) {
+        guard let configuration = TelemetryDemandResolver.resolve(Array(telemetryDemands.values)) else {
+            if timer != nil {
+                log.info("Stopping shared ping monitor because no consumers remain")
+                timer?.invalidate()
+                timer = nil
+                endSession()
+            }
+            return
+        }
+
+        if timer != nil,
+           server == configuration.host,
+           port == configuration.port,
+           interval == configuration.interval {
+            return
+        }
+
+        let targetChanged = server != configuration.host || port != configuration.port
+        timer?.invalidate()
+        server = configuration.host
+        port = configuration.port
+        interval = configuration.interval
+
+        log.info("Starting shared ping monitor: \(configuration.host):\(configuration.port) every \(configuration.interval)s")
+        let sessionID = beginSession()
+        if resetHistory || targetChanged {
+            clearHistory()
+        }
+        performPing(sessionID: sessionID)
+
+        let scheduledTimer = Timer.scheduledTimer(withTimeInterval: configuration.interval, repeats: true) { [weak self] _ in
+            self?.performPing(sessionID: sessionID)
+        }
+        scheduledTimer.tolerance = min(0.25, configuration.interval * 0.1)
+        timer = scheduledTimer
+        RunLoop.main.add(scheduledTimer, forMode: .common)
     }
     
     @discardableResult

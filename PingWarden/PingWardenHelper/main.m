@@ -20,7 +20,7 @@
 #define LOG OS_LOG_DEFAULT
 // Fallback only — the live version is read from the embedded Info.plist by
 // helperVersionString(). Kept current so the fallback is never stale.
-#define HELPER_VERSION @"2.5.0"
+#define HELPER_VERSION @"3.0.0"
 
 // Team ID for code signing validation
 #define TEAM_ID @"PV3W52NDZ3"
@@ -236,9 +236,7 @@ static BOOL isProperlyCodeSigned(void) {
 - (BOOL)listener:(NSXPCListener *)listener shouldAcceptNewConnection:(NSXPCConnection *)conn {
     os_log(LOG, "New XPC connection from PID %d (euid: %d)", conn.processIdentifier, conn.effectiveUserIdentifier);
 
-    // Defense-in-depth: even when connectionCodeSigningRequirement is set,
-    // reject connections from unexpected user IDs. On unsigned/dev builds this
-    // is the *only* protection since the code-signing requirement is absent.
+    // Defense-in-depth in addition to connectionCodeSigningRequirement.
     uid_t callerEUID = conn.effectiveUserIdentifier;
     uid_t myEUID = geteuid();
     // Allow: root (0), same user as helper, and console users (UID >= 501).
@@ -392,16 +390,11 @@ int main(int argc, const char * argv[]) {
                 listener.connectionCodeSigningRequirement = requirement;
             }
         } else {
-#if DEBUG
-            os_log(LOG, "WARNING: Debug build without code signing requirement - relying on UID-based validation only");
-#else
-            // Fail closed: a release build of a root daemon whose own
-            // signature does not validate is either tampered with or a
-            // broken install. Downgrading to UID-only validation would let
-            // any GUI-user process drive a root-owned network control.
-            os_log_error(LOG, "Refusing to serve: code signature validation failed on a release build");
+            // A root daemon must never downgrade to UID-only authorization,
+            // including in development. Xcode development builds signed by the
+            // same Team ID satisfy the requirement above.
+            os_log_error(LOG, "Refusing to serve: helper code signature validation failed");
             return EXIT_FAILURE;
-#endif
         }
 
         // Anchor the service and listener in immortal globals (see the

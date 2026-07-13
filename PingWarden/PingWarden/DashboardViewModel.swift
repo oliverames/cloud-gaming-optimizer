@@ -2,9 +2,9 @@
 //  DashboardViewModel.swift
 //  PingWarden
 //
-//  State container for DashboardSettingsContent. Owns the ping-history
-//  buffer, timeline event log, intervention counter, and target selection
-//  logic, including auto-selection of the lowest-latency target via TCPProbe.
+//  State container for DashboardSettingsContent. Consumes shared ping-history
+//  snapshots and owns the timeline event log, intervention counter, and target
+//  selection logic, including auto-selection via TCPProbe.
 //
 
 import Foundation
@@ -12,7 +12,7 @@ import SwiftUI
 
 @MainActor
 class DashboardViewModel: ObservableObject {
-    @Published var stats = NetworkStatistics(
+    private(set) var stats = NetworkStatistics(
         currentPing: 0,
         averagePing: 0,
         minimumPing: 0,
@@ -22,7 +22,11 @@ class DashboardViewModel: ObservableObject {
         quality: .poor
     )
 
-    @Published var pingHistory: [PingMonitor.PingResult] = []
+    private(set) var pingHistory: [PingMonitor.PingResult] = []
+    /// One publication per completed probe, after statistics, history, and
+    /// chart data have all been updated. This avoids three broad SwiftUI
+    /// invalidation passes for the same network sample.
+    @Published private(set) var telemetryRevision: UInt64 = 0
     @Published private(set) var timelineEvents: [LatencyTimelineEvent] = []
     @Published var interventionCount: Int = 0
     @Published var isAWDLBlocking: Bool = false
@@ -74,7 +78,9 @@ class DashboardViewModel: ObservableObject {
     @Published private(set) var isRefreshingGFNServers: Bool = false
     @Published private(set) var customTargets: [CustomPingTarget] = []
 
-    private let pingMonitor = PingMonitor()
+    private let pingMonitor = PingMonitor.shared
+    private let telemetryConsumerID = UUID()
+    private var telemetryObserverToken: UUID?
     nonisolated(unsafe) private var interventionTimer: Timer?
     private var gfnRefreshTask: Task<Void, Never>?
     private var baselineSelectionTask: Task<Void, Never>?
@@ -101,7 +107,7 @@ class DashboardViewModel: ObservableObject {
     /// computed property that meant 5+ O(n) filters over ~3900 samples every
     /// second, and Swift Charts degrades sharply past ~1000 marks — burning
     /// CPU exactly during the gaming sessions the app exists to protect.
-    @Published private(set) var filteredHistory: [PingMonitor.PingResult] = []
+    private(set) var filteredHistory: [PingMonitor.PingResult] = []
 
     private static let maxChartPoints = 720
 
@@ -230,16 +236,11 @@ class DashboardViewModel: ObservableObject {
             }
         }
 
-        // Start ping monitoring
-        pingMonitor.onPingResult = { [weak self] result in
+        // One shared monitor feeds both the dashboard and menu metrics. The
+        // callback arrives on main with statistics already computed off-main.
+        telemetryObserverToken = pingMonitor.addObserver { [weak self] snapshot in
             Task { @MainActor in
-                self?.handlePingResult(result)
-            }
-        }
-
-        pingMonitor.onStatsUpdate = { [weak self] stats in
-            Task { @MainActor in
-                self?.stats = stats
+                self?.handleTelemetrySnapshot(snapshot)
             }
         }
 
@@ -265,9 +266,11 @@ class DashboardViewModel: ObservableObject {
 
     func stop() {
         isStarted = false
-        pingMonitor.onPingResult = nil
-        pingMonitor.onStatsUpdate = nil
-        pingMonitor.stop()
+        if let telemetryObserverToken {
+            pingMonitor.removeObserver(telemetryObserverToken)
+            self.telemetryObserverToken = nil
+        }
+        pingMonitor.stop(consumerID: telemetryConsumerID)
         interventionTimer?.invalidate()
         interventionTimer = nil
         gfnRefreshTask?.cancel()
@@ -289,6 +292,10 @@ class DashboardViewModel: ObservableObject {
         interventionTimer?.invalidate()
         gfnRefreshTask?.cancel()
         baselineSelectionTask?.cancel()
+        if let telemetryObserverToken {
+            pingMonitor.removeObserver(telemetryObserverToken)
+        }
+        pingMonitor.stop(consumerID: telemetryConsumerID)
     }
 
     private func restartMonitoring() {
@@ -299,26 +306,28 @@ class DashboardViewModel: ObservableObject {
     private func startMonitoring(clearHistory: Bool) {
         guard let target = selectedTarget else { return }
 
-        pingMonitor.stop()
-
+        pingMonitor.start(
+            consumerID: telemetryConsumerID,
+            server: target.host,
+            port: target.port,
+            interval: updateInterval,
+            priority: 100,
+            resetHistory: clearHistory
+        )
         if clearHistory {
-            pingMonitor.clearHistory()
             pingHistory.removeAll()
             refreshFilteredHistory()
+            telemetryRevision &+= 1
         }
-
-        pingMonitor.start(server: target.host, port: target.port, interval: updateInterval)
     }
 
-    private func handlePingResult(_ result: PingMonitor.PingResult) {
-        pingHistory.append(result)
-
-        // Keep only a bit over one hour of data to support all dashboard windows.
-        let cutoff = Date().addingTimeInterval(-DashboardConfig.historyRetentionSeconds)
-        pingHistory.removeAll { $0.timestamp < cutoff }
-
+    private func handleTelemetrySnapshot(_ snapshot: PingMonitor.Snapshot) {
+        stats = snapshot.statistics
+        pingHistory = snapshot.history
         refreshFilteredHistory()
+        telemetryRevision &+= 1
 
+        let result = snapshot.latestResult
         if result.success {
             let spikeThreshold = max(100.0, stats.averagePing * 2.0)
             if result.latencyMs >= spikeThreshold {
@@ -654,14 +663,20 @@ class DashboardViewModel: ObservableObject {
         port: UInt16,
         timeoutSeconds: Int
     ) async -> Double? {
-        await withCheckedContinuation { continuation in
-            baselineProbeQueue.async {
-                continuation.resume(returning: TCPProbe.measureLatency(
-                    host: host,
-                    port: port,
-                    timeoutSeconds: timeoutSeconds
-                ))
+        let cancellationToken = TCPProbe.CancellationToken()
+        return await withTaskCancellationHandler {
+            await withCheckedContinuation { continuation in
+                baselineProbeQueue.async {
+                    continuation.resume(returning: TCPProbe.measureLatency(
+                        host: host,
+                        port: port,
+                        timeoutSeconds: timeoutSeconds,
+                        cancellationToken: cancellationToken
+                    ))
+                }
             }
+        } onCancel: {
+            cancellationToken.cancel()
         }
     }
 

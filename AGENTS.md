@@ -83,6 +83,13 @@ xcrun notarytool store-credentials "notarytool-profile"
 4. `bash release.sh X.Y.Z ../../RELEASE_NOTES.md` — runs `notarize.sh` (re-sign + notarize app + DMG + staple), signs the Sparkle update, creates the GitHub release, uploads dSYMs to Sentry, **and pushes the gh-pages `appcast.xml` automatically**.
 5. `release.sh` leaves `appcast.xml` modified on `main` after its gh-pages push; commit the main-side copy too: `git add appcast.xml && git commit -m "Update appcast for vX.Y.Z" && git push`.
 
+The canonical release path is now one command from a clean, pushed commit:
+`cd PingWarden/PingWarden && bash release.sh X.Y.Z ../../RELEASE_NOTES.md`.
+It creates and validates the unsigned archive and dSYMs itself before running
+the signing, notarization, DMG, appcast, GitHub, Sentry, and `gh-pages` steps.
+The numbered commands above remain useful only for a standalone notarization
+test.
+
 Sparkle EdDSA key is in keychain account `"ed25519"`. Notarytool profile: `"notarytool-profile"`.
 
 ## Distribution
@@ -115,4 +122,3 @@ Sparkle EdDSA key is in keychain account `"ed25519"`. Notarytool profile: `"nota
 - **`xcodebuild -exportArchive` is broken** in Xcode 26 — use the rsync workaround in the Release Process section above.
 - **SMAppService requires `/Applications`**: The daemon registration (`SMAppService.daemon(plistName:)`) refuses to register when the app runs from Xcode's DerivedData. To test the full helper registration flow, build in Release, copy to `/Applications`, and launch from there. Running from Xcode is fine for non-helper UI work.
 - **Appcast on `gh-pages` branch**: After releasing, you must switch to `gh-pages`, update `appcast.xml`, push, then switch back. Easy to forget.
-

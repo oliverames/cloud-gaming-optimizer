@@ -66,7 +66,16 @@ enum DiagnosticsExporter {
         let health = monitor.performHealthCheck()
         let awdlStatus = monitor.currentAWDLInterfaceStatus()
 
-        let selectedTarget = UserDefaults.standard.string(forKey: "DashboardSelectedPingTargetID") ?? "unknown"
+        let selectedTargetID = UserDefaults.standard.string(forKey: "DashboardSelectedPingTargetID")
+        let customTargetIDs = Set(
+            CustomPingTargetStore(userDefaults: PingWardenPreferences.shared.defaults)
+                .load()
+                .map { "\($0.host.lowercased()):\($0.port)" }
+        )
+        let selectedTarget = DiagnosticsPrivacy.targetDescription(
+            selectedTargetID: selectedTargetID,
+            customTargetIDs: customTargetIDs
+        )
         let updateInterval = UserDefaults.standard.double(forKey: "DashboardUpdateInterval")
         let updateIntervalValue = updateInterval > 0 ? String(updateInterval) : "default"
 
@@ -115,7 +124,12 @@ enum DiagnosticsExporter {
         for destinationDir in candidateDirs {
             let fileURL = destinationDir.appendingPathComponent(filename)
             do {
-                try diagnostics.write(to: fileURL, atomically: true, encoding: .utf8)
+                guard let data = diagnostics.data(using: .utf8) else { continue }
+                try data.write(to: fileURL, options: [.atomic])
+                try FileManager.default.setAttributes(
+                    [.posixPermissions: 0o600],
+                    ofItemAtPath: fileURL.path
+                )
                 return ExportResult(fileURL: fileURL, contents: diagnostics)
             } catch {
                 continue

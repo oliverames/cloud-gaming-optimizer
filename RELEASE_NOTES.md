@@ -1,3 +1,47 @@
+# Ping Warden 3.0.0
+
+[Support Ping Warden on Buy Me a Coffee](https://buymeacoffee.com/oliverames)
+
+Ping Warden 3 turns protection into measurable sessions. Start a session for a game or call, watch one shared latency stream, and finish with a local recap that explains what happened without exposing network targets or claiming more than the measurements show.
+
+## Sessions and recaps
+
+- Start and end protected sessions from the dashboard or menu. Game Mode can manage sessions automatically.
+- Review duration, median and P95 latency, jitter, packet loss, sample count, and wireless interventions.
+- Share a privacy-scrubbed text recap. Hostnames, IP addresses, game names, and raw samples are never written to session history.
+- Keep a bounded local history and clear it from the dashboard at any time.
+
+## Performance
+
+- The dashboard, menu, and sessions now share one probe stream instead of running duplicate monitors.
+- Hostname lookups use a bounded five-minute address cache, one connection deadline, and cancellation that reaches DNS and socket work.
+- Rolling history avoids repeated array shifts. Statistics and snapshots are prepared off the main thread and published once per sample.
+- Game Mode detection moved its window scan off the main thread. App and display events trigger immediate checks, with a slower safety interval when no game is active.
+
+## Security and privacy
+
+- Sparkle 2.9.4 replaces 2.8.1. Ping Warden now requires signed appcast metadata and verifies updates before extraction.
+- The Control Center widget applies protection directly through the helper's signed-client XPC boundary. Shared preferences and distributed notifications no longer authorize root operations.
+- Unsigned helper builds fail closed, and the helper launches on demand instead of staying alive after boot.
+- Diagnostics redact custom targets, use owner-only file permissions, and show their contents before sharing.
+- Crash reporting is off by default. Turning it off is immediate; opting in takes effect after relaunch.
+
+## Setup and support
+
+- The welcome screen explains the AirDrop, AirPlay, and Handoff tradeoff before approval.
+- Choosing Later no longer strands setup. Settings now has a visible Finish Setup action.
+- Unsupported CPU and latency claims have been removed from the app.
+- Support prompts wait until Ping Warden has demonstrated value, respect cooldowns, and never gate features. Permanent support links are available in the menu, Settings, About window, README, and GitHub repository.
+
+## Release engineering
+
+- Releases build a fresh archive and validate the staged app, helper, widget, DMG, signatures, Team ID, entitlements, Hardened Runtime, Gatekeeper result, notarization ticket, and version metadata before publishing.
+- Marketing versions and numeric bundle builds are validated separately.
+- CI builds the complete app on macOS 26, runs the Foundation core on macOS and Linux, lints release scripts, and adds CodeQL and Dependabot coverage.
+- The update minimum is derived from the built app, fixing the appcast metadata that incorrectly excluded macOS 13 through 25 from recent updates.
+
+---
+
 # Ping Warden 2.5.0
 
 [Support Ping Warden on Buy Me a Coffee](https://buymeacoffee.com/oliverames)

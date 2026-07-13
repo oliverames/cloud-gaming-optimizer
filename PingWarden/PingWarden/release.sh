@@ -22,16 +22,24 @@ set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
 REPO_ROOT="$(cd "$PROJECT_ROOT/.." && pwd)"
+VALIDATION_SCRIPT="$REPO_ROOT/scripts/release_validation.sh"
+if [ ! -f "$VALIDATION_SCRIPT" ]; then
+    echo "Error: release validation library not found at $VALIDATION_SCRIPT" >&2
+    exit 1
+fi
+# The path is resolved from this script's repository root.
+# shellcheck disable=SC1090,SC1091
+source "$VALIDATION_SCRIPT"
 
 # Configuration
 VERSION="${1:-}"
 RELEASE_NOTES="${2:-RELEASE_NOTES.md}"
 APP_NAME="Ping Warden"
-BUNDLE_ID="com.amesvt.pingwarden"
 DMG_BASENAME="PingWarden-${VERSION}.dmg"
 DMG_PATH="$PROJECT_ROOT/$DMG_BASENAME"
 BUILD_DIR="$PROJECT_ROOT/build"
-SPARKLE_KEY="$HOME/sparkle_private_key"
+ARCHIVE_PATH="/tmp/PingWarden-${VERSION}.xcarchive"
+ARCHIVED_APP_PATH="$ARCHIVE_PATH/Products/Applications/$APP_NAME.app"
 SPARKLE_KEYCHAIN_ACCOUNT="${SPARKLE_KEYCHAIN_ACCOUNT:-ed25519}"
 KEYCHAIN_PROFILE="${KEYCHAIN_PROFILE:-notarytool-profile}"
 GITHUB_USER="oliverames"
@@ -52,9 +60,23 @@ else
     APPCAST_CHANNEL_DESCRIPTION="Updates for Ping Warden"
 fi
 APPCAST_FILE="$REPO_ROOT/$APPCAST_BASENAME"
-APP_INFO_PLIST="$PROJECT_ROOT/PingWarden/Info.plist"
-MINIMUM_SYSTEM_VERSION="${MINIMUM_SYSTEM_VERSION:-26.0}"
 NOTARYTOOL_ARGS=()
+
+if [ -z "$VERSION" ]; then
+    echo "Error: version is required" >&2
+    echo "Usage: ./release.sh X.Y.Z [release-notes-file]" >&2
+    exit 1
+fi
+validate_release_version "$VERSION"
+
+if [[ "$VERSION" == *-* ]] && [ "${BETA_CHANNEL:-0}" != "1" ]; then
+    echo "Error: prerelease version '$VERSION' requires BETA_CHANNEL=1" >&2
+    exit 1
+fi
+if [[ "$VERSION" != *-* ]] && [ "${BETA_CHANNEL:-0}" = "1" ]; then
+    echo "Error: BETA_CHANNEL=1 requires an alpha, beta, or rc version" >&2
+    exit 1
+fi
 
 if [ -n "${NOTARYTOOL_KEY:-}" ] && [ -n "${NOTARYTOOL_KEY_ID:-}" ] && [ -n "${NOTARYTOOL_ISSUER_ID:-}" ]; then
     NOTARYTOOL_ARGS=(--key "$NOTARYTOOL_KEY" --key-id "$NOTARYTOOL_KEY_ID" --issuer "$NOTARYTOOL_ISSUER_ID")
@@ -126,26 +148,10 @@ RED='\033[0;31m'
 BLUE='\033[0;34m'
 NC='\033[0m'
 
-# Validation
-if [ -z "$VERSION" ]; then
-    echo -e "${RED}Error: Version required${NC}"
-    echo "Usage: ./release.sh [version] [release-notes-file]"
-    echo "Example: ./release.sh 2.1.1"
-    exit 1
-fi
-
-# Ensure the app bundle version matches the release argument
-PLIST_VERSION=$(/usr/libexec/PlistBuddy -c "Print :CFBundleShortVersionString" "$APP_INFO_PLIST" 2>/dev/null || true)
-if [ -z "$PLIST_VERSION" ]; then
-    echo -e "${RED}Error: Failed to read CFBundleShortVersionString from $APP_INFO_PLIST${NC}"
-    exit 1
-fi
-
-if [ "$PLIST_VERSION" != "$VERSION" ]; then
-    echo -e "${RED}Error: Version mismatch${NC}"
-    echo "  release.sh version: $VERSION"
-    echo "  Info.plist version: $PLIST_VERSION"
-    echo "Update Info.plist before running release.sh."
+if [ -n "$(git -C "$REPO_ROOT" status --porcelain)" ]; then
+    echo -e "${RED}Error: release worktree is not clean${NC}" >&2
+    echo "Commit the complete, verified release source before building and publishing." >&2
+    git -C "$REPO_ROOT" status --short >&2
     exit 1
 fi
 
@@ -167,14 +173,42 @@ echo -e "  ${BLUE}Ping Warden Release Automation v${VERSION}${NC}"
 echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
 echo ""
 
-# Step 1: Notarize (or reuse existing notarized DMG)
-if [ "${SKIP_NOTARIZE:-0}" = "1" ]; then
-    echo -e "${YELLOW}Step 1: Skipping notarization (SKIP_NOTARIZE=1)${NC}"
-else
-    echo -e "${GREEN}Step 1: Notarizing app...${NC}"
-    "$NOTARIZE_SCRIPT" "$VERSION"
+# Step 1: Produce a fresh unsigned archive and stage its app. The archive is
+# the source of both the release payload and the dSYMs uploaded later, so a
+# stale app in build/ can never be paired with a newer source commit.
+echo -e "${GREEN}Step 1: Building release archive...${NC}"
+rm -rf "$ARCHIVE_PATH"
+xcodebuild archive \
+    -project "$PROJECT_ROOT/PingWarden.xcodeproj" \
+    -scheme PingWarden \
+    -configuration Release \
+    -archivePath "$ARCHIVE_PATH" \
+    -destination 'generic/platform=macOS' \
+    CODE_SIGNING_ALLOWED=NO \
+    CODE_SIGNING_REQUIRED=NO
 
-    if [ $? -ne 0 ]; then
+if [ ! -d "$ARCHIVED_APP_PATH" ]; then
+    echo -e "${RED}Error: archive did not contain $ARCHIVED_APP_PATH${NC}" >&2
+    exit 1
+fi
+if [ ! -d "$ARCHIVE_PATH/dSYMs" ]; then
+    echo -e "${RED}Error: archive did not contain dSYMs${NC}" >&2
+    exit 1
+fi
+validate_app_artifact "$ARCHIVED_APP_PATH" "$VERSION" 0
+
+mkdir -p "$BUILD_DIR"
+rm -rf "$BUILD_DIR/$APP_NAME.app"
+rsync -a "$ARCHIVED_APP_PATH/" "$BUILD_DIR/$APP_NAME.app/"
+echo -e "${GREEN}✓ Fresh archive and staged app verified${NC}"
+echo ""
+
+# Step 2: Notarize (or reuse existing notarized DMG)
+if [ "${SKIP_NOTARIZE:-0}" = "1" ]; then
+    echo -e "${YELLOW}Step 2: Skipping notarization (SKIP_NOTARIZE=1)${NC}"
+else
+    echo -e "${GREEN}Step 2: Notarizing app...${NC}"
+    if ! "$NOTARIZE_SCRIPT" "$VERSION"; then
         echo -e "${RED}Notarization failed!${NC}"
         exit 1
     fi
@@ -183,7 +217,7 @@ else
 fi
 echo ""
 
-# Step 2: Verify DMG exists
+# Verify DMG exists
 if [ ! -f "$DMG_PATH" ]; then
     echo -e "${RED}Error: DMG not found: $DMG_PATH${NC}"
     echo "notarize.sh should have created it"
@@ -193,8 +227,20 @@ fi
 echo -e "${GREEN}✓ DMG found: $(basename "$DMG_PATH")${NC}"
 echo ""
 
+# Always validate the mounted DMG, including SKIP_NOTARIZE reuse. Never sign
+# update metadata for an unnotarized, stale, or incorrectly versioned payload.
+echo -e "${GREEN}Validating release artifact...${NC}"
+if ! validate_dmg_artifact "$DMG_PATH" "$VERSION" 1; then
+    echo -e "${RED}Error: DMG artifact validation failed${NC}" >&2
+    exit 1
+fi
+ARTIFACT_BUILD_VERSION="$VALIDATED_BUNDLE_VERSION"
+MINIMUM_SYSTEM_VERSION="$VALIDATED_MINIMUM_SYSTEM_VERSION"
+echo -e "${GREEN}✓ Artifact v$VALIDATED_SHORT_VERSION (build $ARTIFACT_BUILD_VERSION), macOS $MINIMUM_SYSTEM_VERSION+${NC}"
+echo ""
+
 # Step 3: Sign update for Sparkle (required)
-echo -e "${GREEN}Step 2: Signing update for Sparkle...${NC}"
+echo -e "${GREEN}Step 3: Signing update for Sparkle...${NC}"
 
 # Locate the sign_update tool. Sparkle SPM puts it under the user's DerivedData,
 # but the path varies by Xcode version, scheme name and hash. Searching ~ is
@@ -218,21 +264,21 @@ if [ -z "$SIGN_TOOL" ] || [ ! -x "$SIGN_TOOL" ]; then
     exit 1
 fi
 
-# Prefer the keychain account: it's the documented setup (CLAUDE.md), survives
-# DerivedData wipes, and matches what notarize.sh uses. Fall back to a private
-# key file at $SPARKLE_KEY only if the keychain attempt fails.
+# The Sparkle private key remains in Keychain. File-based fallbacks risk
+# accidentally persisting release credentials outside the canonical store.
 SIGNATURE=""
 if SIGNATURE=$("$SIGN_TOOL" "$DMG_PATH" --account "$SPARKLE_KEYCHAIN_ACCOUNT" -p 2>/dev/null | tr -d '\r\n') && [ -n "$SIGNATURE" ]; then
     :
-elif [ -f "$SPARKLE_KEY" ]; then
-    echo -e "${YELLOW}Keychain account '$SPARKLE_KEYCHAIN_ACCOUNT' did not yield a signature${NC}"
-    echo "Falling back to private key file at $SPARKLE_KEY..."
-    SIGNATURE=$("$SIGN_TOOL" "$DMG_PATH" --ed-key-file "$SPARKLE_KEY" -p | tr -d '\r\n')
 fi
 
 if [ -z "$SIGNATURE" ]; then
     echo -e "${RED}Error: Sparkle signature generation returned an empty signature${NC}"
-    echo "Ensure your EdDSA key exists either at $SPARKLE_KEY or in the login keychain account '$SPARKLE_KEYCHAIN_ACCOUNT'."
+    echo "Ensure the EdDSA key exists in the login keychain account '$SPARKLE_KEYCHAIN_ACCOUNT'."
+    exit 1
+fi
+
+if ! "$SIGN_TOOL" --verify "$DMG_PATH" "$SIGNATURE" >/dev/null; then
+    echo -e "${RED}Error: Sparkle archive signature did not verify${NC}" >&2
     exit 1
 fi
 
@@ -247,14 +293,14 @@ DMG_SIZE=$(stat -f%z "$DMG_PATH")
 # because "UTC" is not a valid RFC 822 zone token.
 DMG_DATE=$(LC_ALL=C date -u +"%a, %d %b %Y %H:%M:%S +0000")
 
-echo -e "${GREEN}Step 3: Preparing release metadata...${NC}"
+echo -e "${GREEN}Step 4: Preparing release metadata...${NC}"
 echo "  Version: $VERSION"
 echo "  DMG Size: $DMG_SIZE bytes"
 echo "  Date: $DMG_DATE"
 echo ""
 
 # Step 5: Update appcast.xml
-echo -e "${GREEN}Step 4: Updating appcast.xml...${NC}"
+echo -e "${GREEN}Step 5: Updating appcast.xml...${NC}"
 
 # Check if appcast exists
 if [ ! -f "$APPCAST_FILE" ]; then
@@ -301,7 +347,7 @@ fi
 NEW_ITEM="    <item>
       <title>Version $VERSION</title>
       <link>https://github.com/$GITHUB_USER/$REPO_NAME/releases/tag/v$VERSION</link>
-      <sparkle:version>$VERSION</sparkle:version>
+      <sparkle:version>$ARTIFACT_BUILD_VERSION</sparkle:version>
       <sparkle:shortVersionString>$VERSION</sparkle:shortVersionString>
       <description><![CDATA[
 $RELEASE_NOTES_HTML
@@ -309,7 +355,7 @@ $RELEASE_NOTES_HTML
       <pubDate>$DMG_DATE</pubDate>
       <enclosure
         url=\"https://github.com/$GITHUB_USER/$REPO_NAME/releases/download/v$VERSION/$DMG_BASENAME\"
-        sparkle:version=\"$VERSION\"
+        sparkle:version=\"$ARTIFACT_BUILD_VERSION\"
         sparkle:shortVersionString=\"$VERSION\"
         length=\"$DMG_SIZE\"
         type=\"application/octet-stream\"
@@ -342,7 +388,8 @@ fi
 echo -e "${GREEN}✓ Appcast updated${NC}"
 echo ""
 
-# Validate appcast is well-formed and latest version matches requested release
+# Validate appcast is well-formed and latest version matches requested release.
+# Feed signing happens only after every XML mutation is complete.
 if ! xmllint --noout "$APPCAST_FILE" 2>/dev/null; then
     echo -e "${RED}Error: appcast.xml is not valid XML${NC}"
     exit 1
@@ -358,8 +405,22 @@ if [ "$LATEST_APPCAST_VERSION" != "$VERSION" ]; then
     exit 1
 fi
 
+if ! "$SIGN_TOOL" "$APPCAST_FILE" --account "$SPARKLE_KEYCHAIN_ACCOUNT" --disable-signing-warning; then
+    echo -e "${RED}Error: failed to sign $APPCAST_BASENAME${NC}" >&2
+    exit 1
+fi
+if ! "$SIGN_TOOL" --verify "$APPCAST_FILE" >/dev/null; then
+    echo -e "${RED}Error: signed appcast verification failed${NC}" >&2
+    exit 1
+fi
+if ! xmllint --noout "$APPCAST_FILE" 2>/dev/null; then
+    echo -e "${RED}Error: signed appcast is not valid XML${NC}" >&2
+    exit 1
+fi
+echo -e "${GREEN}✓ Signed appcast verified${NC}"
+
 # Step 6: Create GitHub release
-echo -e "${GREEN}Step 5: Creating GitHub release...${NC}"
+echo -e "${GREEN}Step 6: Creating GitHub release...${NC}"
 
 if ! command -v gh &> /dev/null; then
     echo -e "${YELLOW}⚠ GitHub CLI (gh) not installed${NC}"
@@ -418,13 +479,13 @@ echo ""
 SENTRY_RELEASE="com.amesvt.pingwarden@${VERSION}"
 SENTRY_ORG="ames-consulting-llc"
 SENTRY_PROJECT="ping-warden"
-XCARCHIVE_DSYMS="/tmp/PingWarden-${VERSION}.xcarchive/dSYMs"
+XCARCHIVE_DSYMS="$ARCHIVE_PATH/dSYMs"
 
 # Prepend the official sentry-cli install path so the official binary at
 # ~/.local/bin wins over any older brew-tap install on $PATH.
 export PATH="$HOME/.local/bin:$PATH"
 
-echo -e "${GREEN}Step 6: Publishing release to Sentry...${NC}"
+echo -e "${GREEN}Step 7: Publishing release to Sentry...${NC}"
 
 if [ "${SKIP_SENTRY:-0}" = "1" ]; then
     echo -e "${YELLOW}SKIP_SENTRY=1 set; skipping Sentry upload.${NC}"
@@ -449,12 +510,11 @@ else
     # the script before gh-pages gets updated. The subshell + set +e localizes
     # the relaxed error handling, and the trailing summary makes any failures
     # visible rather than silently passing.
-    # NOTE: the subshell must be run inside an `if !` so its non-zero exit is
-    # exempt from the outer `set -e` — a bare `( ... ); SENTRY_FAILURES=$?`
-    # aborts the whole script on failure before gh-pages is pushed, which is
-    # exactly the failure mode this block exists to prevent.
+    # Keep the subshell inside an `if` so its non-zero exit is exempt from the
+    # outer `set -e`. Capture the status in the `else` branch before another
+    # command can overwrite `$?`.
     SENTRY_FAILURES=0
-    if ! (
+    if (
         set +e
         sentry-cli debug-files upload "$XCARCHIVE_DSYMS" || exit 1
         sentry-cli releases new "$SENTRY_RELEASE" || exit 2
@@ -462,6 +522,8 @@ else
         sentry-cli releases finalize "$SENTRY_RELEASE" || exit 4
         exit 0
     ); then
+        :
+    else
         SENTRY_FAILURES=$?
     fi
 
@@ -475,7 +537,7 @@ fi
 
 echo ""
 
-# Step 7: Push appcast to gh-pages
+# Step 8: Push appcast to gh-pages
 #
 # Sparkle reads the appcast from the gh-pages branch (Github Pages), so this
 # branch must be updated alongside the GitHub release. Doing this manually is
@@ -483,7 +545,7 @@ echo ""
 # appcast to a temp file, switch branches with git stash for any in-progress
 # work, copy it in, commit, push, and switch back. A trap restores the
 # original branch on any failure.
-echo -e "${GREEN}Step 7: Publishing appcast to gh-pages...${NC}"
+echo -e "${GREEN}Step 8: Publishing appcast to gh-pages...${NC}"
 
 if [ "${SKIP_GH_PAGES:-0}" = "1" ]; then
     echo -e "${YELLOW}SKIP_GH_PAGES=1 set; skipping gh-pages publish.${NC}"
