@@ -6,6 +6,105 @@
     <description>Updates for Ping Warden - AWDL blocking for cloud gaming</description>
     <language>en</language>
     <item>
+      <title>Version 3.0.0</title>
+      <link>https://github.com/oliverames/ping-warden/releases/tag/v3.0.0</link>
+      <sparkle:version>30000</sparkle:version>
+      <sparkle:shortVersionString>3.0.0</sparkle:shortVersionString>
+      <description><![CDATA[
+<style>
+body {
+    font-family: -apple-system, BlinkMacSystemFont, "Helvetica Neue", Helvetica, Arial, sans-serif;
+    font-size: 13px;
+    line-height: 1.55;
+    color: #1d1d1f;
+    margin: 0;
+    padding: 0;
+}
+h1, h2, h3 { color: #000; font-weight: 600; }
+h1 { font-size: 18px; margin: 0 0 10px 0; }
+h2 {
+    font-size: 11px;
+    text-transform: uppercase;
+    letter-spacing: 0.6px;
+    color: #6e6e73;
+    margin: 18px 0 6px 0;
+}
+h3 { font-size: 13px; margin: 14px 0 6px 0; }
+p { margin: 0 0 10px 0; }
+ul, ol { padding-left: 20px; margin: 0 0 10px 0; }
+li { margin-bottom: 5px; }
+li > strong:first-child { color: #000; }
+code {
+    font-family: ui-monospace, "SF Mono", Menlo, monospace;
+    background: #f2f2f7;
+    padding: 1px 5px;
+    border-radius: 3px;
+    font-size: 12px;
+}
+a { color: #f5a542; text-decoration: none; }
+a:hover { text-decoration: underline; }
+hr { border: 0; border-top: 1px solid #e5e5ea; margin: 16px 0; }
+@media (prefers-color-scheme: dark) {
+    body { color: #f5f5f7; }
+    h1, h2, h3, li > strong:first-child { color: #fff; }
+    h2 { color: #98989d; }
+    code { background: #2c2c2e; }
+    hr { border-top-color: #38383a; }
+}
+</style>
+<p><a href="https://buymeacoffee.com/oliverames" rel="nofollow">Donate to Ping Warden on Buy Me a Coffee</a></p>
+<p>Ping Warden 3 turns Ping Protection into measurable Latency Sessions. Start a session for a game or call, watch one shared latency stream, and finish with a local recap that explains what happened without exposing network targets or claiming more than the measurements show.</p>
+<h2>Latency Sessions and recaps</h2>
+<ul>
+<li>Start and end Latency Sessions from the dashboard. Game Mode can manage sessions automatically.</li>
+<li>The menu bar now has one clear Ping Protection control. Latency Sessions stay in the dashboard so the two actions cannot be mistaken for duplicates.</li>
+<li>Review duration, median and P95 latency, jitter, Probe Failures, sample count, and wireless interventions.</li>
+<li>Share a privacy-scrubbed text recap. Hostnames, IP addresses, game names, and raw samples are never written to session history.</li>
+<li>Keep a bounded local history and clear it from the dashboard at any time.</li>
+</ul>
+<h2>Performance</h2>
+<ul>
+<li>The dashboard, menu, and sessions now share one probe stream instead of running duplicate monitors.</li>
+<li>Hostname lookups use a bounded five-minute address cache, one connection deadline, and cancellation that reaches DNS and socket work.</li>
+<li>Rolling history avoids repeated array shifts. Statistics and snapshots are prepared off the main thread and published once per sample.</li>
+<li>Game Mode detection moved its window scan off the main thread. App and display events trigger immediate checks, with a slower safety interval when no game is active.</li>
+</ul>
+<h2>Security and privacy</h2>
+<ul>
+<li>Sparkle 2.9.4 replaces 2.8.1. Ping Warden now requires signed appcast metadata and verifies updates before extraction.</li>
+<li>The Control Center widget applies protection directly through the helper's signed-client XPC boundary. Shared preferences and distributed notifications no longer authorize root operations.</li>
+<li>Shared app and widget settings now use a Team-ID-prefixed macOS App Group, restoring reliable persistence on macOS 15 and later without an embedded provisioning profile.</li>
+<li>Unsigned helper builds fail closed, and the helper launches on demand instead of staying alive after boot.</li>
+<li>Diagnostics redact custom targets, use owner-only file permissions, and show their contents before sharing.</li>
+<li>Crash reporting is off by default. Turning it off is immediate; opting in takes effect after relaunch.</li>
+</ul>
+<h2>Setup and donations</h2>
+<ul>
+<li>The welcome screen explains the AirDrop, AirPlay, and Handoff tradeoff before approval.</li>
+<li>Choosing Later no longer strands setup. Settings now has a visible Finish Setup action.</li>
+<li>Unsupported CPU and latency claims have been removed from the app.</li>
+<li>Every completed Latency Session recap includes a quiet donation link that never interrupts the recap or gates features. Permanent donation links are also available in the menu, Settings, About window, README, and GitHub repository.</li>
+</ul>
+<h2>Release engineering</h2>
+<ul>
+<li>Releases build a fresh archive and validate the staged app, helper, widget, DMG, signatures, Team ID, entitlements, Hardened Runtime, Gatekeeper result, notarization ticket, and version metadata before publishing.</li>
+<li>Marketing versions and numeric bundle builds are validated separately.</li>
+<li>CI builds the complete app on macOS 26, runs the Foundation core on macOS and Linux, lints release scripts, and adds CodeQL and Dependabot coverage.</li>
+<li>The update minimum is derived from the built app, fixing the appcast metadata that incorrectly excluded macOS 13 through 25 from recent updates.</li>
+</ul>
+      ]]></description>
+      <pubDate>Mon, 13 Jul 2026 22:01:20 +0000</pubDate>
+      <enclosure
+        url="https://github.com/oliverames/ping-warden/releases/download/v3.0.0/PingWarden-3.0.0.dmg"
+        sparkle:version="30000"
+        sparkle:shortVersionString="3.0.0"
+        length="5605612"
+        type="application/octet-stream"
+        sparkle:edSignature="0+of8U7w+F+kRZ19vfD5VHgAm7Rfc/MD6nChMB4JRGv6LvQHzKocDhKGdBXoDg7i6ziNiKSeJnPoZt2aCb5UDg=="
+      />
+      <sparkle:minimumSystemVersion>13.0</sparkle:minimumSystemVersion>
+    </item>
+    <item>
       <title>Version 2.4.3</title>
       <link>https://github.com/oliverames/ping-warden/releases/tag/v2.4.3</link>
       <sparkle:version>2.4.3</sparkle:version>
@@ -68,7 +167,7 @@ hr { border: 0; border-top: 1px solid #e5e5ea; margin: 16px 0; }
         type="application/octet-stream"
         sparkle:edSignature="HNUXkOjw+kvBTaJaaRWFr5SzSEiN0CzJLJTeEI7GNSjeCjVR4ADpbNZmsCAngzqWS86jSLw4Yk0fNPkIcwbSDg=="
       />
-      <sparkle:minimumSystemVersion>26.0</sparkle:minimumSystemVersion>
+      <sparkle:minimumSystemVersion>13.0</sparkle:minimumSystemVersion>
     </item>
     <item>
       <title>Version 2.4.2</title>
@@ -135,7 +234,7 @@ hr { border: 0; border-top: 1px solid #e5e5ea; margin: 16px 0; }
         type="application/octet-stream"
         sparkle:edSignature="SIIujAEpGZR0wwHkwVKrsQlcgN72auxtTDTK0yWDAte0yFD8F5oTJSjQsfT1bzLtuvMQNl0q7Ab5KPYyojF8DQ=="
       />
-      <sparkle:minimumSystemVersion>26.0</sparkle:minimumSystemVersion>
+      <sparkle:minimumSystemVersion>13.0</sparkle:minimumSystemVersion>
     </item>
     <item>
       <title>Version 2.4.1</title>
@@ -200,7 +299,7 @@ hr { border: 0; border-top: 1px solid #e5e5ea; margin: 16px 0; }
         type="application/octet-stream"
         sparkle:edSignature="qQAowRtOr0GAPRLRnDWRgdxKCTVvw45OiGS18o6HaJDBs080pD9+9LXhosREejaTLJwr6KejsffoI175TW3vDA=="
       />
-      <sparkle:minimumSystemVersion>26.0</sparkle:minimumSystemVersion>
+      <sparkle:minimumSystemVersion>13.0</sparkle:minimumSystemVersion>
     </item>
     <item>
       <title>Version 2.4.0</title>
@@ -281,7 +380,7 @@ hr { border: 0; border-top: 1px solid #e5e5ea; margin: 16px 0; }
         type="application/octet-stream"
         sparkle:edSignature="qyDrx5j8CwoQPS5HwfyaDmj5z1rVVKlOpHPBCmeczuT8EJ96OHOHV+y+PpjaeSfrsDgCOjF0nYUi2HdUL3OPDA=="
       />
-      <sparkle:minimumSystemVersion>26.0</sparkle:minimumSystemVersion>
+      <sparkle:minimumSystemVersion>13.0</sparkle:minimumSystemVersion>
     </item>
     <item>
       <title>Version 2.3.4</title>
@@ -732,3 +831,7 @@ hr { border: 0; border-top: 1px solid #e5e5ea; margin: 16px 0; }
     </item>
   </channel>
 </rss>
+<!-- sparkle-signatures:
+edSignature: r+6mtWKdXdgqAy34TjdvmFU6Vqxgp/c9NxgFOu+9CGNawi78S4ZWHqHDRX+kkX8okr8ET2HhtD+uPzSLTMMPAA==
+length: 38285
+-->
