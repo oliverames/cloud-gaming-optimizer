@@ -16,21 +16,23 @@ final class ProtectedSessionCoordinator: ObservableObject {
     @Published private(set) var history: [ProtectedSessionSummary] = []
     @Published private(set) var latestSummary: ProtectedSessionSummary?
     @Published private(set) var lastError: String?
+    @Published private(set) var phase: ProtectionSessionPhase = .idle
 
     var onSessionCompleted: ((ProtectedSessionSummary) -> Void)?
     var onSessionStateChanged: (() -> Void)?
 
     var isActive: Bool { accumulator != nil }
+    var isTransitioning: Bool { phase == .starting || phase == .stopping }
 
     private let pingMonitor = PingMonitor.shared
     private let telemetryConsumerID = UUID()
     private let store = ProtectedSessionStore()
     private var telemetryObserverToken: UUID?
     private var accumulator: ProtectedSessionAccumulator?
-    private var wasMonitoringBeforeSession = false
     private var latestInterventionCount = 0
     private var elapsedTimer: Timer?
     private var interventionTimer: Timer?
+    private var startOperationID: UUID?
 
     private init() {
         do {
@@ -48,26 +50,34 @@ final class ProtectedSessionCoordinator: ObservableObject {
     }
 
     func start(trigger: ProtectedSessionTrigger = .manual) async {
-        guard accumulator == nil else { return }
+        guard phase == .idle, accumulator == nil else { return }
         guard PingWardenMonitor.shared.isHelperRegistered else {
             lastError = "Finish Ping Protection setup before starting a session."
             return
         }
-
-        lastError = nil
-        wasMonitoringBeforeSession = PingWardenMonitor.shared.isMonitoringActive
-        if !wasMonitoringBeforeSession {
-            PingWardenMonitor.shared.startMonitoring(persistUserPreference: false)
-            await waitForProtectionToStart()
-        }
-
         guard PingWardenMonitor.shared.isMonitoringActive else {
-            lastError = "Ping Protection could not start. Check the helper in Settings."
+            lastError = "Ping Protection must be on before recording a latency session."
             return
         }
 
+        lastError = nil
+        phase = .starting
+        let operationID = UUID()
+        startOperationID = operationID
+        onSessionStateChanged?()
+
         let startedAt = Date()
-        latestInterventionCount = await fetchInterventionCount()
+        guard let startingInterventionCount = await fetchInterventionCount() else {
+            lastError = "The helper did not return its intervention counter, so the latency session did not start."
+            phase = .idle
+            startOperationID = nil
+            onSessionStateChanged?()
+            return
+        }
+        latestInterventionCount = startingInterventionCount
+        guard phase == .starting, startOperationID == operationID else {
+            return
+        }
         accumulator = ProtectedSessionAccumulator(
             startedAt: startedAt,
             trigger: trigger,
@@ -76,6 +86,8 @@ final class ProtectedSessionCoordinator: ObservableObject {
         activeSessionStartedAt = startedAt
         activeTrigger = trigger
         elapsed = 0
+        phase = .active
+        startOperationID = nil
 
         let target = selectedTelemetryTarget()
         pingMonitor.start(
@@ -90,28 +102,46 @@ final class ProtectedSessionCoordinator: ObservableObject {
         sessionLog.info("Protected session started (\(trigger.rawValue, privacy: .public))")
     }
 
-    func stop(restoreProtection: Bool = true) async {
-        guard accumulator != nil else { return }
-        latestInterventionCount = await fetchInterventionCount()
+    func stop(
+        endReason: ProtectedSessionEndReason = .endedByUser,
+        protectionWasInterrupted: Bool = false
+    ) async {
+        if phase == .starting {
+            startOperationID = nil
+            phase = .idle
+            onSessionStateChanged?()
+            return
+        }
+        guard accumulator != nil, phase == .active else { return }
+        phase = .stopping
+        onSessionStateChanged?()
+        if let endingInterventionCount = await fetchInterventionCount() {
+            latestInterventionCount = endingInterventionCount
+        }
         finish(
             endingInterventionCount: latestInterventionCount,
-            restoreProtection: restoreProtection
+            endReason: endReason,
+            protectionWasInterrupted: protectionWasInterrupted
         )
     }
 
     func startForGameMode() {
-        guard accumulator == nil else { return }
+        guard phase == .idle, accumulator == nil else { return }
         Task { await start(trigger: .gameMode) }
     }
 
     func stopForGameMode() {
-        guard activeTrigger == .gameMode else { return }
-        Task { await stop(restoreProtection: false) }
+        guard activeTrigger == .gameMode || phase == .starting else { return }
+        Task { await stop(endReason: .gameModeEnded) }
     }
 
     func finishForTermination() {
         guard accumulator != nil else { return }
-        finish(endingInterventionCount: latestInterventionCount, restoreProtection: false)
+        finish(
+            endingInterventionCount: latestInterventionCount,
+            endReason: .applicationTerminated,
+            protectionWasInterrupted: false
+        )
     }
 
     func clearHistory() {
@@ -136,11 +166,14 @@ final class ProtectedSessionCoordinator: ObservableObject {
 
     private func finish(
         endingInterventionCount: Int,
-        restoreProtection: Bool = true
+        endReason: ProtectedSessionEndReason,
+        protectionWasInterrupted: Bool
     ) {
         guard let currentAccumulator = accumulator else { return }
 
         accumulator = nil
+        phase = .idle
+        startOperationID = nil
         activeSessionStartedAt = nil
         activeTrigger = nil
         elapsedTimer?.invalidate()
@@ -151,7 +184,9 @@ final class ProtectedSessionCoordinator: ObservableObject {
 
         let summary = currentAccumulator.finish(
             endedAt: Date(),
-            endingInterventionCount: endingInterventionCount
+            endingInterventionCount: endingInterventionCount,
+            endReason: endReason,
+            protectionWasInterrupted: protectionWasInterrupted
         )
         latestSummary = summary
         elapsed = summary.duration
@@ -168,10 +203,6 @@ final class ProtectedSessionCoordinator: ObservableObject {
         preferences.completedProtectedSessionCount += 1
         preferences.lifetimeInterventionCount += summary.interventionCount
 
-        if restoreProtection && !wasMonitoringBeforeSession {
-            PingWardenMonitor.shared.stopMonitoring(persistUserPreference: false)
-        }
-        wasMonitoringBeforeSession = false
         onSessionStateChanged?()
 
         sessionLog.info(
@@ -195,6 +226,7 @@ final class ProtectedSessionCoordinator: ObservableObject {
         let newInterventionTimer = Timer.scheduledTimer(withTimeInterval: 5, repeats: true) { _ in
             PingWardenMonitor.shared.getInterventionCount { count in
                 Task { @MainActor in
+                    guard let count else { return }
                     ProtectedSessionCoordinator.shared.latestInterventionCount = max(0, count)
                 }
             }
@@ -203,18 +235,25 @@ final class ProtectedSessionCoordinator: ObservableObject {
         interventionTimer = newInterventionTimer
     }
 
-    private func fetchInterventionCount() async -> Int {
+    private func fetchInterventionCount() async -> Int? {
         await withCheckedContinuation { continuation in
-            PingWardenMonitor.shared.getInterventionCount { count in
-                continuation.resume(returning: max(0, count))
+            let didComplete = LockedValue(false)
+            let finish: @Sendable (Int?) -> Void = { value in
+                let shouldFinish = didComplete.withValue { completed in
+                    guard !completed else { return false }
+                    completed = true
+                    return true
+                }
+                guard shouldFinish else { return }
+                continuation.resume(returning: value.map { max(0, $0) })
             }
-        }
-    }
 
-    private func waitForProtectionToStart() async {
-        for _ in 0..<30 {
-            if PingWardenMonitor.shared.isMonitoringActive { return }
-            try? await Task.sleep(nanoseconds: 100_000_000)
+            PingWardenMonitor.shared.getInterventionCount { count in
+                finish(count)
+            }
+            DispatchQueue.main.asyncAfter(deadline: .now() + 2.0) {
+                finish(nil)
+            }
         }
     }
 

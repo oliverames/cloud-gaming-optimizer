@@ -17,7 +17,9 @@ private let log = Logger(subsystem: "com.amesvt.pingwarden", category: "Preferen
 final class PingWardenPreferences: @unchecked Sendable {
     static let shared = PingWardenPreferences()
 
-    private let appGroupID = "group.com.amesvt.pingwarden"
+    private let appGroupID = "PV3W52NDZ3.com.amesvt.pingwarden"
+    private let legacyAppGroupID = "group.com.amesvt.pingwarden"
+    private let legacyMigrationKey = "LegacyAppGroupMigrationCompleted"
     private let monitoringEnabledKey = "AWDLMonitoringEnabled" // User intent
     private let effectiveMonitoringEnabledKey = "AWDLEffectiveMonitoringEnabled" // Runtime state
     private let lastStateKey = "AWDLLastState"
@@ -48,11 +50,54 @@ final class PingWardenPreferences: @unchecked Sendable {
             defaults = UserDefaults.standard
         }
 
+        migrateLegacyPreferencesIfAvailable()
+
         // `register` only applies when the key has never been written. Existing
         // choices persist, while new installations start with reporting off.
         defaults.register(defaults: [
             crashReportingEnabledKey: false,
         ])
+    }
+
+    /// macOS 15 began enforcing App Group authorization for non-sandboxed
+    /// Developer ID apps. Ping Warden 2.x used an iOS-style `group.` ID without
+    /// an embedded provisioning profile, so that container is not safely
+    /// readable on macOS 15 and later. On macOS 13 and 14, copy any existing
+    /// values directly before the old container becomes inaccessible.
+    private func migrateLegacyPreferencesIfAvailable() {
+        guard !defaults.bool(forKey: legacyMigrationKey) else { return }
+
+        if #available(macOS 15.0, *) {
+            defaults.set(true, forKey: legacyMigrationKey)
+            return
+        }
+
+        do {
+            let data = try Data(contentsOf: legacyPreferencesURL)
+            guard let values = try PropertyListSerialization.propertyList(
+                from: data,
+                options: [],
+                format: nil
+            ) as? [String: Any] else {
+                log.warning("Legacy App Group preferences were not a dictionary")
+                defaults.set(true, forKey: legacyMigrationKey)
+                return
+            }
+
+            for (key, value) in values where defaults.object(forKey: key) == nil {
+                defaults.set(value, forKey: key)
+            }
+            log.info("Migrated \(values.count) legacy App Group preference values")
+        } catch let error as CocoaError where error.code == .fileReadNoSuchFile {
+            log.debug("No legacy App Group preferences found")
+        } catch {
+            // Do not block launch. Leaving the marker unset lets a future
+            // launch retry after a transient read failure.
+            log.warning("Legacy App Group migration failed: \(error.localizedDescription)")
+            return
+        }
+
+        defaults.set(true, forKey: legacyMigrationKey)
     }
 
     /// User intent for whether AWDL monitoring should be enabled.
@@ -188,6 +233,33 @@ final class PingWardenPreferences: @unchecked Sendable {
     var betaChannelEnabled: Bool {
         get { defaults.bool(forKey: betaChannelEnabledKey) }
         set { defaults.set(newValue, forKey: betaChannelEnabledKey) }
+    }
+
+    /// Remove every value owned by the shared app-group suite. This is used
+    /// only after Ping Protection is confirmed off and the helper has been
+    /// unregistered, so a partial removal cannot strand privileged state.
+    func resetForRemoval() {
+        defaults.removePersistentDomain(forName: appGroupID)
+
+        // Before macOS 15, Ping Warden 2.x could persist values in the legacy
+        // iOS-style group even without a profile. Remove that plist too when
+        // the operating system still permits direct access to the container.
+        if #unavailable(macOS 15.0),
+           FileManager.default.fileExists(atPath: legacyPreferencesURL.path) {
+            do {
+                try FileManager.default.removeItem(at: legacyPreferencesURL)
+            } catch {
+                log.warning("Could not remove legacy App Group preferences: \(error.localizedDescription)")
+            }
+        }
+    }
+
+    private var legacyPreferencesURL: URL {
+        FileManager.default.homeDirectoryForCurrentUser
+            .appendingPathComponent("Library/Group Containers", isDirectory: true)
+            .appendingPathComponent(legacyAppGroupID, isDirectory: true)
+            .appendingPathComponent("Library/Preferences", isDirectory: true)
+            .appendingPathComponent("\(legacyAppGroupID).plist", isDirectory: false)
     }
 }
 

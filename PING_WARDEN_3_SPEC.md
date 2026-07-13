@@ -26,12 +26,13 @@ a specific latency spike.
 - Keep crash reporting off by default for new installations and explain the
   preference in plain language.
 
-### Protected sessions
+### Latency Sessions
 
-- A user can start and stop a session manually from the dashboard and menu.
+- A user can start and stop a session manually from the dashboard.
 - Game Mode can start and stop a session automatically.
-- Starting a session enables Ping Protection if needed and remembers whether it
-  should be restored afterward.
+- Starting a session temporarily enables Ping Protection if needed. When the
+  session ends, the user's current persistent protection preference determines
+  whether protection stays on.
 - A session records only local operational metrics: start/end time, sample
   count, successful/failed samples, median, p95, jitter, and helper intervention
   count delta.
@@ -41,22 +42,22 @@ a specific latency spike.
 
 ### Session recap
 
-- Show duration, median latency, p95, jitter, packet loss, and wireless
+- Show duration, median latency, p95, jitter, probe failures, and wireless
   interventions.
 - Describe interventions as wireless interruptions blocked, not guaranteed lag
   spikes prevented.
 - Provide a privacy-scrubbed text share/export action.
-- Offer support only after demonstrated use and outside active gameplay.
+- Offer a donation prompt only after demonstrated use and outside active gameplay.
 
-### Support
+### Donations
 
-- A contextual support prompt requires completed setup and either three
+- A contextual donation prompt requires completed setup and either three
   completed sessions or a meaningful intervention threshold.
 - Apply a cooldown after dismissal and a longer suppression after the user opens
-  the support link.
+  the donation link.
 - Never prompt during launch, an active session, an error, or update activity.
 - Keep permanent opt-out and never gate features.
-- Provide persistent Support Ping Warden actions in the menu, Settings, and
+- Provide persistent Donate to Ping Warden actions in the menu, Settings, and
   About window.
 
 ## Architecture
@@ -83,6 +84,8 @@ a specific latency spike.
 
 - The widget connects directly to the privileged helper over XPC.
 - The helper validates the widget's Developer ID/Team ID and bundle identifier.
+- App and widget display state uses a Team-ID-prefixed macOS App Group so
+  Developer ID releases are authorized without an embedded provisioning profile.
 - Shared defaults are display state only; distributed notifications are
   invalidation hints only and never authorize a privileged state change.
 - Release helpers fail closed when signature validation fails.
@@ -120,7 +123,9 @@ is reproducible.
 - Full Release app and helper analysis pass with no actionable warnings.
 - Swift concurrency warnings are resolved.
 - Accessibility checks cover VoiceOver labels, keyboard navigation, reduced
-  motion, increased contrast, and maximum supported text size.
+  motion, increased contrast, and maximum supported text size. Onboarding and
+  donation content remains fully visible at standard sizes and scrollable when
+  accessibility text cannot fit inside the available screen.
 - Update tests pass from the last public 2.x version on macOS 13, 15, and 26.
 - Signed app and DMG pass strict nested signing, Gatekeeper, notarization, and
   stapling checks.

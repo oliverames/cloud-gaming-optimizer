@@ -84,6 +84,11 @@ class PingWardenMonitor: @unchecked Sendable {
     /// Flag to prevent re-entrant XPC invalidation handling
     private var _isHandlingInvalidation = false
 
+    /// Monotonic command token. A newer protection request invalidates older
+    /// replies so delayed XPC callbacks cannot overwrite the user's latest
+    /// choice after a rapid on/off transition or reconnect.
+    private var _protectionOperationGeneration: UInt64 = 0
+
     /// Thread-safe access to XPC connection
     private var xpcConnection: NSXPCConnection? {
         get {
@@ -205,12 +210,28 @@ class PingWardenMonitor: @unchecked Sendable {
         return active
     }
 
+    /// Whether Ping Warden has requested protection, even if XPC is briefly
+    /// reconnecting. UI that distinguishes "reconnecting" from "off" should
+    /// use this alongside `isMonitoringActive`.
+    var isMonitoringRequested: Bool {
+        stateLock.lock()
+        defer { stateLock.unlock() }
+        return _isMonitoring
+    }
+
+    var isHelperConnected: Bool {
+        stateLock.lock()
+        defer { stateLock.unlock() }
+        return _xpcConnection != nil
+    }
+
     /// Adopt state that a signed extension already applied directly through
     /// the helper's authenticated XPC listener. The distributed notification
     /// that triggers this path is only a display invalidation signal and never
     /// causes a privileged command.
     func adoptExternallyAppliedMonitoringState(_ active: Bool) {
         stateLock.lock()
+        _protectionOperationGeneration &+= 1
         _isMonitoring = active
         stateLock.unlock()
         notifyStateChange()
@@ -323,7 +344,23 @@ class PingWardenMonitor: @unchecked Sendable {
     }
 
     /// Start monitoring - sends command to helper via XPC
-    func startMonitoring(persistUserPreference: Bool = true) {
+    func startMonitoring(
+        persistUserPreference: Bool = true,
+        completion: (@Sendable (Bool) -> Void)? = nil
+    ) {
+        let operationID = beginProtectionOperation()
+        startMonitoring(
+            operationID: operationID,
+            persistUserPreference: persistUserPreference,
+            completion: completion
+        )
+    }
+
+    private func startMonitoring(
+        operationID: UInt64,
+        persistUserPreference: Bool,
+        completion: (@Sendable (Bool) -> Void)?
+    ) {
         log.info("┌─────────────────────────────────────────────────────┐")
         log.info("│ startMonitoring() called                            │")
         log.info("└─────────────────────────────────────────────────────┘")
@@ -334,6 +371,7 @@ class PingWardenMonitor: @unchecked Sendable {
             // Prevent recursive registration
             guard !isRegisteringHelper else {
                 log.debug("Already registering helper, skipping")
+                completion?(false)
                 return
             }
 
@@ -346,6 +384,7 @@ class PingWardenMonitor: @unchecked Sendable {
             if attempts > maxRegistrationAttempts {
                 log.error("Max registration attempts (\(self.maxRegistrationAttempts)) exceeded, giving up")
                 showError("Helper registration failed after multiple attempts.\n\nPlease try restarting the app or check System Settings → Login Items.")
+                completion?(false)
                 return
             }
 
@@ -353,12 +392,22 @@ class PingWardenMonitor: @unchecked Sendable {
             registerHelper { [weak self] success in
                 guard let self else { return }
                 self.isRegisteringHelper = false
+                guard self.isCurrentProtectionOperation(operationID) else {
+                    completion?(false)
+                    return
+                }
                 if success && self.isHelperRegistered {
                     // Reset attempts on success
                     self.stateLock.lock()
                     self._registrationAttempts = 0
                     self.stateLock.unlock()
-                    self.startMonitoring(persistUserPreference: persistUserPreference)
+                    self.startMonitoring(
+                        operationID: operationID,
+                        persistUserPreference: persistUserPreference,
+                        completion: completion
+                    )
+                } else {
+                    completion?(false)
                 }
             }
             return
@@ -376,14 +425,46 @@ class PingWardenMonitor: @unchecked Sendable {
             PingWardenPreferences.shared.effectiveMonitoringEnabled = false
             notifyStateChange()
             showError("Cannot connect to helper.\n\nTry restarting the app.")
+            completion?(false)
             return
         }
 
         log.info("Sending setAWDLEnabled(false) via XPC...")
 
+        let didComplete = LockedValue(false)
+        let claimCompletion: @Sendable () -> Bool = {
+            didComplete.withValue { completed in
+                guard !completed else { return false }
+                completed = true
+                return true
+            }
+        }
+
+        DispatchQueue.main.asyncAfter(deadline: .now() + 5.0) { [weak self] in
+            guard claimCompletion() else { return }
+            guard let self, self.isCurrentProtectionOperation(operationID) else {
+                completion?(false)
+                return
+            }
+            log.error("Timed out while enabling Ping Protection")
+            // XPC preserves message order. Queueing a compensating enable-AWDL
+            // command keeps a timed-out transient request from leaving AWDL
+            // blocked without a session or visible owner.
+            self.stopMonitoring(persistUserPreference: false)
+            PingWardenPreferences.shared.effectiveMonitoringEnabled = false
+            self.notifyStateChange()
+            completion?(false)
+        }
+
         proxy.setAWDLEnabled(false, reply: { [weak self] success in
             guard let monitor = self else { return }
             DispatchQueue.main.async {
+                guard claimCompletion() else { return }
+                guard monitor.isCurrentProtectionOperation(operationID) else {
+                    log.info("Ignoring stale enable-protection reply")
+                    completion?(false)
+                    return
+                }
                 if success {
                     monitor.isMonitoring = true
                     if persistUserPreference {
@@ -393,45 +474,77 @@ class PingWardenMonitor: @unchecked Sendable {
                     PingWardenPreferences.shared.lastKnownState = "down"
                     monitor.notifyStateChange()
                     log.info("✅ AWDL monitoring started")
+                    completion?(true)
                 } else {
                     log.error("❌ Failed to disable AWDL")
                     PingWardenPreferences.shared.effectiveMonitoringEnabled = false
                     monitor.notifyStateChange()
                     monitor.showError("Failed to enable Ping Protection.\n\nThe helper may not be running correctly.")
+                    completion?(false)
                 }
             }
         })
     }
 
     /// Stop monitoring - sends command to helper via XPC
-    func stopMonitoring(persistUserPreference: Bool = true) {
+    func stopMonitoring(
+        persistUserPreference: Bool = true,
+        completion: (@Sendable (Bool) -> Void)? = nil
+    ) {
+        let operationID = beginProtectionOperation()
         log.info("┌─────────────────────────────────────────────────────┐")
         log.info("│ stopMonitoring() called                             │")
         log.info("└─────────────────────────────────────────────────────┘")
 
+        if xpcConnection == nil {
+            connectXPC()
+        }
+
         guard let proxy = getHelperProxy() else {
-            log.warning("No helper proxy - updating state anyway")
-            stateLock.lock()
-            _isMonitoring = false
-            stateLock.unlock()
-            if persistUserPreference {
-                PingWardenPreferences.shared.isMonitoringEnabled = false
-            }
-            PingWardenPreferences.shared.effectiveMonitoringEnabled = false
-            PingWardenPreferences.shared.lastKnownState = "up"
+            log.warning("No helper proxy - cannot confirm Ping Protection stopped")
+            PingWardenPreferences.shared.lastKnownState = "unknown"
             notifyStateChange()
+            if persistUserPreference || completion != nil {
+                showError("Cannot connect to the helper to turn off Ping Protection.\n\nTry again or quit Ping Warden to restore wireless sharing.")
+            }
+            completion?(false)
             return
         }
 
         log.info("Sending setAWDLEnabled(true) via XPC...")
 
+        let didComplete = LockedValue(false)
+        let claimCompletion: @Sendable () -> Bool = {
+            didComplete.withValue { completed in
+                guard !completed else { return false }
+                completed = true
+                return true
+            }
+        }
+
+        DispatchQueue.main.asyncAfter(deadline: .now() + 5.0) { [weak self] in
+            guard claimCompletion() else { return }
+            guard let self, self.isCurrentProtectionOperation(operationID) else {
+                completion?(false)
+                return
+            }
+            log.error("Timed out while disabling Ping Protection")
+            PingWardenPreferences.shared.lastKnownState = "unknown"
+            self.notifyStateChange()
+            completion?(false)
+        }
+
         proxy.setAWDLEnabled(true, reply: { [weak self] success in
             guard let monitor = self else { return }
             DispatchQueue.main.async {
+                guard claimCompletion() else { return }
+                guard monitor.isCurrentProtectionOperation(operationID) else {
+                    log.info("Ignoring stale disable-protection reply")
+                    completion?(false)
+                    return
+                }
                 if success {
-                    monitor.stateLock.lock()
-                    monitor._isMonitoring = false
-                    monitor.stateLock.unlock()
+                    monitor.isMonitoring = false
                     if persistUserPreference {
                         PingWardenPreferences.shared.isMonitoringEnabled = false
                     }
@@ -439,11 +552,35 @@ class PingWardenMonitor: @unchecked Sendable {
                     PingWardenPreferences.shared.lastKnownState = "up"
                     monitor.notifyStateChange()
                     log.info("✅ AWDL monitoring stopped - AirDrop/Handoff available")
+                    completion?(true)
                 } else {
                     log.error("❌ Failed to enable AWDL")
+                    PingWardenPreferences.shared.lastKnownState = "unknown"
+                    monitor.notifyStateChange()
+                    if persistUserPreference || completion != nil {
+                        monitor.showError("Failed to turn off Ping Protection.\n\nQuit Ping Warden to restore wireless sharing, then try again.")
+                    }
+                    completion?(false)
                 }
             }
         })
+    }
+
+    func setProtectionEnabled(
+        _ enabled: Bool,
+        persistUserPreference: Bool = true
+    ) async -> Bool {
+        await withCheckedContinuation { continuation in
+            if enabled {
+                startMonitoring(persistUserPreference: persistUserPreference) { success in
+                    continuation.resume(returning: success)
+                }
+            } else {
+                stopMonitoring(persistUserPreference: persistUserPreference) { success in
+                    continuation.resume(returning: success)
+                }
+            }
+        }
     }
 
     /// Perform a health check on the helper.
@@ -513,18 +650,20 @@ class PingWardenMonitor: @unchecked Sendable {
         }
 
         let finalHelperVersion = helperVersion.withValue { $0 }
-        let finalHelperStatus = helperStatus.withValue { $0 }
-        let message = "Helper healthy: v\(finalHelperVersion), Status: \(finalHelperStatus)"
+        let protectionText = isAWDLDown
+            ? "Ping Protection is on."
+            : "Ping Protection is off."
+        let message = "Helper connected (version \(finalHelperVersion)). \(protectionText)"
         log.info("Health check: \(message)")
         return (true, message)
     }
     
     /// Get the AWDL intervention count from the helper
     /// Returns the number of times AWDL was blocked from coming up
-    func getInterventionCount(completion: @escaping @Sendable (Int) -> Void) {
+    func getInterventionCount(completion: @escaping @Sendable (Int?) -> Void) {
         guard let proxy = getHelperProxy() else {
             log.warning("Cannot get intervention count: No helper proxy")
-            completion(0)
+            completion(nil)
             return
         }
         
@@ -558,27 +697,7 @@ class PingWardenMonitor: @unchecked Sendable {
         })
     }
 
-    // MARK: - Legacy API Support (for compatibility)
-
-    /// Legacy method - redirects to registerHelper
-    func installAndStartMonitoring() {
-        log.info("installAndStartMonitoring() called - redirecting to registerHelper()")
-        registerHelper { [weak self] success in
-            guard let self else { return }
-            if success {
-                self.startMonitoring()
-
-                DispatchQueue.main.async {
-                    let alert = NSAlert()
-                    alert.messageText = "Setup Complete!"
-                    alert.informativeText = "Ping Warden is now running.\n\nAWDL is blocked while Ping Protection is active, which keeps it from interrupting latency-sensitive traffic.\n\nYou can toggle protection from the menu bar."
-                    alert.alertStyle = .informational
-                    alert.addButton(withTitle: "OK")
-                    alert.runModal()
-                }
-            }
-        }
-    }
+    // MARK: - Compatibility Checks
 
     /// Legacy check - now checks SMAppService status
     func isDaemonInstalled() -> Bool {
@@ -592,6 +711,19 @@ class PingWardenMonitor: @unchecked Sendable {
     }
 
     // MARK: - XPC Connection Management
+
+    private func beginProtectionOperation() -> UInt64 {
+        stateLock.lock()
+        defer { stateLock.unlock() }
+        _protectionOperationGeneration &+= 1
+        return _protectionOperationGeneration
+    }
+
+    private func isCurrentProtectionOperation(_ operationID: UInt64) -> Bool {
+        stateLock.lock()
+        defer { stateLock.unlock() }
+        return operationID == _protectionOperationGeneration
+    }
 
     /// Atomically increment the XPC retry counter and return the new value.
     /// Using a single locked read-modify-write avoids the race window that a
@@ -666,28 +798,30 @@ class PingWardenMonitor: @unchecked Sendable {
 
         let didComplete = LockedValue(false)
 
-        let finish: @Sendable (Bool) -> Void = { isValid in
+        let finish: @Sendable (Bool) -> Bool = { isValid in
             let shouldFinish = didComplete.withValue { value in
                 guard !value else { return false }
                 value = true
                 return true
             }
-            guard shouldFinish else { return }
+            guard shouldFinish else { return false }
             completion?(isValid)
+            return true
         }
 
         DispatchQueue.global(qos: .utility).asyncAfter(deadline: .now() + 2.0) {
-            log.warning("XPC validation: Connection timeout - helper may not be running")
-            finish(false)
+            if finish(false) {
+                log.warning("XPC validation: Connection timeout - helper may not be running")
+            }
         }
 
         proxy.getVersion(reply: { version in
             if version.isEmpty {
                 log.warning("XPC validation: Invalid response from helper")
-                finish(false)
+                _ = finish(false)
             } else {
                 log.debug("XPC validation: Connection verified successfully")
-                finish(true)
+                _ = finish(true)
             }
         })
     }

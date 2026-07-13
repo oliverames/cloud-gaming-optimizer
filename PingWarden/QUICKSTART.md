@@ -20,11 +20,11 @@ The helper needs one-time approval because changing the AWDL interface requires 
 
 ### 3. Turn on Ping Protection
 
-Open the menu bar menu and choose **Enable Ping Protection**. The menu bar icon will show that protection is active.
+Open the menu bar menu and choose **Turn On Ping Protection**. The menu bar icon will show that protection is active.
 
 ### 4. Verify the connection
 
-Open the dashboard and confirm that Ping Protection is active. Leave it open during a normal game or call to compare live latency, jitter, and packet loss. The intervention count increases whenever macOS tries to reactivate AWDL and Ping Warden blocks it.
+Open the dashboard and confirm that Ping Protection is active. Leave it open during a normal game or call to compare live latency, jitter, and probe failures. The intervention count increases whenever macOS tries to reactivate AWDL and Ping Warden blocks it.
 
 For a helper health check, open **Settings > Advanced** and click **Run Test**.
 
@@ -40,15 +40,16 @@ Ping Warden turns protection on for recognized fullscreen games and restores you
 
 The Control Center widget requires [macOS Tahoe 26](https://support.apple.com/en-us/122868) or newer and a signed release build.
 
-1. Open **Settings > Automation** and turn on **Control Center Widget**.
+1. Open **Settings > Automation** and turn on **Hide Menu Bar Icon**.
 2. Open **System Settings > Control Center**.
 3. Find Ping Warden and add it to Control Center or the menu bar.
 
 ## Everyday controls
 
-- Choose **Pause Blocking (10 Minutes)** when you need AirDrop, AirPlay, or Handoff briefly.
+- Choose **Pause for 10 Minutes** when you need AirDrop, AirPlay, or Handoff briefly.
+- Start a **Latency Session** from the dashboard when you want a beginning-to-end recap for one game or call.
 - Turn on **Launch at Login** under **Settings > General** if you want protection available after every restart.
-- Use **Settings > Advanced > Export Diagnostics** to create a local support snapshot you can review before sharing.
+- Use **Settings > Advanced > Diagnostics Snapshot** to create a local troubleshooting file you can review before sharing.
 
 ## Get help
 

@@ -6,13 +6,13 @@ For quick setup, see [Quick Start](QUICKSTART.md). For issue recovery, see [Trou
 
 ## 1. Overview
 
-Ping Warden is a macOS latency-stability tool that keeps AWDL from reactivating during latency-sensitive work.
+Ping Warden is a macOS utility that keeps AWDL from reactivating during latency-sensitive work.
 
 AWDL (Apple Wireless Direct Link) is used by Apple ecosystem features such as AirDrop, AirPlay, and Handoff. On some networks and workflows, AWDL interface transitions can correlate with sudden latency jumps. Ping Warden provides a controlled, user-friendly way to keep AWDL suppressed when desired, while retaining the ability to restore normal behavior instantly.
 
 Primary goals:
 
-- Keep latency stable for gaming, cloud streaming, and calls.
+- Keep AWDL suppressed during latency-sensitive games, cloud streaming, and calls.
 - Avoid repeated password prompts for normal day-to-day usage.
 - Provide clear observability (status, ping history, interventions).
 - Offer safe operational controls (enable/disable/pause/restore).
@@ -69,7 +69,7 @@ Responsibilities:
 - User intent state persistence (`isMonitoringEnabled`).
 - Effective runtime state tracking (`effectiveMonitoringEnabled`).
 - Dashboard data collection and charting.
-- Protected Session lifecycle and local recap history.
+- Latency Session lifecycle and local recap history.
 - Sparkle update checks and update menu entries.
 
 ### 4.2 Helper Daemon
@@ -146,13 +146,13 @@ Provides real-time latency visibility and tuning controls.
 
 Cards include:
 
-- Protected Session:
+- Latency Session:
   - Start and end a measured game or call.
-  - Review duration, median, p95, jitter, packet loss, and interventions.
+  - Review duration, median, p95, jitter, Probe Failures, and interventions.
   - Share a privacy-scrubbed text recap.
 
 - Network Quality:
-  - Current ping, average, best, worst, jitter, packet loss, AWDL state.
+  - Current ping, average, best, worst, jitter, Probe Failures, AWDL state.
 - Ping History:
   - Timeframe zoom windows: 1 min, 5 min, 15 min, 30 min, 1 hour.
   - Timeframe changes are non-destructive (history is not deleted by zoom changes).
@@ -188,7 +188,7 @@ Status block:
 Controls:
 
 - Game Mode Auto-Detect.
-- Control Center Widget mode (macOS 26+, signed release builds only).
+- Hide Menu Bar Icon mode for people who use the Control Center toggle (macOS 26+, signed release builds only).
 
 ### 8.4 Advanced
 
@@ -196,18 +196,18 @@ Tools:
 
 - Test the registered helper and signed XPC connection.
 - Open Console logs.
-- Export Diagnostics bundle.
-- Re-register Helper.
-- Uninstall flow.
+- Create a local diagnostics snapshot and review it before sharing.
+- Repair the helper connection without changing the protection preference.
+- Prepare for removal by turning off protection, unregistering services, clearing local data, revealing the app, and quitting.
 
 ## 9. Menu Bar and App Menu Integration
 
 Menu bar:
 
-- Primary AWDL toggle actions.
-- Start or end a Protected Session.
+- One primary Ping Protection action, plus a contextual 10-minute pause.
+- Latency Sessions stay in the dashboard so they are not confused with the persistent protection control.
 - Optional live metrics in dropdown.
-- Settings, About, Support, and update actions.
+- Settings, About, Donate, and update actions.
 
 App menu (frontmost app state):
 
@@ -336,7 +336,7 @@ Other practical limits:
 
 Recommended usage:
 
-- Start a Protected Session before a latency-sensitive game or call.
+- Start a Latency Session before a latency-sensitive game or call.
 - Use dashboard target auto-select periodically if your network path changes.
 - Keep update interval moderate unless actively investigating jitter.
 - Use diagnostics export before opening support issues.

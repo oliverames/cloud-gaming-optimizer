@@ -79,13 +79,6 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSMenuDele
     private static let appMenuCheckForUpdatesTag = 2201
     // Sparkle feed URL is defined in Info.plist (SUFeedURL) as the single source of truth.
 
-    private struct GameModeSnapshot {
-        let userIntentMonitoringEnabled: Bool
-        let wasMonitoringActive: Bool
-        let quickPauseUntil: Date?
-        let quickPauseRestoreState: Bool?
-    }
-
     private var updaterController: SPUStandardUpdaterController?
     private var updaterStartupError: Error?
     private var updaterHasStarted = false
@@ -105,10 +98,6 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSMenuDele
     private var donationWindow: NSWindow?
     private var gameModeDetector: GameModeDetector?
     private var monitorStateObserverToken: UUID?
-    private var gameModeSnapshot: GameModeSnapshot?
-    private var quickPauseRestoreState: Bool?
-    private var quickPauseTimer: Timer?
-    private var quickPauseUntil: Date?
     private var lastToggleTime: Date = .distantPast
     private let menuMetricsConsumerID = UUID()
     private var menuMetricsObserverToken: UUID?
@@ -116,17 +105,20 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSMenuDele
     private var menuCurrentPingMs: Double?
     private var menuInterventionCount: Int?
     private let sessionCoordinator = ProtectedSessionCoordinator.shared
+    private let protectionExperience = ProtectionExperienceCoordinator.shared
+    private let settingsNavigation = SettingsNavigationModel()
+    private var isTerminating = false
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         log.info("Ping Warden launching...")
 
-        sessionCoordinator.onSessionCompleted = { [weak self] _ in
-            DispatchQueue.main.asyncAfter(deadline: .now() + 1.5) {
-                self?.showDonationPromptIfNeeded()
-            }
-        }
         sessionCoordinator.onSessionStateChanged = { [weak self] in
             self?.updateQuickActionMenuItems()
+        }
+        sessionCoordinator.onSessionCompleted = { [weak self] _ in
+            Task { @MainActor in
+                self?.showDonationPromptIfNeeded()
+            }
         }
 
         // Optional anonymous crash reporting (Sentry). New installations start
@@ -147,6 +139,14 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSMenuDele
 
         // Initialize monitoring before Sparkle so first-run UX can be gated on setup state.
         let monitor = PingWardenMonitor.shared
+#if DEBUG
+        let debugWindowPrefix = "--show-window="
+        let debugWindowTarget = ProcessInfo.processInfo.arguments
+            .first(where: { $0.hasPrefix(debugWindowPrefix) })
+            .map { String($0.dropFirst(debugWindowPrefix.count)) }
+#else
+        let debugWindowTarget: String? = nil
+#endif
 
         // Initialize Sparkle updater and start explicitly so failures can be logged clearly.
         updaterController = SPUStandardUpdaterController(
@@ -171,6 +171,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSMenuDele
         monitorStateObserverToken = monitor.addStateObserver { [weak self] in
             Task { @MainActor in
                 guard let self else { return }
+                self.protectionExperience.refreshFromMonitor()
                 self.updateMenuBarIcon()
                 self.updateMenuItem()
                 // If Sparkle was deferred during first-run setup, start it as
@@ -196,8 +197,10 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSMenuDele
         // Check if this is first launch (helper not registered)
         if !monitor.isHelperRegistered {
             log.info("First launch detected - helper not registered")
-            DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
-                self.showWelcomeWindow()
+            if debugWindowTarget == nil {
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
+                    self.showWelcomeWindow()
+                }
             }
         } else {
             log.info("Helper already registered")
@@ -206,6 +209,14 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSMenuDele
             // Shortcuts toggle turned it off while the app wasn't running.
             handleMonitoringStateChange()
         }
+
+#if DEBUG
+        if let debugWindowTarget {
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
+                self.showDebugWindow(named: debugWindowTarget)
+            }
+        }
+#endif
 
         // Setup Game Mode detector if enabled
         if PingWardenPreferences.shared.gameModeAutoDetect {
@@ -303,18 +314,10 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSMenuDele
 
     func applicationWillTerminate(_ notification: Notification) {
         log.info("Ping Warden terminating...")
+        isTerminating = true
 
         gameModeDetector?.stop()
-        quickPauseTimer?.invalidate()
-        quickPauseTimer = nil
-        sessionCoordinator.finishForTermination()
-
-        if PingWardenMonitor.shared.isMonitoringActive {
-            // Transient stop: quitting must not flip the user's preference
-            // off, or the launch-time restore would never re-enable
-            // protection after a normal quit + relaunch.
-            PingWardenMonitor.shared.stopMonitoring(persistUserPreference: false)
-        }
+        protectionExperience.finishForTermination()
 
         if let token = monitorStateObserverToken {
             PingWardenMonitor.shared.removeStateObserver(token)
@@ -394,6 +397,12 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSMenuDele
             if window === settingsWindow {
                 settingsWindow = nil
             }
+            if window === aboutWindow {
+                aboutWindow = nil
+            }
+            if window === welcomeWindow {
+                welcomeWindow = nil
+            }
             if window === donationWindow {
                 // Treat the close control as Maybe Later and start the normal
                 // value-prompt cooldown.
@@ -429,77 +438,9 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSMenuDele
 
     private func handleGameModeStateChange(isActive: Bool) {
         log.info("Game Mode state changed: \(isActive)")
-        if isActive {
-            if gameModeSnapshot == nil {
-                gameModeSnapshot = GameModeSnapshot(
-                    userIntentMonitoringEnabled: PingWardenPreferences.shared.isMonitoringEnabled,
-                    wasMonitoringActive: PingWardenMonitor.shared.isMonitoringActive,
-                    quickPauseUntil: quickPauseUntil,
-                    quickPauseRestoreState: quickPauseRestoreState
-                )
-            }
-
-            // Preserve paused state metadata while forcing protection on.
-            if quickPauseUntil != nil {
-                quickPauseTimer?.invalidate()
-                quickPauseTimer = nil
-            }
-
-            if !PingWardenMonitor.shared.isMonitoringActive {
-                log.info("Game Mode active - enabling AWDL blocking")
-                PingWardenMonitor.shared.startMonitoring(persistUserPreference: false)
-            }
-            sessionCoordinator.startForGameMode()
-        } else {
-            sessionCoordinator.stopForGameMode()
-            let snapshot = gameModeSnapshot ?? GameModeSnapshot(
-                userIntentMonitoringEnabled: PingWardenPreferences.shared.isMonitoringEnabled,
-                wasMonitoringActive: PingWardenMonitor.shared.isMonitoringActive,
-                quickPauseUntil: quickPauseUntil,
-                quickPauseRestoreState: quickPauseRestoreState
-            )
-            gameModeSnapshot = nil
-
-            // A quick pause the user started *during* Game Mode takes
-            // priority: honor it instead of force-resuming blocking from the
-            // pre-game snapshot.
-            if let currentPause = quickPauseUntil, currentPause > Date(),
-               currentPause != snapshot.quickPauseUntil {
-                log.info("Game Mode inactive - honoring quick pause started during Game Mode")
-                if PingWardenMonitor.shared.isMonitoringActive {
-                    PingWardenMonitor.shared.stopMonitoring(persistUserPreference: false)
-                }
-                scheduleQuickPauseTimer()
-                updateMenuItem()
-                return
-            }
-
-            if let pauseUntil = snapshot.quickPauseUntil, pauseUntil > Date() {
-                log.info("Game Mode inactive - restoring paused state")
-                quickPauseUntil = pauseUntil
-                quickPauseRestoreState = snapshot.quickPauseRestoreState ?? snapshot.userIntentMonitoringEnabled
-                PingWardenMonitor.shared.stopMonitoring(persistUserPreference: false)
-                scheduleQuickPauseTimer()
-                updateMenuItem()
-                return
-            }
-
-            clearQuickPauseState()
-
-            // If a pre-game pause expired while the game was running, restore
-            // from the user's persistent intent — the runtime state captured
-            // at game start ("off", because paused) is stale by now.
-            let shouldMonitor = snapshot.quickPauseUntil != nil
-                ? snapshot.userIntentMonitoringEnabled
-                : snapshot.wasMonitoringActive
-
-            if shouldMonitor && !PingWardenMonitor.shared.isMonitoringActive {
-                log.info("Game Mode inactive - restoring AWDL blocking state to enabled")
-                PingWardenMonitor.shared.startMonitoring(persistUserPreference: false)
-            } else if !shouldMonitor && PingWardenMonitor.shared.isMonitoringActive {
-                log.info("Game Mode inactive - restoring AWDL blocking state to disabled")
-                PingWardenMonitor.shared.stopMonitoring(persistUserPreference: false)
-            }
+        Task { @MainActor in
+            await protectionExperience.setGameModeActive(isActive)
+            updateMenuItem()
         }
     }
 
@@ -508,22 +449,60 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSMenuDele
     private func showWelcomeWindow() {
         if welcomeWindow != nil { return }
 
-        let welcomeView = WelcomeView {
+        let experience = protectionExperience
+        let welcomeView = WelcomeView { completion in
+            PingWardenMonitor.shared.registerHelper { registered in
+                Task { @MainActor in
+                    guard registered else {
+                        completion(false)
+                        return
+                    }
+                    let enabled = await experience.setPersistentProtection(true)
+                    completion(enabled)
+                }
+            }
+        } onOpenDashboard: {
             self.welcomeWindow?.close()
             self.welcomeWindow = nil
-            self.updateDockIconVisibility()
-            PingWardenMonitor.shared.installAndStartMonitoring()
+            self.openDashboard()
         } onDismiss: {
             self.welcomeWindow?.close()
             self.welcomeWindow = nil
             self.updateDockIconVisibility()
         }
 
+#if DEBUG
+        let welcomeRootView: AnyView
+        if ProcessInfo.processInfo.arguments.contains("--welcome-large-text") {
+            welcomeRootView = AnyView(
+                welcomeView.environment(\.dynamicTypeSize, .accessibility5)
+            )
+        } else {
+            welcomeRootView = AnyView(welcomeView)
+        }
+        let hostingController = NSHostingController(rootView: welcomeRootView)
+#else
         let hostingController = NSHostingController(rootView: welcomeView)
-        let window = NSWindow(contentViewController: hostingController)
+#endif
+#if DEBUG
+        let initialSize = ProcessInfo.processInfo.arguments.contains("--welcome-min-size")
+            ? NSSize(width: 480, height: 560)
+            : NSSize(width: 500, height: 580)
+#else
+        let initialSize = NSSize(width: 500, height: 580)
+#endif
+        hostingController.view.frame = NSRect(origin: .zero, size: initialSize)
+
+        let window = NSWindow(
+            contentRect: NSRect(origin: .zero, size: initialSize),
+            styleMask: [.titled, .closable, .fullSizeContentView],
+            backing: .buffered,
+            defer: false
+        )
+        window.contentViewController = hostingController
+        window.title = "Welcome to Ping Warden"
         window.titlebarAppearsTransparent = true
         window.titleVisibility = .hidden
-        window.styleMask = [.titled, .closable, .fullSizeContentView]
         window.isMovableByWindowBackground = true
         window.backgroundColor = .clear
         window.center()
@@ -543,7 +522,16 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSMenuDele
     // MARK: - Donation Prompt
 
     private func showDonationPromptIfNeeded() {
-        guard donationWindow == nil else { return }
+        // Manual sessions start from the dashboard. Only offer the contextual
+        // prompt while that Ping Warden window is still frontmost, so Game
+        // Mode completion, launch-at-login, and app termination can never
+        // interrupt another app.
+        guard !isTerminating,
+              donationWindow == nil,
+              NSApp.isActive,
+              settingsWindow?.isVisible == true else {
+            return
+        }
 
         let prefs = PingWardenPreferences.shared
         let context = SupportPromptPolicy.Context(
@@ -562,6 +550,16 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSMenuDele
             return
         }
 
+        presentDonationPrompt()
+    }
+
+    private func presentDonationPrompt(
+        completedSessionCount: Int? = nil,
+        lifetimeInterventionCount: Int? = nil
+    ) {
+        guard donationWindow == nil else { return }
+
+        let prefs = PingWardenPreferences.shared
         log.info("Showing value-based support prompt")
 
         let view = DonationPromptView(
@@ -580,8 +578,8 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSMenuDele
                 prefs.donationPromptDismissedPermanently = true
                 self?.closeDonationWindow()
             },
-            completedSessionCount: prefs.completedProtectedSessionCount,
-            lifetimeInterventionCount: prefs.lifetimeInterventionCount
+            completedSessionCount: completedSessionCount ?? prefs.completedProtectedSessionCount,
+            lifetimeInterventionCount: lifetimeInterventionCount ?? prefs.lifetimeInterventionCount
         )
 
         let hostingController = NSHostingController(rootView: view)
@@ -598,6 +596,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSMenuDele
             defer: false
         )
         window.contentViewController = hostingController
+        window.title = "Donate to Ping Warden"
         window.titlebarAppearsTransparent = true
         window.titleVisibility = .hidden
         window.isMovableByWindowBackground = true
@@ -620,6 +619,31 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSMenuDele
         updateDockIconVisibility()
     }
 
+#if DEBUG
+    private func showDebugWindow(named name: String) {
+        switch name {
+        case "dashboard":
+            settingsNavigation.selectedSection = .dashboard
+            openSettings()
+        case "general":
+            settingsNavigation.selectedSection = .general
+            openSettings()
+        case "automation":
+            settingsNavigation.selectedSection = .automation
+            openSettings()
+        case "advanced":
+            settingsNavigation.selectedSection = .advanced
+            openSettings()
+        case "about":
+            showAbout()
+        case "donation":
+            presentDonationPrompt(completedSessionCount: 3, lifetimeInterventionCount: 12)
+        default:
+            log.error("Unknown debug window target: \(name, privacy: .public)")
+        }
+    }
+#endif
+
     // MARK: - Menu Bar
 
     private func setupMenuBar() {
@@ -641,45 +665,36 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSMenuDele
         // assignments in updateQuickActionMenuItems().
         statusMenu?.autoenablesItems = false
 
-        // Toggle item
+        let dashboardItem = NSMenuItem(
+            title: "Open Dashboard...",
+            action: #selector(openDashboard),
+            keyEquivalent: ""
+        )
+        dashboardItem.target = self
+        dashboardItem.image = menuSymbol("chart.xyaxis.line")
+        statusMenu?.addItem(dashboardItem)
+        statusMenu?.addItem(NSMenuItem.separator())
+
+        let initialPresentation = protectionExperience.menuPresentation()
         let toggleItem = NSMenuItem(
-            title: PingWardenMonitor.shared.isMonitoringActive ? "Disable Ping Protection" : "Enable Ping Protection",
+            title: initialPresentation.protectionTitle,
             action: #selector(toggleMonitoring),
             keyEquivalent: ""
         )
         toggleItem.target = self
+        toggleItem.tag = 140
         toggleItem.image = protectionMenuImage()
         statusMenu?.addItem(toggleItem)
 
         let pauseItem = NSMenuItem(
-            title: "Pause Blocking (10 Minutes)",
-            action: #selector(pauseMonitoringForTenMinutes),
+            title: initialPresentation.pauseTitle ?? "Pause for 10 Minutes",
+            action: #selector(toggleQuickPause),
             keyEquivalent: ""
         )
         pauseItem.target = self
         pauseItem.image = menuSymbol("pause.circle")
         pauseItem.tag = 150
         statusMenu?.addItem(pauseItem)
-
-        let resumeItem = NSMenuItem(
-            title: "Resume Blocking",
-            action: #selector(resumeMonitoringAfterQuickPause),
-            keyEquivalent: ""
-        )
-        resumeItem.target = self
-        resumeItem.image = menuSymbol("play.circle")
-        resumeItem.tag = 151
-        statusMenu?.addItem(resumeItem)
-
-        let sessionItem = NSMenuItem(
-            title: "Start Protected Session",
-            action: #selector(toggleProtectedSession),
-            keyEquivalent: ""
-        )
-        sessionItem.target = self
-        sessionItem.image = menuSymbol("record.circle")
-        sessionItem.tag = 170
-        statusMenu?.addItem(sessionItem)
 
         statusMenu?.addItem(NSMenuItem.separator())
 
@@ -746,7 +761,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSMenuDele
         statusMenu?.addItem(aboutItem)
 
         let supportItem = NSMenuItem(
-            title: "Support Ping Warden",
+            title: "Donate to Ping Warden...",
             action: #selector(supportPingWarden),
             keyEquivalent: ""
         )
@@ -776,7 +791,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSMenuDele
     private func protectionMenuImage() -> NSImage? {
         let isMonitoring = PingWardenMonitor.shared.isMonitoringActive
         let symbolName = isMonitoring ? "antenna.radiowaves.left.and.right.slash" : "antenna.radiowaves.left.and.right"
-        let description = isMonitoring ? "Disable Ping Protection" : "Enable Ping Protection"
+        let description = isMonitoring ? "Turn Off Ping Protection" : "Turn On Ping Protection"
         return menuSymbol(symbolName, accessibilityDescription: description)
     }
 
@@ -795,6 +810,11 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSMenuDele
         showSettingsWindow()
         NSApp.activate(ignoringOtherApps: true)
         ensureApplicationMenuItems()
+    }
+
+    @objc private func openDashboard() {
+        settingsNavigation.selectedSection = .dashboard
+        openSettings()
     }
 
     @objc func openAbout() {
@@ -820,11 +840,22 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSMenuDele
             return
         }
 
-        let settingsView = SettingsView { [weak self] in
-            self?.checkForUpdates()
-        }
+        let settingsView = SettingsView(
+            navigationModel: settingsNavigation,
+            onCheckForUpdates: { [weak self] in
+                self?.checkForUpdates()
+            }
+        )
         let hostingController = NSHostingController(rootView: settingsView)
+#if DEBUG
+        let usesDebugMinimumSize = ProcessInfo.processInfo.arguments.contains("--settings-min-size")
+        let initialSize = usesDebugMinimumSize
+            ? NSSize(width: 760, height: 520)
+            : NSSize(width: 980, height: 700)
+#else
+        let usesDebugMinimumSize = false
         let initialSize = NSSize(width: 980, height: 700)
+#endif
         hostingController.view.frame = NSRect(origin: .zero, size: initialSize)
 
         if #available(macOS 14.0, *) {
@@ -850,7 +881,9 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSMenuDele
         // restores any saved frame, so the restored position must not be
         // clobbered by a subsequent center().
         window.center()
-        window.setFrameAutosaveName("PingWardenSettings")
+        if !usesDebugMinimumSize {
+            window.setFrameAutosaveName("PingWardenSettings")
+        }
 
         settingsWindow = window
         window.makeKeyAndOrderFront(nil)
@@ -872,7 +905,8 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSMenuDele
         window.title = "About Ping Warden"
         window.titlebarAppearsTransparent = true
         window.titleVisibility = .hidden
-        window.styleMask = [.titled, .closable, .fullSizeContentView]
+        window.styleMask = [.titled, .closable, .resizable, .fullSizeContentView]
+        window.minSize = NSSize(width: 380, height: 420)
         window.backgroundColor = .clear
         window.center()
         window.isReleasedWhenClosed = false
@@ -891,17 +925,6 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSMenuDele
     @objc private func supportPingWarden() {
         PingWardenPreferences.shared.supportOpenedDate = Date()
         NSWorkspace.shared.open(DonationPromptView.donationURL)
-    }
-
-    @objc private func toggleProtectedSession() {
-        Task { @MainActor in
-            if sessionCoordinator.isActive {
-                await sessionCoordinator.stop()
-            } else {
-                await sessionCoordinator.start()
-            }
-            updateQuickActionMenuItems()
-        }
     }
 
     @objc private func checkForUpdates() {
@@ -993,15 +1016,34 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSMenuDele
     private func presentUpdaterStartFailureAlert() {
         let alert = NSAlert()
         alert.messageText = "Unable to Check For Updates"
-        
+        let errorText: String
         if let startupError = updaterStartupError as NSError? {
-            alert.informativeText = "The updater failed to start.\n\n\(startupError.localizedDescription)\n\nCheck Console logs for details."
+            errorText = "\(startupError.domain) \(startupError.code): \(startupError.localizedDescription)"
         } else {
-            alert.informativeText = "The updater failed to start. Check Console logs for details."
+            errorText = "The updater did not provide an error message."
         }
-        
+        alert.informativeText = "Ping Warden could not start its updater. You can retry, open the latest release in your browser, or copy the error for troubleshooting.\n\n\(errorText)"
         alert.alertStyle = .warning
-        alert.runModal()
+        alert.addButton(withTitle: "Retry")
+        alert.addButton(withTitle: "Download Latest Release")
+        alert.addButton(withTitle: "Copy Error")
+        alert.addButton(withTitle: "Cancel")
+
+        switch alert.runModal() {
+        case .alertFirstButtonReturn:
+            if startUpdaterIfNeeded() {
+                updaterController?.updater.checkForUpdates()
+            }
+        case .alertSecondButtonReturn:
+            if let releasesURL = URL(string: "https://github.com/oliverames/ping-warden/releases/latest") {
+                NSWorkspace.shared.open(releasesURL)
+            }
+        case .alertThirdButtonReturn:
+            NSPasteboard.general.clearContents()
+            NSPasteboard.general.setString(errorText, forType: .string)
+        default:
+            break
+        }
     }
 
     /// Sparkle calls this on every update check. Returning nil falls back to
@@ -1050,9 +1092,12 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSMenuDele
     private func updateMenuItem() {
         guard let menu = statusMenu else { return }
 
-        let newTitle = PingWardenMonitor.shared.isMonitoringActive ? "Disable Ping Protection" : "Enable Ping Protection"
-        menu.items.first?.title = newTitle
-        menu.items.first?.image = protectionMenuImage()
+        let presentation = protectionExperience.menuPresentation()
+        if let toggleItem = menu.items.first(where: { $0.tag == 140 }) {
+            toggleItem.title = presentation.protectionTitle
+            toggleItem.image = protectionMenuImage()
+            toggleItem.isEnabled = presentation.protectionActionEnabled
+        }
 
         updateStatusMenuItem()
         updateMenuMetricsMenuItems()
@@ -1090,44 +1135,25 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSMenuDele
     private func updateQuickActionMenuItems() {
         guard let menu = statusMenu else { return }
 
-        let isMonitoring = PingWardenMonitor.shared.isMonitoringActive
+        let presentation = protectionExperience.menuPresentation()
         if let pauseItem = menu.items.first(where: { $0.tag == 150 }) {
-            if let pauseUntil = quickPauseUntil, pauseUntil > Date() {
-                let remaining = max(1, Int((pauseUntil.timeIntervalSinceNow / 60.0).rounded(.up)))
-                pauseItem.title = "Paused (\(remaining)m left)"
-            } else {
-                pauseItem.title = "Pause Blocking (10 Minutes)"
-            }
-            pauseItem.isEnabled = isMonitoring
+            pauseItem.isHidden = presentation.pauseTitle == nil
+            pauseItem.title = presentation.pauseTitle ?? "Pause for 10 Minutes"
+            pauseItem.isEnabled = presentation.pauseActionEnabled
+            pauseItem.image = menuSymbol(
+                presentation.pauseTitle?.hasPrefix("Resume") == true
+                    ? "play.circle"
+                    : "pause.circle"
+            )
         }
 
-        if let resumeItem = menu.items.first(where: { $0.tag == 151 }) {
-            resumeItem.isEnabled = quickPauseUntil != nil && !isMonitoring
-        }
-
-        if let sessionItem = menu.items.first(where: { $0.tag == 170 }) {
-            sessionItem.title = sessionCoordinator.isActive
-                ? "End Protected Session"
-                : "Start Protected Session"
-            sessionItem.image = menuSymbol(sessionCoordinator.isActive ? "stop.circle" : "record.circle")
-            sessionItem.isEnabled = PingWardenMonitor.shared.isHelperRegistered
-        }
     }
 
     private func updateStatusMenuItem() {
         guard let menu = statusMenu,
               let statusItem = menu.items.first(where: { $0.tag == 100 }) else { return }
 
-        let isMonitoring = PingWardenMonitor.shared.isMonitoringActive
-        let installed = PingWardenMonitor.shared.isHelperRegistered
-
-        if !installed {
-            statusItem.title = "Status: Not Set Up"
-        } else if isMonitoring {
-            statusItem.title = "Status: Protected"
-        } else {
-            statusItem.title = "Status: Not Protected"
-        }
+        statusItem.title = protectionExperience.menuPresentation().statusTitle
     }
 
     func menuWillOpen(_ menu: NSMenu) {
@@ -1146,12 +1172,17 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSMenuDele
         }
         lastToggleTime = now
 
-        clearQuickPauseState()
+        guard PingWardenMonitor.shared.isHelperRegistered else {
+            showWelcomeWindow()
+            return
+        }
 
-        if PingWardenMonitor.shared.isMonitoringActive {
-            PingWardenMonitor.shared.stopMonitoring()
-        } else {
-            PingWardenMonitor.shared.startMonitoring()
+        let shouldEnable = protectionExperience.pauseUntil != nil
+            || (!PingWardenMonitor.shared.isMonitoringRequested
+                && !PingWardenMonitor.shared.isMonitoringActive)
+        Task {
+            await protectionExperience.setPersistentProtection(shouldEnable)
+            updateMenuItem()
         }
     }
 
@@ -1159,47 +1190,15 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSMenuDele
         PingWardenPreferences.shared.showMenuDropdownMetrics.toggle()
     }
 
-    @objc private func pauseMonitoringForTenMinutes() {
-        guard PingWardenMonitor.shared.isMonitoringActive else { return }
-
-        quickPauseRestoreState = PingWardenPreferences.shared.isMonitoringEnabled
-        quickPauseUntil = Date().addingTimeInterval(10 * 60)
-        PingWardenMonitor.shared.stopMonitoring(persistUserPreference: false)
-        scheduleQuickPauseTimer()
-        updateMenuItem()
-    }
-
-    @objc private func resumeMonitoringAfterQuickPause() {
-        let shouldRestore = quickPauseRestoreState ?? PingWardenPreferences.shared.isMonitoringEnabled
-        clearQuickPauseState()
-
-        if shouldRestore && !PingWardenMonitor.shared.isMonitoringActive {
-            PingWardenMonitor.shared.startMonitoring(persistUserPreference: false)
-        }
-        updateMenuItem()
-    }
-
-    private func scheduleQuickPauseTimer() {
-        quickPauseTimer?.invalidate()
-        guard let pauseUntil = quickPauseUntil else { return }
-
-        quickPauseTimer = Timer.scheduledTimer(withTimeInterval: max(0, pauseUntil.timeIntervalSinceNow), repeats: false) { [weak self] _ in
-            Task { @MainActor in
-                self?.resumeMonitoringAfterQuickPause()
+    @objc private func toggleQuickPause() {
+        Task {
+            if protectionExperience.pauseUntil != nil {
+                await protectionExperience.resumeProtection()
+            } else {
+                await protectionExperience.pauseForTenMinutes()
             }
+            updateMenuItem()
         }
-        // .common mode so the auto-resume still fires while the status menu
-        // is held open or a modal alert is running.
-        if let quickPauseTimer {
-            RunLoop.main.add(quickPauseTimer, forMode: .common)
-        }
-    }
-
-    private func clearQuickPauseState() {
-        quickPauseTimer?.invalidate()
-        quickPauseTimer = nil
-        quickPauseUntil = nil
-        quickPauseRestoreState = nil
     }
 
     private func handleMenuMetricsPreferenceChange() {
@@ -1280,7 +1279,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSMenuDele
 
         PingWardenMonitor.shared.getInterventionCount { [weak self] count in
             Task { @MainActor in
-                guard let self else { return }
+                guard let self, let count else { return }
                 self.menuInterventionCount = count
                 self.updateMenuMetricsMenuItems()
             }
@@ -1305,23 +1304,20 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSMenuDele
 
     private func handleMonitoringStateChange() {
         let shouldMonitor = PingWardenPreferences.shared.isMonitoringEnabled
-        let isMonitoring = PingWardenMonitor.shared.isMonitoringActive
-
-        if shouldMonitor && !isMonitoring {
-            PingWardenMonitor.shared.startMonitoring()
-        } else if !shouldMonitor && isMonitoring {
-            PingWardenMonitor.shared.stopMonitoring()
+        Task { @MainActor in
+            _ = await protectionExperience.setPersistentProtection(shouldMonitor)
+            updateMenuBarIcon()
+            updateMenuItem()
         }
-
-        updateMenuBarIcon()
-        updateMenuItem()
     }
 
     private func handleExternalMonitoringStateChange() {
         let effectiveState = PingWardenPreferences.shared.effectiveMonitoringEnabled
-        PingWardenMonitor.shared.adoptExternallyAppliedMonitoringState(effectiveState)
-        updateMenuBarIcon()
-        updateMenuItem()
+        Task { @MainActor in
+            await protectionExperience.handleExternallyAppliedProtectionState(effectiveState)
+            updateMenuBarIcon()
+            updateMenuItem()
+        }
     }
 
     private func handleControlCenterModeChange() {
@@ -1354,16 +1350,65 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSMenuDele
 // MARK: - Welcome View
 
 struct WelcomeView: View {
-    let onSetup: () -> Void
+    private enum SetupState: String, Equatable {
+        case idle
+        case waiting
+        case complete
+        case failed
+    }
+
+    let onSetup: (@escaping @MainActor @Sendable (Bool) -> Void) -> Void
+    let onOpenDashboard: () -> Void
     let onDismiss: () -> Void
 
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
     @ScaledMetric(relativeTo: .largeTitle) private var heroIconSize: CGFloat = 56
+    @State private var setupState: SetupState = {
+#if DEBUG
+        let prefix = "--welcome-state="
+        let value = ProcessInfo.processInfo.arguments
+            .first(where: { $0.hasPrefix(prefix) })?
+            .dropFirst(prefix.count)
+        return value.flatMap { SetupState(rawValue: String($0)) } ?? .idle
+#else
+        return .idle
+#endif
+    }()
 
     var body: some View {
+        Group {
+            if dynamicTypeSize.isAccessibilitySize {
+                GeometryReader { geometry in
+                    ScrollView {
+                        VStack(spacing: 0) {
+                            welcomeContent
+                            Spacer(minLength: 0)
+                            setupFooter
+                        }
+                        .frame(maxWidth: .infinity)
+                        .frame(minHeight: geometry.size.height)
+                    }
+                }
+            } else {
+                VStack(spacing: 0) {
+                    ScrollView {
+                        welcomeContent
+                    }
+
+                    setupFooter
+                }
+            }
+        }
+        .frame(minWidth: 480, idealWidth: 500, minHeight: 560, idealHeight: 580)
+        .background(.regularMaterial)
+    }
+
+    private var welcomeContent: some View {
         VStack(spacing: 0) {
             VStack(spacing: 16) {
                 Group {
-                    if #available(macOS 14.0, *) {
+                    if #available(macOS 14.0, *), !reduceMotion {
                         Image(systemName: "antenna.radiowaves.left.and.right.slash")
                             .font(.system(size: heroIconSize, weight: .thin))
                             .foregroundStyle(.tint)
@@ -1379,11 +1424,14 @@ struct WelcomeView: View {
                 Text("Welcome to Ping Warden")
                     .font(.largeTitle)
                     .fontWeight(.bold)
+                    .multilineTextAlignment(.center)
+                    .fixedSize(horizontal: false, vertical: true)
+                    .padding(.horizontal, 32)
             }
-            .padding(.top, 40)
-            .padding(.bottom, 32)
+            .padding(.top, dynamicTypeSize.isAccessibilitySize ? 24 : 40)
+            .padding(.bottom, dynamicTypeSize.isAccessibilitySize ? 24 : 32)
 
-            VStack(alignment: .leading, spacing: 20) {
+            VStack(alignment: .leading, spacing: dynamicTypeSize.isAccessibilitySize ? 16 : 20) {
                 FeatureRow(
                     icon: "bolt.fill",
                     title: "Keep Latency Consistent",
@@ -1393,7 +1441,7 @@ struct WelcomeView: View {
                 FeatureRow(
                     icon: "gamecontroller.fill",
                     title: "Built for Cloud Gaming",
-                    description: "Watch latency, jitter, packet loss, and wireless interventions in one place"
+                    description: "Watch latency, jitter, probe failures, and wireless interruptions in one place"
                 )
 
                 FeatureRow(
@@ -1404,39 +1452,185 @@ struct WelcomeView: View {
             }
             .padding(.horizontal, 32)
 
-            Spacer()
+            setupCallout
+                .padding()
+                .frame(maxWidth: .infinity)
+                .modifier(InnerCalloutBackground(cornerRadius: 8, fallbackOpacity: 0.5))
+                .padding(.top, dynamicTypeSize.isAccessibilitySize ? 16 : 20)
+                .padding(.horizontal, 32)
+        }
+        .frame(maxWidth: .infinity)
+    }
 
-            HStack(spacing: 12) {
+    private var setupFooter: some View {
+        setupButtons
+            .padding(.top, dynamicTypeSize.isAccessibilitySize ? 16 : 20)
+            .padding(.horizontal, 32)
+            .padding(.bottom, 32)
+            .frame(maxWidth: .infinity)
+    }
+
+    @ViewBuilder
+    private var setupCallout: some View {
+        switch setupState {
+        case .idle:
+            HStack(alignment: .top, spacing: 12) {
                 Image(systemName: "info.circle.fill")
                     .foregroundStyle(.secondary)
+                    .padding(.top, 2)
                     .accessibilityHidden(true)
 
-                Text("Setup requires one system approval. While protection is active, AirDrop, AirPlay, and Handoff are unavailable. You can pause protection at any time.")
+                Text("Setup requires one approval in Login Items. While protection is active, AirDrop, AirPlay discovery, and Handoff are unavailable. You can pause protection at any time.")
                     .font(.callout)
                     .foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
             }
-            .padding()
-            .frame(maxWidth: .infinity)
-            .modifier(InnerCalloutBackground(cornerRadius: 8, fallbackOpacity: 0.5))
-            .padding(.horizontal, 32)
-
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .accessibilityElement(children: .combine)
+        case .waiting:
             HStack(spacing: 12) {
-                Button("Later") {
-                    onDismiss()
+                ProgressView()
+                    .controlSize(.small)
+                VStack(alignment: .leading, spacing: 2) {
+                    Text("Waiting for approval")
+                        .font(.headline)
+                        .fixedSize(horizontal: false, vertical: true)
+                    Text("In System Settings, allow Ping Warden under Login Items, then return here.")
+                        .font(.callout)
+                        .foregroundStyle(.secondary)
+                        .fixedSize(horizontal: false, vertical: true)
                 }
-                .keyboardShortcut(.cancelAction)
-
-                Button("Set Up Now") {
-                    onSetup()
-                }
-                .keyboardShortcut(.defaultAction)
-                .buttonStyle(.borderedProminent)
             }
-            .padding(.top, 24)
-            .padding(.bottom, 32)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .accessibilityElement(children: .combine)
+        case .complete:
+            Label("Setup complete. Ping Protection is on.", systemImage: "checkmark.circle.fill")
+                .font(.headline)
+                .foregroundStyle(.green)
+                .fixedSize(horizontal: false, vertical: true)
+                .frame(maxWidth: .infinity, alignment: .leading)
+        case .failed:
+            VStack(alignment: .leading, spacing: 4) {
+                Label("Setup did not finish", systemImage: "exclamationmark.triangle.fill")
+                    .font(.headline)
+                    .foregroundStyle(.orange)
+                    .fixedSize(horizontal: false, vertical: true)
+                Text("Approve Ping Warden in Login Items, then try again. If it is already allowed, open Advanced settings and run the helper test.")
+                    .font(.callout)
+                    .foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
         }
-        .frame(width: 500, height: 570)
-        .background(.regularMaterial)
+    }
+
+    @ViewBuilder
+    private var setupButtons: some View {
+        switch setupState {
+        case .complete:
+            openDashboardButton
+        case .waiting:
+            if dynamicTypeSize.isAccessibilitySize {
+                VStack(spacing: 10) {
+                    openLoginItemsButton
+                    laterButton
+                }
+            } else {
+                ViewThatFits(in: .horizontal) {
+                    HStack(spacing: 12) {
+                        laterButton
+                        openLoginItemsButton
+                    }
+
+                    VStack(spacing: 10) {
+                        openLoginItemsButton
+                        laterButton
+                    }
+                }
+            }
+        case .idle, .failed:
+            if dynamicTypeSize.isAccessibilitySize {
+                VStack(spacing: 10) {
+                    setupButton
+                    laterButton
+                }
+            } else {
+                ViewThatFits(in: .horizontal) {
+                    HStack(spacing: 12) {
+                        laterButton
+                        setupButton
+                    }
+
+                    VStack(spacing: 10) {
+                        setupButton
+                        laterButton
+                    }
+                }
+            }
+        }
+    }
+
+    private var laterButton: some View {
+        Button {
+            onDismiss()
+        } label: {
+            Text("Later")
+                .multilineTextAlignment(.center)
+                .fixedSize(horizontal: false, vertical: true)
+                .frame(maxWidth: dynamicTypeSize.isAccessibilitySize ? .infinity : nil)
+        }
+        .keyboardShortcut(.cancelAction)
+        .controlSize(.large)
+        .accessibilityIdentifier("welcome.later")
+    }
+
+    private var openLoginItemsButton: some View {
+        Button {
+            SMAppService.openSystemSettingsLoginItems()
+        } label: {
+            Text("Open Login Items")
+                .multilineTextAlignment(.center)
+                .fixedSize(horizontal: false, vertical: true)
+                .frame(maxWidth: dynamicTypeSize.isAccessibilitySize ? .infinity : nil)
+        }
+        .buttonStyle(.bordered)
+        .controlSize(.large)
+        .accessibilityIdentifier("welcome.openLoginItems")
+    }
+
+    private var setupButton: some View {
+        Button {
+            setupState = .waiting
+            onSetup { success in
+                DispatchQueue.main.async {
+                    setupState = success ? .complete : .failed
+                }
+            }
+        } label: {
+            Text("Set Up and Turn On Protection")
+                .multilineTextAlignment(.center)
+                .fixedSize(horizontal: false, vertical: true)
+                .frame(maxWidth: dynamicTypeSize.isAccessibilitySize ? .infinity : nil)
+        }
+        .keyboardShortcut(.defaultAction)
+        .buttonStyle(.borderedProminent)
+        .controlSize(.large)
+        .accessibilityIdentifier("welcome.setup")
+    }
+
+    private var openDashboardButton: some View {
+        Button {
+            onOpenDashboard()
+        } label: {
+            Text("Open Dashboard")
+                .multilineTextAlignment(.center)
+                .fixedSize(horizontal: false, vertical: true)
+                .frame(maxWidth: dynamicTypeSize.isAccessibilitySize ? .infinity : nil)
+        }
+        .keyboardShortcut(.defaultAction)
+        .buttonStyle(.borderedProminent)
+        .controlSize(.large)
+        .accessibilityIdentifier("welcome.openDashboard")
     }
 }
 
@@ -1451,15 +1645,19 @@ struct FeatureRow: View {
                 .font(.title2)
                 .foregroundStyle(.tint)
                 .frame(width: 32)
+                .accessibilityHidden(true)
 
             VStack(alignment: .leading, spacing: 4) {
                 Text(title)
                     .font(.headline)
+                    .fixedSize(horizontal: false, vertical: true)
 
                 Text(description)
                     .font(.subheadline)
                     .foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
             }
+            .frame(maxWidth: .infinity, alignment: .leading)
         }
         .accessibilityElement(children: .combine)
     }
@@ -1467,17 +1665,26 @@ struct FeatureRow: View {
 
 // MARK: - Settings View
 
+@MainActor
+final class SettingsNavigationModel: ObservableObject {
+    @Published var selectedSection: SettingsSection = .general
+}
+
 struct SettingsView: View {
     let onCheckForUpdates: () -> Void
-    @State private var selectedSection: SettingsSection = .general
+    @ObservedObject var navigationModel: SettingsNavigationModel
 
-    init(onCheckForUpdates: @escaping () -> Void = {}) {
+    init(
+        navigationModel: SettingsNavigationModel,
+        onCheckForUpdates: @escaping () -> Void = {}
+    ) {
+        self.navigationModel = navigationModel
         self.onCheckForUpdates = onCheckForUpdates
     }
 
     var body: some View {
         NavigationSplitView {
-            List(SettingsSection.allCases, selection: $selectedSection) { section in
+            List(SettingsSection.allCases, selection: $navigationModel.selectedSection) { section in
                 Label(section.rawValue, systemImage: section.icon)
                     .tag(section)
             }
@@ -1485,10 +1692,10 @@ struct SettingsView: View {
             .navigationSplitViewColumnWidth(min: 180, ideal: 200, max: 220)
         } detail: {
             SettingsContentView(
-                section: selectedSection,
+                section: navigationModel.selectedSection,
                 onCheckForUpdates: onCheckForUpdates
             )
-            .navigationTitle(selectedSection.rawValue)
+            .navigationTitle(navigationModel.selectedSection.rawValue)
         }
         .navigationSplitViewStyle(.prominentDetail)
         .settingsToolbarMaterial()
@@ -1624,9 +1831,12 @@ struct StatusBadge: View {
 struct GeneralSettingsContent: View {
     let onCheckForUpdates: () -> Void
     @StateObject private var monitorState = MonitoringStateStore()
+    @ObservedObject private var protectionExperience = ProtectionExperienceCoordinator.shared
     @State private var launchAtLogin = SMAppService.mainApp.status == .enabled
     @State private var showDockIcon = PingWardenPreferences.shared.showDockIcon
     @State private var showMenuDropdownMetrics = PingWardenPreferences.shared.showMenuDropdownMetrics
+    @State private var settingsErrorMessage: String?
+    @State private var isFinishingSetup = false
 
     init(onCheckForUpdates: @escaping () -> Void = {}) {
         self.onCheckForUpdates = onCheckForUpdates
@@ -1662,28 +1872,37 @@ struct GeneralSettingsContent: View {
             Section("Protection") {
                 if monitorState.isHelperRegistered {
                     Toggle(isOn: Binding(
-                        get: { monitorState.isMonitoring },
+                        get: { PingWardenPreferences.shared.isMonitoringEnabled },
                         set: { newValue in
-                            if newValue {
-                                PingWardenMonitor.shared.startMonitoring()
-                            } else {
-                                PingWardenMonitor.shared.stopMonitoring()
+                            Task {
+                                await protectionExperience.setPersistentProtection(newValue)
                             }
                         }
                     )) {
                         VStack(alignment: .leading, spacing: 2) {
-                            Text("Ping Protection")
-                            Text("Block AWDL wireless interruptions while active")
+                            Text("Keep Ping Protection On")
+                            Text("Keep protection active outside Latency Sessions and Game Mode")
                                 .font(.caption)
                                 .foregroundStyle(.secondary)
                         }
                     }
+                    .disabled(protectionExperience.isBusy)
+                    .accessibilityLabel("Keep Ping Protection On")
+                    .accessibilityHint("Controls ongoing protection outside temporary latency sessions and Game Mode")
                 } else {
                     LabeledContent {
-                        Button("Finish Setup") {
-                            PingWardenMonitor.shared.installAndStartMonitoring()
+                        Button {
+                            finishSetup()
+                        } label: {
+                            if isFinishingSetup {
+                                ProgressView()
+                                    .controlSize(.small)
+                            } else {
+                                Text("Finish Setup")
+                            }
                         }
                         .buttonStyle(.borderedProminent)
+                        .disabled(isFinishingSetup)
                     } label: {
                         VStack(alignment: .leading, spacing: 2) {
                             Text("Ping Protection")
@@ -1692,6 +1911,12 @@ struct GeneralSettingsContent: View {
                                 .foregroundStyle(.secondary)
                         }
                     }
+                }
+
+                if let error = protectionExperience.lastError {
+                    Label(error, systemImage: "exclamationmark.triangle.fill")
+                        .font(.caption)
+                        .foregroundStyle(.red)
                 }
 
                 LabeledContent("Status") {
@@ -1704,6 +1929,9 @@ struct GeneralSettingsContent: View {
                             .foregroundStyle(.secondary)
                     }
                 }
+                .accessibilityElement(children: .ignore)
+                .accessibilityLabel("Status")
+                .accessibilityValue(statusText)
 
                 if monitorState.isMonitoring && monitorState.interventionCount > 0 {
                     LabeledContent("Wireless Interruptions") {
@@ -1717,9 +1945,11 @@ struct GeneralSettingsContent: View {
 
                             Button {
                                 PingWardenMonitor.shared.resetInterventionCount { success in
-                                    if success {
-                                        Task { @MainActor in
+                                    Task { @MainActor in
+                                        if success {
                                             monitorState.refresh()
+                                        } else {
+                                            settingsErrorMessage = "The helper could not reset the intervention counter. Run the helper test in Advanced settings and try again."
                                         }
                                     }
                                 }
@@ -1749,6 +1979,8 @@ struct GeneralSettingsContent: View {
                             launchAtLogin = newValue
                         } catch {
                             settingsLog.error("Failed to update login item: \(error.localizedDescription)")
+                            launchAtLogin = SMAppService.mainApp.status == .enabled
+                            settingsErrorMessage = "Launch at Login could not be changed. \(error.localizedDescription)"
                         }
                     }
                 )) {
@@ -1787,14 +2019,14 @@ struct GeneralSettingsContent: View {
 
             Section("Support") {
                 LabeledContent {
-                    Button("Support Ping Warden") {
+                    Button("Donate...") {
                         PingWardenPreferences.shared.supportOpenedDate = Date()
                         NSWorkspace.shared.open(DonationPromptView.donationURL)
                     }
                     .buttonStyle(.bordered)
                 } label: {
                     VStack(alignment: .leading, spacing: 2) {
-                        Text("Keep Development Going")
+                        Text("Support Development")
                         Text("Ping Warden is free. Contributions help fund future releases.")
                             .font(.caption)
                             .foregroundStyle(.secondary)
@@ -1820,10 +2052,40 @@ struct GeneralSettingsContent: View {
         .onDisappear {
             monitorState.stopObserving()
         }
+        .alert(
+            "Setting Could Not Be Changed",
+            isPresented: Binding(
+                get: { settingsErrorMessage != nil },
+                set: { if !$0 { settingsErrorMessage = nil } }
+            )
+        ) {
+            Button("OK") { settingsErrorMessage = nil }
+        } message: {
+            Text(settingsErrorMessage ?? "Try again.")
+        }
     }
 
     private var appVersion: String {
         Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "Unknown"
+    }
+
+    private func finishSetup() {
+        guard !isFinishingSetup else { return }
+        isFinishingSetup = true
+        PingWardenMonitor.shared.registerHelper { success in
+            Task { @MainActor in
+                guard success else {
+                    isFinishingSetup = false
+                    settingsErrorMessage = "Ping Warden is still waiting for approval in System Settings → General → Login Items."
+                    return
+                }
+                let enabled = await protectionExperience.setPersistentProtection(true)
+                isFinishingSetup = false
+                if !enabled {
+                    settingsErrorMessage = "The helper was approved, but Ping Protection could not turn on. Run the helper test in Advanced settings."
+                }
+            }
+        }
     }
 
     private var statusColor: Color {
@@ -1858,11 +2120,13 @@ struct AutomationSettingsContent: View {
                                 StatusBadge(text: "Needs Permission", tint: .unavailable)
                             }
                         }
-                        Text("Automatically enable blocking when a game is fullscreen")
+                        Text("Turn on protection and record a local latency session while a recognized game is fullscreen")
                             .font(.caption)
                             .foregroundStyle(.secondary)
                     }
                 }
+                .accessibilityLabel("Game Mode Auto-Detect")
+                .accessibilityHint("Uses visible window metadata to recognize fullscreen games and never captures or saves screen contents")
                 .onChangeCompat(of: gameModeAutoDetect) { newValue in
                     screenRecordingPermissionGranted = GameModeDetector.hasScreenRecordingPermission()
                     guard !newValue || screenRecordingPermissionGranted else {
@@ -1879,7 +2143,7 @@ struct AutomationSettingsContent: View {
                 Toggle(isOn: $controlCenterEnabled) {
                     VStack(alignment: .leading, spacing: 2) {
                         HStack(spacing: 8) {
-                            Text("Control Center Widget")
+                            Text("Hide Menu Bar Icon")
                             if !controlCenterAvailability.isAvailable {
                                 StatusBadge(text: controlCenterAvailability.statusText, tint: .unavailable)
                             }
@@ -1889,6 +2153,8 @@ struct AutomationSettingsContent: View {
                             .foregroundStyle(.secondary)
                     }
                 }
+                .accessibilityLabel("Hide Menu Bar Icon")
+                .accessibilityHint("Keeps Ping Warden in the Dock and uses the Control Center toggle instead of the menu bar icon")
                 .disabled(!controlCenterAvailability.isAvailable)
                 .onChangeCompat(of: controlCenterEnabled) { newValue in
                     if newValue {
@@ -1905,7 +2171,7 @@ struct AutomationSettingsContent: View {
                 if controlCenterAvailability.isAvailable && controlCenterEnabled {
                     VStack(alignment: .leading, spacing: 4) {
                         Text(controlCenterAvailability.footerText)
-                        Text("To access settings later, search for \"Ping Warden\" in Spotlight (Cmd+Space) or find it in your Applications folder.")
+                        Text("Ping Warden stays in the Dock so settings remain available.")
                     }
                 } else if !controlCenterAvailability.isAvailable {
                     Text(controlCenterAvailability.footerText)
@@ -1928,7 +2194,7 @@ struct AutomationSettingsContent: View {
             }
             Button("Cancel", role: .cancel) {}
         } message: {
-            Text("Game Mode auto-detect needs Screen Recording permission to inspect on-screen windows and identify fullscreen games.")
+            Text("Game Mode auto-detect reads app and window metadata to identify fullscreen games. It never captures or saves screen contents.")
         }
         .confirmationDialog(
             "Hide Menu Bar Icon?",
@@ -1942,7 +2208,7 @@ struct AutomationSettingsContent: View {
                 controlCenterEnabled = false
             }
         } message: {
-            Text("The menu bar icon will be hidden. To access settings later, search for \"Ping Warden\" in Spotlight (Cmd+Space) or find it in your Applications folder.")
+            Text("The menu bar icon will be hidden, and Ping Warden will stay visible in the Dock. Add the Ping Protection control in System Settings if it is not already in Control Center.")
         }
     }
 
@@ -1955,12 +2221,21 @@ struct AutomationSettingsContent: View {
 // MARK: - Advanced Settings Content
 
 struct AdvancedSettingsContent: View {
-    @State private var showingReinstallConfirm = false
-    @State private var showingUninstallConfirm = false
+    private struct DiagnosticsSheetResult: Identifiable {
+        let id = UUID()
+        let export: DiagnosticsExporter.ExportResult
+    }
+
+    @ObservedObject private var protectionExperience = ProtectionExperienceCoordinator.shared
+    @State private var showingRepairConfirm = false
+    @State private var showingRemovalConfirm = false
     @State private var showingTestResults = false
     @State private var testResults = ""
-    @State private var showingDiagnosticsExportResult = false
-    @State private var diagnosticsExportMessage = ""
+    @State private var diagnosticsResult: DiagnosticsSheetResult?
+    @State private var isRunningHelperTest = false
+    @State private var isExportingDiagnostics = false
+    @State private var maintenanceErrorMessage: String?
+    @State private var crashReportingRelaunchRequired = false
     @State private var crashReportingEnabled = PingWardenPreferences.shared.isCrashReportingEnabled
     @State private var betaChannelEnabled = PingWardenPreferences.shared.betaChannelEnabled
 
@@ -1969,14 +2244,22 @@ struct AdvancedSettingsContent: View {
             Section("Privacy") {
                 Toggle(isOn: $crashReportingEnabled) {
                     VStack(alignment: .leading, spacing: 2) {
-                        Text("Send Crash Reports")
+                        HStack(spacing: 8) {
+                            Text("Send Crash Reports")
+                            if crashReportingRelaunchRequired {
+                                StatusBadge(text: "Relaunch Required", tint: .unavailable)
+                            }
+                        }
                         Text("Anonymous crash reports help fix bugs. No IP address, usage data, or ping targets. Turning off is immediate; turning on requires a relaunch.")
                             .font(.caption)
                             .foregroundStyle(.secondary)
                     }
                 }
+                .accessibilityLabel("Send Crash Reports")
+                .accessibilityHint("Sends anonymous crash details without IP addresses, usage data, or ping targets")
                 .onChangeCompat(of: crashReportingEnabled) { newValue in
                     PingWardenPreferences.shared.isCrashReportingEnabled = newValue
+                    crashReportingRelaunchRequired = newValue
                 }
             }
 
@@ -1989,6 +2272,8 @@ struct AdvancedSettingsContent: View {
                             .foregroundStyle(.secondary)
                     }
                 }
+                .accessibilityLabel("Receive Beta Updates")
+                .accessibilityHint("Switches future update checks between the stable and pre-release channels")
                 .onChangeCompat(of: betaChannelEnabled) { newValue in
                     PingWardenPreferences.shared.betaChannelEnabled = newValue
                 }
@@ -1996,8 +2281,18 @@ struct AdvancedSettingsContent: View {
 
             Section("Diagnostics") {
                 LabeledContent {
-                    Button("Run Test") { runHelperTest() }
+                    Button {
+                        runHelperTest()
+                    } label: {
+                        if isRunningHelperTest {
+                            ProgressView()
+                                .controlSize(.small)
+                        } else {
+                            Text("Run Test")
+                        }
+                    }
                         .buttonStyle(.bordered)
+                        .disabled(isRunningHelperTest)
                 } label: {
                     VStack(alignment: .leading, spacing: 2) {
                         Text("Test Helper Connection")
@@ -2020,12 +2315,22 @@ struct AdvancedSettingsContent: View {
                 }
 
                 LabeledContent {
-                    Button("Export") { exportDiagnostics() }
+                    Button {
+                        exportDiagnostics()
+                    } label: {
+                        if isExportingDiagnostics {
+                            ProgressView()
+                                .controlSize(.small)
+                        } else {
+                            Text("Create Snapshot")
+                        }
+                    }
                         .buttonStyle(.bordered)
+                        .disabled(isExportingDiagnostics)
                 } label: {
                     VStack(alignment: .leading, spacing: 2) {
-                        Text("Export Diagnostics")
-                        Text("Create a support snapshot on Desktop")
+                        Text("Diagnostics Snapshot")
+                        Text("Create a private local text file for troubleshooting")
                             .font(.caption)
                             .foregroundStyle(.secondary)
                     }
@@ -2034,25 +2339,26 @@ struct AdvancedSettingsContent: View {
 
             Section("Maintenance") {
                 LabeledContent {
-                    Button("Re-register\u{2026}") { showingReinstallConfirm = true }
+                    Button("Repair...") { showingRepairConfirm = true }
                         .buttonStyle(.bordered)
+                        .disabled(protectionExperience.isBusy)
                 } label: {
                     VStack(alignment: .leading, spacing: 2) {
-                        Text("Re-register Helper")
-                        Text("Re-register if experiencing issues")
+                        Text("Repair Helper Connection")
+                        Text("Reconnect the approved helper without changing your protection preference")
                             .font(.caption)
                             .foregroundStyle(.secondary)
                     }
                 }
 
                 LabeledContent {
-                    Button("Uninstall\u{2026}") { showingUninstallConfirm = true }
+                    Button("Prepare to Remove...") { showingRemovalConfirm = true }
                         .buttonStyle(.bordered)
                         .tint(.red)
                 } label: {
                     VStack(alignment: .leading, spacing: 2) {
-                        Text("Uninstall")
-                        Text("Unregister helper and quit app")
+                        Text("Remove Ping Warden")
+                        Text("Turn off protection, unregister the helper, clear local data, and quit")
                             .font(.caption)
                             .foregroundStyle(.secondary)
                     }
@@ -2062,49 +2368,62 @@ struct AdvancedSettingsContent: View {
         .formStyle(.grouped)
         .settingsScrollEdgeTreatment()
         .confirmationDialog(
-            "Re-register Helper?",
-            isPresented: $showingReinstallConfirm,
+            "Repair Helper Connection?",
+            isPresented: $showingRepairConfirm,
             titleVisibility: .visible
         ) {
-            Button("Re-register") {
-                PingWardenMonitor.shared.installAndStartMonitoring()
+            Button("Repair") {
+                repairHelperConnection()
             }
             Button("Cancel", role: .cancel) {}
         } message: {
-            Text("This will re-register the helper with the system. May help if you're experiencing connection issues.")
+            Text("Ping Warden will reconnect to the approved helper and restore your current protection preference. It will not erase settings or session history.")
         }
         .confirmationDialog(
-            "Uninstall Ping Warden?",
-            isPresented: $showingUninstallConfirm,
+            "Prepare Ping Warden for Removal?",
+            isPresented: $showingRemovalConfirm,
             titleVisibility: .visible
         ) {
-            Button("Uninstall", role: .destructive) {
-                performUninstall()
+            Button("Prepare to Remove", role: .destructive) {
+                prepareForRemoval()
             }
             Button("Cancel", role: .cancel) {}
         } message: {
-            Text("This will unregister the helper and quit. You can also just drag the app to Trash.")
+            Text("This turns off Ping Protection, unregisters the helper and Launch at Login, clears settings, custom servers, and latency session history, reveals the app in Finder, then quits. The app will remain in Applications until you move it to Trash.")
         }
         .alert("Helper Test Results", isPresented: $showingTestResults) {
             Button("OK") {}
         } message: {
             Text(testResults)
         }
-        .alert("Diagnostics Export", isPresented: $showingDiagnosticsExportResult) {
-            Button("OK") {}
+        .sheet(item: $diagnosticsResult) { result in
+            DiagnosticsResultView(result: result.export) {
+                diagnosticsResult = nil
+            }
+        }
+        .alert(
+            "Maintenance Could Not Finish",
+            isPresented: Binding(
+                get: { maintenanceErrorMessage != nil },
+                set: { if !$0 { maintenanceErrorMessage = nil } }
+            )
+        ) {
+            Button("OK") { maintenanceErrorMessage = nil }
         } message: {
-            Text(diagnosticsExportMessage)
+            Text(maintenanceErrorMessage ?? "Try again.")
         }
     }
 
     private func runHelperTest() {
-        // Run health check on background thread to avoid UI freeze
+        guard !isRunningHelperTest else { return }
+        isRunningHelperTest = true
         DispatchQueue.global(qos: .userInitiated).async {
             let healthCheck = PingWardenMonitor.shared.performHealthCheck()
 
             DispatchQueue.main.async {
+                isRunningHelperTest = false
                 if !healthCheck.isHealthy {
-                    self.testResults = "Health Check Failed:\n\(healthCheck.message)"
+                    self.testResults = "Helper test failed:\n\(healthCheck.message)"
                     self.showingTestResults = true
                     return
                 }
@@ -2123,68 +2442,221 @@ struct AdvancedSettingsContent: View {
     }
 
     private func exportDiagnostics() {
+        guard !isExportingDiagnostics else { return }
+        isExportingDiagnostics = true
         DispatchQueue.global(qos: .utility).async {
             let result = DiagnosticsExporter.exportSnapshot()
             DispatchQueue.main.async {
+                isExportingDiagnostics = false
                 guard let result else {
-                    diagnosticsExportMessage = "Failed to export diagnostics snapshot."
-                    showingDiagnosticsExportResult = true
+                    maintenanceErrorMessage = "The diagnostics snapshot could not be created on the Desktop or in the temporary folder."
                     return
                 }
 
-                NSWorkspace.shared.activateFileViewerSelecting([result.fileURL])
-                diagnosticsExportMessage = "Diagnostics exported to:\n\(result.fileURL.path)\n\nContents:\n\(result.contents)"
-                showingDiagnosticsExportResult = true
+                diagnosticsResult = DiagnosticsSheetResult(export: result)
             }
         }
     }
 
-    private func performUninstall() {
-        settingsLog.info("Performing uninstall...")
+    private func repairHelperConnection() {
+        let shouldRemainEnabled = PingWardenPreferences.shared.isMonitoringEnabled
+        PingWardenMonitor.shared.registerHelper { success in
+            Task { @MainActor in
+                guard success else {
+                    maintenanceErrorMessage = "The helper could not reconnect. Confirm that Ping Warden is allowed in System Settings → General → Login Items, then run the helper test."
+                    return
+                }
+                let restored = await protectionExperience.setPersistentProtection(shouldRemainEnabled)
+                if !restored {
+                    maintenanceErrorMessage = "The helper reconnected, but Ping Warden could not restore your protection preference."
+                }
+            }
+        }
+    }
 
-        // Stop monitoring and disconnect XPC
-        PingWardenMonitor.shared.stopMonitoring()
+    private func prepareForRemoval() {
+        settingsLog.info("Preparing Ping Warden for removal")
+        Task { @MainActor in
+            let previousProtectionEnabled = PingWardenPreferences.shared.isMonitoringEnabled
+            let launchAtLoginWasEnabled = SMAppService.mainApp.status == .enabled
+            let helperService = SMAppService.daemon(
+                plistName: "com.amesvt.pingwarden.helper.plist"
+            )
+            let helperWasEnabled = helperService.status == .enabled
 
-        // Reset ALL App Group preferences to prevent lockout or stale state on reinstall
-        // (issue #28). These persist in ~/Library/Group Containers/ and survive app deletion.
-        let prefs = PingWardenPreferences.shared
-        prefs.controlCenterWidgetEnabled = false
-        prefs.showDockIcon = false
-        prefs.isMonitoringEnabled = false
-        prefs.effectiveMonitoringEnabled = false
-        prefs.lastKnownState = "unknown"
-        prefs.gameModeAutoDetect = false
-        prefs.showMenuDropdownMetrics = false
-        prefs.donationPromptLastSeenVersion = nil
-        prefs.donationPromptDismissedPermanently = false
-        prefs.supportLastPromptDate = nil
-        prefs.supportOpenedDate = nil
-        prefs.completedProtectedSessionCount = 0
-        prefs.lifetimeInterventionCount = 0
-        // Crash reporting key is cleared (not set false) so that on
-        // reinstall the registered default (false) re-applies.
-        prefs.defaults.removeObject(forKey: "CrashReportingEnabled")
-        // Beta channel resets to off on uninstall — a fresh install should
-        // start on the stable track until the user opts back in.
-        prefs.defaults.removeObject(forKey: "BetaChannelEnabled")
+            let stopped = await protectionExperience.setPersistentProtection(false)
+            guard stopped else {
+                maintenanceErrorMessage = "Ping Protection could not be turned off, so no settings were erased. Quit Ping Warden to restore wireless sharing, then try again."
+                return
+            }
 
-        // Drop any user-defined ping servers so a reinstall starts clean.
-        CustomPingTargetStore(userDefaults: prefs.defaults).save([])
-        try? ProtectedSessionStore().removeAll()
+            do {
+                if SMAppService.mainApp.status == .enabled {
+                    try await SMAppService.mainApp.unregister()
+                }
+            } catch {
+                settingsLog.error("Launch at Login unregister failed: \(error.localizedDescription)")
+                let restored = await restoreRemovalState(
+                    protectionEnabled: previousProtectionEnabled,
+                    restoreLaunchAtLogin: false,
+                    restoreHelper: false
+                )
+                maintenanceErrorMessage = removalFailureMessage(
+                    "Launch at Login could not be unregistered. \(error.localizedDescription)",
+                    restored: restored
+                )
+                return
+            }
 
-        // Unregister the helper with SMAppService
-        do {
-            let helperService = SMAppService.daemon(plistName: "com.amesvt.pingwarden.helper.plist")
-            try helperService.unregister()
-            settingsLog.info("Helper unregistered successfully")
-        } catch {
-            settingsLog.warning("Helper unregister: \(error.localizedDescription)")
+            do {
+                if helperWasEnabled {
+                    try await helperService.unregister()
+                    settingsLog.info("Helper unregistered successfully")
+                }
+            } catch {
+                settingsLog.error("Helper unregister failed: \(error.localizedDescription)")
+                let restored = await restoreRemovalState(
+                    protectionEnabled: previousProtectionEnabled,
+                    restoreLaunchAtLogin: launchAtLoginWasEnabled,
+                    restoreHelper: false
+                )
+                maintenanceErrorMessage = removalFailureMessage(
+                    "The helper could not be unregistered. \(error.localizedDescription)",
+                    restored: restored
+                )
+                return
+            }
+
+            do {
+                try clearLocalDataForRemoval()
+            } catch {
+                settingsLog.error("Local data removal failed: \(error.localizedDescription)")
+                let restored = await restoreRemovalState(
+                    protectionEnabled: previousProtectionEnabled,
+                    restoreLaunchAtLogin: launchAtLoginWasEnabled,
+                    restoreHelper: helperWasEnabled
+                )
+                maintenanceErrorMessage = removalFailureMessage(
+                    "Ping Warden could not clear its latency session history. \(error.localizedDescription)",
+                    restored: restored
+                )
+                return
+            }
+            NSWorkspace.shared.activateFileViewerSelecting([Bundle.main.bundleURL])
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
+                NSApplication.shared.terminate(nil)
+            }
+        }
+    }
+
+    @MainActor
+    private func restoreRemovalState(
+        protectionEnabled: Bool,
+        restoreLaunchAtLogin: Bool,
+        restoreHelper: Bool
+    ) async -> Bool {
+        var restored = true
+
+        if restoreLaunchAtLogin, SMAppService.mainApp.status != .enabled {
+            do {
+                try SMAppService.mainApp.register()
+            } catch {
+                settingsLog.error("Launch at Login rollback failed: \(error.localizedDescription)")
+                restored = false
+            }
         }
 
-        // Quit the app - macOS will handle cleanup
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
-            NSApplication.shared.terminate(nil)
+        if restoreHelper {
+            let helperService = SMAppService.daemon(
+                plistName: "com.amesvt.pingwarden.helper.plist"
+            )
+            if helperService.status != .enabled {
+                do {
+                    try helperService.register()
+                } catch {
+                    settingsLog.error("Helper rollback failed: \(error.localizedDescription)")
+                    restored = false
+                }
+            }
+
+            if helperService.status == .enabled {
+                let connected = await withCheckedContinuation { continuation in
+                    PingWardenMonitor.shared.registerHelper { success in
+                        continuation.resume(returning: success)
+                    }
+                }
+                restored = connected && restored
+            } else {
+                restored = false
+            }
         }
+
+        let protectionRestored = await protectionExperience.setPersistentProtection(
+            protectionEnabled
+        )
+        return protectionRestored && restored
+    }
+
+    private func removalFailureMessage(_ cause: String, restored: Bool) -> String {
+        if restored {
+            return "\(cause) Your previous Ping Warden settings were restored, and no local data was erased."
+        }
+        return "\(cause) Ping Warden could not fully restore the prior state. Open Ping Warden again, run the helper test, and review Launch at Login before retrying. No local data was erased."
+    }
+
+    private func clearLocalDataForRemoval() throws {
+        // App Group preferences survive app deletion, so clear them only after
+        // the helper has been turned off and unregistered successfully.
+        try ProtectedSessionStore().removeAll()
+        PingWardenPreferences.shared.resetForRemoval()
+        if let bundleID = Bundle.main.bundleIdentifier {
+            UserDefaults.standard.removePersistentDomain(forName: bundleID)
+        }
+    }
+}
+
+private struct DiagnosticsResultView: View {
+    let result: DiagnosticsExporter.ExportResult
+    let onDone: () -> Void
+    @State private var copied = false
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 16) {
+            VStack(alignment: .leading, spacing: 4) {
+                Text("Diagnostics Snapshot Created")
+                    .font(.title2)
+                    .fontWeight(.semibold)
+                Text(result.fileURL.path)
+                    .font(.caption.monospaced())
+                    .foregroundStyle(.secondary)
+                    .textSelection(.enabled)
+            }
+
+            ScrollView {
+                Text(result.contents)
+                    .font(.caption.monospaced())
+                    .textSelection(.enabled)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .padding(12)
+            }
+            .background(.quaternary.opacity(0.25), in: RoundedRectangle(cornerRadius: 8))
+
+            HStack {
+                Button(copied ? "Copied" : "Copy Contents") {
+                    NSPasteboard.general.clearContents()
+                    NSPasteboard.general.setString(result.contents, forType: .string)
+                    copied = true
+                }
+                Button("Show in Finder") {
+                    NSWorkspace.shared.activateFileViewerSelecting([result.fileURL])
+                }
+                Spacer()
+                Button("Done", action: onDone)
+                    .keyboardShortcut(.defaultAction)
+            }
+        }
+        .padding(20)
+        .frame(minWidth: 560, idealWidth: 680, minHeight: 420, idealHeight: 560)
     }
 }
 
@@ -2204,79 +2676,108 @@ struct AboutView: View {
     }
 
     var body: some View {
-        VStack(spacing: 0) {
-            Spacer()
+        ScrollView {
+            VStack(spacing: 0) {
+                Spacer(minLength: 28)
 
-            Image(systemName: "antenna.radiowaves.left.and.right.slash")
-                .font(.system(size: heroIconSize, weight: .thin))
-                .foregroundStyle(.tint)
-                .accessibilityHidden(true)
+                Image(systemName: "antenna.radiowaves.left.and.right.slash")
+                    .font(.system(size: heroIconSize, weight: .thin))
+                    .foregroundStyle(.tint)
+                    .accessibilityHidden(true)
 
-            Text("Ping Warden")
-                .font(.title)
-                .fontWeight(.semibold)
-                .padding(.top, 16)
+                Text("Ping Warden")
+                    .font(.title)
+                    .fontWeight(.semibold)
+                    .padding(.top, 16)
 
-            Text("Version \(version) (\(build))")
-                .font(.subheadline)
-                .foregroundStyle(.tertiary)
-                .padding(.top, 4)
+                Text("Version \(version) (\(build))")
+                    .font(.subheadline)
+                    .foregroundStyle(.secondary)
+                    .padding(.top, 4)
 
-            Spacer()
+                Spacer(minLength: 28)
 
-            Text("Local network protection and measurement for macOS")
-                .font(.caption)
-                .foregroundStyle(.secondary)
-
-            Spacer()
-
-            Divider()
-
-            HStack(spacing: 12) {
-                Button("Support") {
-                    PingWardenPreferences.shared.supportOpenedDate = Date()
-                    openURL(DonationPromptView.donationURL)
-                }
-                Link("Documentation", destination: URL(string: "https://github.com/oliverames/ping-warden#readme")!)
-                Link("Report an Issue", destination: URL(string: "https://github.com/oliverames/ping-warden/issues/new/choose")!)
-            }
-            .buttonStyle(.link)
-            .font(.caption)
-            .padding(.top, 12)
-
-            VStack(spacing: 12) {
-                Text("Credits")
+                Text("Local network protection and measurement for macOS")
                     .font(.caption)
-                    .fontWeight(.medium)
                     .foregroundStyle(.secondary)
 
-                VStack(spacing: 4) {
-                    Link("jamestut/awdlkiller", destination: URL(string: "https://github.com/jamestut/awdlkiller") ?? URL(fileURLWithPath: "/"))
-                        .font(.caption)
+                Spacer(minLength: 28)
 
-                    Text("AF_ROUTE monitoring concept")
-                        .font(.caption2)
-                        .foregroundStyle(.tertiary)
+                Divider()
+
+                ViewThatFits(in: .horizontal) {
+                    HStack(spacing: 12) {
+                        aboutDonateButton
+                        aboutDocumentationLink
+                        aboutIssueLink
+                    }
+
+                    VStack(spacing: 8) {
+                        aboutDonateButton
+                        aboutDocumentationLink
+                        aboutIssueLink
+                    }
                 }
+                .buttonStyle(.link)
+                .font(.caption)
+                .padding(.top, 12)
 
-                VStack(spacing: 4) {
-                    Link("james-howard/AWDLControl", destination: URL(string: "https://github.com/james-howard/AWDLControl") ?? URL(fileURLWithPath: "/"))
+                VStack(spacing: 12) {
+                    Text("Credits")
                         .font(.caption)
+                        .fontWeight(.medium)
+                        .foregroundStyle(.secondary)
 
-                    Text("SMAppService + XPC architecture")
-                        .font(.caption2)
-                        .foregroundStyle(.tertiary)
+                    VStack(spacing: 4) {
+                        Link("jamestut/awdlkiller", destination: URL(string: "https://github.com/jamestut/awdlkiller") ?? URL(fileURLWithPath: "/"))
+                            .font(.caption)
+
+                        Text("AF_ROUTE monitoring concept")
+                            .font(.caption2)
+                            .foregroundStyle(.secondary)
+                    }
+
+                    VStack(spacing: 4) {
+                        Link("james-howard/AWDLControl", destination: URL(string: "https://github.com/james-howard/AWDLControl") ?? URL(fileURLWithPath: "/"))
+                            .font(.caption)
+
+                        Text("SMAppService + XPC architecture")
+                            .font(.caption2)
+                            .foregroundStyle(.secondary)
+                    }
                 }
+                .padding(.vertical, 12)
+
+                Text("© 2025-2026 Oliver Ames")
+                    .font(.caption2)
+                    .foregroundStyle(.secondary)
+                    .padding(.bottom, 16)
             }
-            .padding(.vertical, 12)
-
-            Text("© 2025-2026 Oliver Ames")
-                .font(.caption2)
-                .foregroundStyle(.quaternary)
-                .padding(.bottom, 16)
+            .frame(maxWidth: .infinity)
         }
-        .frame(width: 420, height: 480)
+        .frame(minWidth: 380, idealWidth: 420, minHeight: 420, idealHeight: 480)
         .background(.regularMaterial)
+    }
+
+    private var aboutDonateButton: some View {
+        Button("Donate") {
+            PingWardenPreferences.shared.supportOpenedDate = Date()
+            openURL(DonationPromptView.donationURL)
+        }
+    }
+
+    private var aboutDocumentationLink: some View {
+        Link(
+            "Documentation",
+            destination: URL(string: "https://github.com/oliverames/ping-warden#readme")!
+        )
+    }
+
+    private var aboutIssueLink: some View {
+        Link(
+            "Report an Issue",
+            destination: URL(string: "https://github.com/oliverames/ping-warden/issues/new/choose")!
+        )
     }
 }
 
@@ -2455,10 +2956,10 @@ final class GameModeDetector: @unchecked Sendable {
         DispatchQueue.main.async {
             let alert = NSAlert()
             alert.messageText = "Screen Recording Permission Needed"
-            alert.informativeText = "Game Mode auto-detect requires Screen Recording permission to detect fullscreen games.\n\nGrant access in System Settings → Privacy & Security → Screen Recording."
+            alert.informativeText = "Game Mode auto-detect reads app and window metadata to identify fullscreen games. It never captures or saves screen contents."
             alert.alertStyle = .informational
-            alert.addButton(withTitle: "Open Settings")
-            alert.addButton(withTitle: "Later")
+            alert.addButton(withTitle: "Open System Settings")
+            alert.addButton(withTitle: "Cancel")
 
             let response = alert.runModal()
             if response == .alertFirstButtonReturn {
@@ -2682,5 +3183,9 @@ final class GameModeDetector: @unchecked Sendable {
 }
 
 #Preview("Welcome View") {
-    WelcomeView(onSetup: {}, onDismiss: {})
+    WelcomeView(
+        onSetup: { completion in completion(true) },
+        onOpenDashboard: {},
+        onDismiss: {}
+    )
 }

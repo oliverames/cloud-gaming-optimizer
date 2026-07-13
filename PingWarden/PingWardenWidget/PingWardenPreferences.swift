@@ -20,7 +20,7 @@ private let log = Logger(subsystem: "com.amesvt.pingwarden", category: "WidgetPr
 final class PingWardenPreferences: @unchecked Sendable {
     static let shared = PingWardenPreferences()
 
-    private let appGroupID = "group.com.amesvt.pingwarden"
+    private let appGroupID = "PV3W52NDZ3.com.amesvt.pingwarden"
     private let monitoringEnabledKey = "AWDLMonitoringEnabled"
     private let effectiveMonitoringEnabledKey = "AWDLEffectiveMonitoringEnabled"
     private let lastStateKey = "AWDLLastState"

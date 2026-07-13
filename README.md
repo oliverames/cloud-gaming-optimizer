@@ -5,7 +5,7 @@
 <h1 align="center">Ping Warden</h1>
 
 <p align="center">
-  <strong>Keep Wi-Fi latency steady on a Mac by stopping AWDL from reactivating during games and calls.</strong>
+  <strong>Stop AWDL from reactivating during latency-sensitive games and calls.</strong>
 </p>
 
 <p align="center">
@@ -18,7 +18,7 @@
 <p align="center">
   <a href="https://github.com/oliverames/ping-warden/releases/latest"><img src="https://img.shields.io/github/v/release/oliverames/ping-warden?style=flat-square&color=f5a542&label=Download" alt="Download"></a>
   <a href="LICENSE"><img src="https://img.shields.io/badge/license-MIT-f5a542?style=flat-square" alt="License"></a>
-  <a href="https://www.buymeacoffee.com/oliverames"><img src="https://img.shields.io/badge/Buy_Me_a_Coffee-support-f5a542?style=flat-square&logo=buy-me-a-coffee&logoColor=white" alt="Buy Me a Coffee"></a>
+  <a href="https://www.buymeacoffee.com/oliverames"><img src="https://img.shields.io/badge/Buy_Me_a_Coffee-donate-f5a542?style=flat-square&logo=buy-me-a-coffee&logoColor=white" alt="Donate on Buy Me a Coffee"></a>
 </p>
 
 <p align="center">
@@ -31,17 +31,17 @@
 
 ---
 
-Ping Warden is a free, open source macOS menu bar app for people who care about a steady connection. It watches Apple Wireless Direct Link (AWDL), the network interface used by AirDrop, AirPlay, Handoff, and other nearby-device features, and keeps that interface down while Ping Protection is active.
+Ping Warden is a free, open source macOS menu bar app for latency-sensitive games, calls, and cloud streaming. It watches Apple Wireless Direct Link (AWDL), the network interface used by AirDrop, AirPlay, Handoff, and other nearby-device features, and keeps that interface down while Ping Protection is active.
 
 <p align="center">
-  <img src="docs/images/ping-warden-3-dashboard.png" width="920" alt="Ping Warden 3 dashboard showing a Protected Session, live latency, jitter, packet loss, and ping history">
+  <img src="docs/images/ping-warden-3-dashboard.png" width="920" alt="Ping Warden 3 dashboard showing a Latency Session, live latency, jitter, probe failures, and ping history">
 </p>
 
 ## The tradeoff
 
-Ping Protection temporarily makes AirDrop, AirPlay, Handoff, and other AWDL-dependent features unavailable on your Mac. Turn protection off when you need them, or use the 10-minute pause from the menu bar. Ping Warden restores AWDL when protection stops and during its uninstall flow.
+Ping Protection temporarily makes AirDrop, AirPlay, Handoff, and other AWDL-dependent features unavailable on your Mac. Turn protection off when you need them, or use the 10-minute pause from the menu bar. Ping Warden restores AWDL when protection stops and during its removal flow.
 
-That tradeoff is the point of the app. You choose when a stable, latency-sensitive connection matters more than nearby-device features.
+That tradeoff is the point of the app. You choose when a latency-sensitive game or call matters more than nearby-device features.
 
 ## Why this exists
 
@@ -49,7 +49,7 @@ Running `sudo ifconfig awdl0 down` once is not enough because macOS can bring AW
 
 ## How it works
 
-Ping Warden uses a privileged helper that waits for kernel route and interface events. When macOS tries to raise `awdl0` while Ping Protection is on, the helper takes it back down and increments an intervention counter. The dashboard puts that counter next to live latency, jitter, packet loss, and history so you can see what happened on your own network.
+Ping Warden uses a privileged helper that waits for kernel route and interface events. When macOS tries to raise `awdl0` while Ping Protection is on, the helper takes it back down and increments an intervention counter. The dashboard puts that counter next to live latency, jitter, probe failures, and history so you can see what happened on your own network.
 
 ## Install, approve, and verify
 
@@ -72,7 +72,7 @@ The [Quick Start guide](PingWarden/QUICKSTART.md) covers first-run setup and the
 | Feature | What it does |
 |---------|--------------|
 | Ping Protection | Keeps `awdl0` down with an event-driven privileged helper |
-| Live dashboard | Tracks latency, jitter, packet loss, history, and helper interventions |
+| Live dashboard | Tracks latency, jitter, probe failures, history, and helper interventions |
 | Game Mode auto-detect | Turns protection on for recognized fullscreen games after you grant Screen Recording access |
 | Quick pause | Restores nearby-device features for 10 minutes, then returns to your previous protection state |
 | Control Center widget | Provides a system toggle on macOS 26 or newer in signed release builds |
@@ -96,9 +96,9 @@ The app makes a few narrow outbound requests:
 
 Diagnostics exports are written locally. Ping Warden never uploads them for you.
 
-## Support the project
+## Donate to Ping Warden
 
-The dashboard tells you how often Ping Warden had to step in. If you have found the app useful, you can [buy me a coffee](https://www.buymeacoffee.com/oliverames) to help cover signing, testing, and release costs.
+The dashboard tells you how often Ping Warden had to step in. If you have found the app useful, you can [donate on Buy Me a Coffee](https://www.buymeacoffee.com/oliverames) to help cover signing, testing, and release costs.
 
 Ping Warden remains free and open source whether you donate or not.
 
@@ -123,7 +123,7 @@ The app requires macOS 13 or newer. Configure signing for the app, helper, and w
 
 ## Credits
 
-- [jamestut/awdlkiller](https://github.com/jamestut/awdlkiller) provided inspiration for AWDL monitoring.
+- [jamestut/awdlkiller](https://github.com/jamestut/awdlkiller) provided inspiration for Ping Warden's approach to AWDL control.
 - [james-howard/AWDLControl](https://github.com/james-howard/AWDLControl) provided a reference for the SMAppService and XPC architecture.
 
 ## License
@@ -134,7 +134,7 @@ Ping Warden is available under the MIT License. Copyright (c) 2025-2026 Oliver A
 
 <p align="center">
   <a href="https://www.buymeacoffee.com/oliverames">
-    <img src="https://img.shields.io/badge/Buy_Me_a_Coffee-support-f5a542?style=for-the-badge&logo=buy-me-a-coffee&logoColor=white" alt="Buy Me a Coffee">
+    <img src="https://img.shields.io/badge/Buy_Me_a_Coffee-donate-f5a542?style=for-the-badge&logo=buy-me-a-coffee&logoColor=white" alt="Donate on Buy Me a Coffee">
   </a>
 </p>
 

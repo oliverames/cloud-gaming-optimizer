@@ -1,13 +1,14 @@
 # Ping Warden 3.0.0
 
-[Support Ping Warden on Buy Me a Coffee](https://buymeacoffee.com/oliverames)
+[Donate to Ping Warden on Buy Me a Coffee](https://buymeacoffee.com/oliverames)
 
-Ping Warden 3 turns protection into measurable sessions. Start a session for a game or call, watch one shared latency stream, and finish with a local recap that explains what happened without exposing network targets or claiming more than the measurements show.
+Ping Warden 3 turns Ping Protection into measurable Latency Sessions. Start a session for a game or call, watch one shared latency stream, and finish with a local recap that explains what happened without exposing network targets or claiming more than the measurements show.
 
-## Sessions and recaps
+## Latency Sessions and recaps
 
-- Start and end protected sessions from the dashboard or menu. Game Mode can manage sessions automatically.
-- Review duration, median and P95 latency, jitter, packet loss, sample count, and wireless interventions.
+- Start and end Latency Sessions from the dashboard. Game Mode can manage sessions automatically.
+- The menu bar now has one clear Ping Protection control. Latency Sessions stay in the dashboard so the two actions cannot be mistaken for duplicates.
+- Review duration, median and P95 latency, jitter, Probe Failures, sample count, and wireless interventions.
 - Share a privacy-scrubbed text recap. Hostnames, IP addresses, game names, and raw samples are never written to session history.
 - Keep a bounded local history and clear it from the dashboard at any time.
 
@@ -22,16 +23,17 @@ Ping Warden 3 turns protection into measurable sessions. Start a session for a g
 
 - Sparkle 2.9.4 replaces 2.8.1. Ping Warden now requires signed appcast metadata and verifies updates before extraction.
 - The Control Center widget applies protection directly through the helper's signed-client XPC boundary. Shared preferences and distributed notifications no longer authorize root operations.
+- Shared app and widget settings now use a Team-ID-prefixed macOS App Group, restoring reliable persistence on macOS 15 and later without an embedded provisioning profile.
 - Unsigned helper builds fail closed, and the helper launches on demand instead of staying alive after boot.
 - Diagnostics redact custom targets, use owner-only file permissions, and show their contents before sharing.
 - Crash reporting is off by default. Turning it off is immediate; opting in takes effect after relaunch.
 
-## Setup and support
+## Setup and donations
 
 - The welcome screen explains the AirDrop, AirPlay, and Handoff tradeoff before approval.
 - Choosing Later no longer strands setup. Settings now has a visible Finish Setup action.
 - Unsupported CPU and latency claims have been removed from the app.
-- Support prompts wait until Ping Warden has demonstrated value, respect cooldowns, and never gate features. Permanent support links are available in the menu, Settings, About window, README, and GitHub repository.
+- Every completed Latency Session recap includes a quiet donation link that never interrupts the recap or gates features. Permanent donation links are also available in the menu, Settings, About window, README, and GitHub repository.
 
 ## Release engineering
 

@@ -5,6 +5,16 @@ enum ProtectedSessionTrigger: String, Codable, CaseIterable, Sendable {
     case gameMode
 }
 
+enum ProtectedSessionEndReason: String, Codable, CaseIterable, Sendable {
+    case endedByUser
+    case protectionTurnedOff
+    case protectionPaused
+    case gameModeEnded
+    case applicationTerminated
+    case protectionFailed
+    case unknown
+}
+
 struct ProtectedSessionSummary: Codable, Equatable, Identifiable, Sendable {
     let id: UUID
     let startedAt: Date
@@ -17,22 +27,83 @@ struct ProtectedSessionSummary: Codable, Equatable, Identifiable, Sendable {
     let jitterMs: Double
     let packetLossPercent: Double
     let interventionCount: Int
+    let endReason: ProtectedSessionEndReason
+    let protectionWasInterrupted: Bool
+
+    init(
+        id: UUID,
+        startedAt: Date,
+        endedAt: Date,
+        trigger: ProtectedSessionTrigger,
+        sampleCount: Int,
+        successfulSampleCount: Int,
+        medianLatencyMs: Double,
+        p95LatencyMs: Double,
+        jitterMs: Double,
+        packetLossPercent: Double,
+        interventionCount: Int,
+        endReason: ProtectedSessionEndReason = .endedByUser,
+        protectionWasInterrupted: Bool = false
+    ) {
+        self.id = id
+        self.startedAt = startedAt
+        self.endedAt = endedAt
+        self.trigger = trigger
+        self.sampleCount = sampleCount
+        self.successfulSampleCount = successfulSampleCount
+        self.medianLatencyMs = medianLatencyMs
+        self.p95LatencyMs = p95LatencyMs
+        self.jitterMs = jitterMs
+        self.packetLossPercent = packetLossPercent
+        self.interventionCount = interventionCount
+        self.endReason = endReason
+        self.protectionWasInterrupted = protectionWasInterrupted
+    }
 
     var duration: TimeInterval {
         max(0, endedAt.timeIntervalSince(startedAt))
     }
 
+    var probeFailureCount: Int {
+        max(0, sampleCount - successfulSampleCount)
+    }
+
     var privacySafeShareText: String {
         let durationText = Self.formatDuration(duration)
         let interruptionNoun = interventionCount == 1 ? "interruption" : "interruptions"
-        return """
-        Ping Warden protected a \(durationText) session.
-        Median latency: \(Self.formatMilliseconds(medianLatencyMs))
-        P95 latency: \(Self.formatMilliseconds(p95LatencyMs))
-        Jitter: \(Self.formatMilliseconds(jitterMs))
-        Packet loss: \(String(format: "%.1f%%", packetLossPercent))
-        \(interventionCount) wireless \(interruptionNoun) blocked
-        """
+        var lines = [
+            "Ping Warden Latency Session",
+            "Duration: \(durationText)",
+        ]
+
+        if sampleCount == 0 {
+            lines.append("Measurements: No probes completed")
+        } else {
+            if successfulSampleCount > 0 {
+                lines.append("Median latency: \(Self.formatMilliseconds(medianLatencyMs))")
+                lines.append("P95 latency: \(Self.formatMilliseconds(p95LatencyMs))")
+                lines.append("Jitter: \(Self.formatMilliseconds(jitterMs))")
+            } else {
+                lines.append("Latency measurements: No successful probes")
+            }
+
+            lines.append(
+                "Probe Failures: \(probeFailureCount) of \(sampleCount) "
+                    + "(\(String(format: "%.1f%%", packetLossPercent)))"
+            )
+        }
+
+        if interventionCount > 0 {
+            lines.append("\(interventionCount) wireless \(interruptionNoun) blocked")
+        } else {
+            lines.append("No wireless interruptions were recorded")
+        }
+
+        if protectionWasInterrupted {
+            lines.append("Protection: Interrupted before the session ended")
+        }
+
+        return lines.joined(separator: "\n")
     }
 
     private static func formatDuration(_ duration: TimeInterval) -> String {
@@ -51,6 +122,61 @@ struct ProtectedSessionSummary: Codable, Equatable, Identifiable, Sendable {
 
     private static func formatMilliseconds(_ value: Double) -> String {
         String(format: "%.0f ms", value)
+    }
+
+    private enum CodingKeys: String, CodingKey {
+        case id
+        case startedAt
+        case endedAt
+        case trigger
+        case sampleCount
+        case successfulSampleCount
+        case medianLatencyMs
+        case p95LatencyMs
+        case jitterMs
+        case packetLossPercent
+        case interventionCount
+        case endReason
+        case protectionWasInterrupted
+    }
+
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        id = try container.decode(UUID.self, forKey: .id)
+        startedAt = try container.decode(Date.self, forKey: .startedAt)
+        endedAt = try container.decode(Date.self, forKey: .endedAt)
+        trigger = try container.decode(ProtectedSessionTrigger.self, forKey: .trigger)
+        sampleCount = try container.decode(Int.self, forKey: .sampleCount)
+        successfulSampleCount = try container.decode(Int.self, forKey: .successfulSampleCount)
+        medianLatencyMs = try container.decode(Double.self, forKey: .medianLatencyMs)
+        p95LatencyMs = try container.decode(Double.self, forKey: .p95LatencyMs)
+        jitterMs = try container.decode(Double.self, forKey: .jitterMs)
+        packetLossPercent = try container.decode(Double.self, forKey: .packetLossPercent)
+        interventionCount = try container.decode(Int.self, forKey: .interventionCount)
+
+        let rawEndReason = try container.decodeIfPresent(String.self, forKey: .endReason)
+        endReason = rawEndReason.flatMap(ProtectedSessionEndReason.init(rawValue:)) ?? .unknown
+        protectionWasInterrupted = try container.decodeIfPresent(
+            Bool.self,
+            forKey: .protectionWasInterrupted
+        ) ?? false
+    }
+
+    func encode(to encoder: Encoder) throws {
+        var container = encoder.container(keyedBy: CodingKeys.self)
+        try container.encode(id, forKey: .id)
+        try container.encode(startedAt, forKey: .startedAt)
+        try container.encode(endedAt, forKey: .endedAt)
+        try container.encode(trigger, forKey: .trigger)
+        try container.encode(sampleCount, forKey: .sampleCount)
+        try container.encode(successfulSampleCount, forKey: .successfulSampleCount)
+        try container.encode(medianLatencyMs, forKey: .medianLatencyMs)
+        try container.encode(p95LatencyMs, forKey: .p95LatencyMs)
+        try container.encode(jitterMs, forKey: .jitterMs)
+        try container.encode(packetLossPercent, forKey: .packetLossPercent)
+        try container.encode(interventionCount, forKey: .interventionCount)
+        try container.encode(endReason.rawValue, forKey: .endReason)
+        try container.encode(protectionWasInterrupted, forKey: .protectionWasInterrupted)
     }
 }
 
@@ -82,7 +208,12 @@ struct ProtectedSessionAccumulator: Sendable {
         }
     }
 
-    func finish(endedAt: Date, endingInterventionCount: Int) -> ProtectedSessionSummary {
+    func finish(
+        endedAt: Date,
+        endingInterventionCount: Int,
+        endReason: ProtectedSessionEndReason = .endedByUser,
+        protectionWasInterrupted: Bool = false
+    ) -> ProtectedSessionSummary {
         let sortedLatencies = successfulLatencies.sorted()
         let medianLatency = Self.median(of: sortedLatencies)
         let p95Latency = Self.percentile95(of: sortedLatencies)
@@ -107,7 +238,9 @@ struct ProtectedSessionAccumulator: Sendable {
             p95LatencyMs: p95Latency,
             jitterMs: jitter,
             packetLossPercent: packetLoss,
-            interventionCount: interventionDelta
+            interventionCount: interventionDelta,
+            endReason: endReason,
+            protectionWasInterrupted: protectionWasInterrupted
         )
     }
 

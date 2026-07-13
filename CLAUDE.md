@@ -13,7 +13,7 @@ macOS menu bar app that monitors and blocks AWDL (Apple Wireless Direct Link) to
 
 **Bundle IDs:** `com.amesvt.pingwarden` (app), `com.amesvt.pingwarden.widget`, `com.amesvt.pingwarden.helper`
 **Team ID:** `PV3W52NDZ3`
-**App Group:** `group.com.amesvt.pingwarden`
+**App Group:** `PV3W52NDZ3.com.amesvt.pingwarden` (Team-ID-prefixed so Developer ID builds work without an embedded provisioning profile)
 
 ## Source Structure
 
@@ -83,7 +83,7 @@ xcrun notarytool store-credentials "notarytool-profile"
 ```
 
 **Do NOT use `xcodebuild -exportArchive`** — broken in Xcode 26 (IDEDistributionMethodManagerErrorDomain Code=2). Archive **unsigned** and let `notarize.sh` apply the real Developer ID signature (fully headless, no Xcode UI needed):
-1. `xcodebuild archive -project PingWarden.xcodeproj -scheme PingWarden -configuration Release -archivePath /tmp/PingWarden-X.Y.Z.xcarchive -destination 'generic/platform=macOS' CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO` — the `CODE_SIGNING_ALLOWED=NO` is **required**: the App Groups entitlement otherwise demands a provisioning profile that Xcode only synthesizes through its UI. The app is non-sandboxed, so `notarize.sh` re-signs every component with `codesign --entitlements` (Developer ID, no profile) — the archive's signing is throwaway. The archive yields both the `.app` **and** `dSYMs/` (the latter is needed by `release.sh` for Sentry).
+1. `xcodebuild archive -project PingWarden.xcodeproj -scheme PingWarden -configuration Release -archivePath /tmp/PingWarden-X.Y.Z.xcarchive -destination 'generic/platform=macOS' CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO`. The `CODE_SIGNING_ALLOWED=NO` is **required** so the archive is deterministic and does not depend on Xcode's provisioning UI. The app uses a Team-ID-prefixed macOS App Group that does not require a profile. `notarize.sh` re-signs every component with `codesign --entitlements` (Developer ID, no profile). The archive's signing is throwaway. The archive yields both the `.app` **and** `dSYMs/` (the latter is needed by `release.sh` for Sentry).
 2. `rsync -a "/tmp/PingWarden-X.Y.Z.xcarchive/Products/Applications/Ping Warden.app/" "PingWarden/build/Ping Warden.app/"`
 3. `cd PingWarden/PingWarden && bash notarize.sh X.Y.Z` (optional — standalone notarize test; `release.sh` runs it internally)
 4. `bash release.sh X.Y.Z ../../RELEASE_NOTES.md` — runs `notarize.sh` (re-sign + notarize app + DMG + staple), signs the Sparkle update, creates the GitHub release, uploads dSYMs to Sentry, **and pushes the gh-pages `appcast.xml` automatically**.

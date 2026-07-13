@@ -9,7 +9,7 @@
 //  Privacy posture (matches the app's stated promise):
 //    • Default OFF — users opt in via
 //      Settings → Advanced → Privacy. The choice persists; only fresh
-//      installs and existing users launching v2.3.1 see the default.
+//      installations start with reporting disabled.
 //    • No IP address (sendDefaultPii = false).
 //    • No network breadcrumbs, spans, or failed-request events — those
 //      would otherwise leak updater and TCP-probe URLs into crash payloads.
@@ -36,7 +36,7 @@ enum CrashReporter {
     /// distributed client binaries; Sentry enforces project-side scrubbing.
     private static let dsn = "https://3492628142810aa2deb988baaec35d0c@o4511410883985408.ingest.us.sentry.io/4511410888704000"
 
-    /// Initialize Sentry if (a) the SDK is linked and (b) the user has not
+    /// Initialize Sentry if (a) the SDK is linked and (b) the user has
     /// opted in. Call once at app launch, before the first opportunity for a
     /// crash. Turning reporting off is enforced immediately by `beforeSend`;
     /// turning it on requires a relaunch so the SDK can initialize cleanly.

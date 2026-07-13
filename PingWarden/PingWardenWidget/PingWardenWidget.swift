@@ -16,31 +16,30 @@ enum PingWardenControlKind {
     static let pingProtection = "PingWardenWidget"
 }
 
-/// Control Widget for managing AWDL interface from Control Center
-/// Shows current state and allows toggling AWDL monitoring on/off
+/// Control Widget for managing Ping Protection from Control Center.
+/// Shows the effective runtime state while saving explicit toggle choices.
 @main
 struct PingWardenWidget: ControlWidget {
     static let kind: String = PingWardenControlKind.pingProtection
 
     var body: some ControlWidgetConfiguration {
         StaticControlConfiguration(kind: Self.kind) {
-            // Display user *intent*, which is exactly what the toggle intent
-            // sets. Mixing in the effective runtime state made the toggle
-            // snap back to On after a disable (effective stayed true until
-            // the app processed the change) and made
-            // ToggleAWDLMonitoringIntent flip a different state than shown.
-            let isOn = PingWardenPreferences.shared.isMonitoringEnabled
-            ControlWidgetToggle(isOn: isOn, action: SetPingProtectionIntent()) {
+            // Runtime state can differ from the saved preference while a
+            // Latency Session or Game Mode automation is active. Display
+            // what the helper is actually doing. The SetValueIntent receives
+            // the user's explicit target and persists it after XPC succeeds.
+            let isProtected = PingWardenPreferences.shared.effectiveMonitoringEnabled
+            ControlWidgetToggle(isOn: isProtected, action: SetPingProtectionIntent()) {
                 Label(
-                    isOn ? "Protection On" : "Protection Off",
-                    systemImage: isOn ? "antenna.radiowaves.left.and.right.slash" : "antenna.radiowaves.left.and.right"
+                    "Ping Protection",
+                    systemImage: isProtected ? "antenna.radiowaves.left.and.right.slash" : "antenna.radiowaves.left.and.right"
                 )
-            } valueLabel: { isOn in
-                Text(isOn ? "On" : "Off")
+            } valueLabel: { isProtected in
+                Text(isProtected ? "Protected" : "Not Protected")
             }
             .tint(.blue)
         }
         .displayName("Ping Protection")
-        .description("Keep AWDL from interrupting latency-sensitive traffic")
+        .description("Reduce wireless interruptions during gaming. AirDrop, AirPlay discovery, and Handoff are unavailable while protected.")
     }
 }

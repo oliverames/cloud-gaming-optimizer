@@ -113,7 +113,7 @@ final class MonitoringStateStore: ObservableObject {
         }
 
         PingWardenMonitor.shared.getInterventionCount { [weak self] count in
-            guard let self else { return }
+            guard let self, let count else { return }
             Task { @MainActor in
                 self.interventionCount = count
             }

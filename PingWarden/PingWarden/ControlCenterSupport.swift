@@ -50,7 +50,7 @@ enum ControlCenterSupport {
         var detailText: String {
             switch self {
             case .available:
-                return "Use Control Center instead of the menu bar"
+                return "Use the Control Center toggle and keep Ping Warden in the Dock"
             case .unsupportedOS:
                 return "Requires macOS 26 or newer"
             case .missingWidgetExtension:
@@ -63,7 +63,7 @@ enum ControlCenterSupport {
         var footerText: String {
             switch self {
             case .available:
-                return "To add the widget: System Settings → Control Center → scroll to Ping Warden"
+                return "Add the Ping Protection control in System Settings → Control Center. This setting only hides the menu bar icon."
             case .unsupportedOS:
                 return "Control Center widgets in Ping Warden require macOS 26 or newer."
             case .missingWidgetExtension:

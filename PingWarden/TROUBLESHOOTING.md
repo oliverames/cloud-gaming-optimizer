@@ -1,6 +1,6 @@
 # Troubleshooting
 
-Start with the checks below. Ping Warden includes its own helper repair, diagnostics export, and uninstall flows, so Terminal cleanup should not be the first step.
+Start with the checks below. Ping Warden includes its own helper repair, diagnostics snapshot, and removal-preparation flows, so Terminal cleanup should not be the first step.
 
 ## Ping Protection says "Not Set Up"
 
@@ -13,18 +13,18 @@ Start with the checks below. Ping Warden includes its own helper repair, diagnos
 
 macOS can report that approval is required as an "Operation not permitted" registration result. This is expected until you approve the helper in System Settings.
 
-### Re-register the helper
+### Repair the helper connection
 
 1. Open **Settings > Advanced**.
-2. Click **Re-register Helper**.
+2. Click **Repair** under Repair Helper Connection.
 3. Approve Ping Warden in System Settings if macOS asks.
 4. Return to the app and run **Settings > Advanced > Run Test**.
 
 ### Reinstall safely
 
-Use the app's uninstall flow before removing the application. It stops Ping Protection, restores AWDL, unregisters the helper, and clears Ping Warden's shared settings.
+Use the app's removal flow before deleting the application. It stops Ping Protection, restores AWDL, unregisters the helper and Launch at Login, clears Ping Warden's local data, and reveals the app in Finder.
 
-1. Open **Settings > Advanced > Uninstall** and confirm.
+1. Open **Settings > Advanced > Prepare to Remove** and confirm.
 2. Move `/Applications/Ping Warden.app` to the Trash in Finder.
 3. Download a fresh DMG from the [latest release](https://github.com/oliverames/ping-warden/releases/latest).
 4. Drag Ping Warden to Applications and complete setup again.
@@ -78,7 +78,7 @@ Automatic detection depends on the app metadata used by macOS Game Mode. Some fu
 The widget requires [macOS Tahoe 26](https://support.apple.com/en-us/122868) or newer and a signed Ping Warden release build.
 
 1. Install the latest signed release from GitHub rather than a local debug build.
-2. Open **Settings > Automation** and turn on **Control Center Widget**.
+2. Open **Settings > Automation** and turn on **Hide Menu Bar Icon**.
 3. Open **System Settings > Control Center**.
 4. Find Ping Warden and add it to Control Center or the menu bar.
 
@@ -106,7 +106,7 @@ If the setting says **Unavailable**, confirm the macOS version and reinstall the
 
 2. Open Console and search for the `Ping Warden` and `PingWardenHelper` processes.
 3. Look for a Ping Warden crash report under **Crash Reports** in Console.
-4. Reinstall the latest signed release. If the app can open Settings first, use **Settings > Advanced > Uninstall** before reinstalling.
+4. Reinstall the latest signed release. If the app can open Settings first, use **Settings > Advanced > Prepare to Remove** before reinstalling.
 
 Do not clear the app's preferences or shared container before collecting diagnostics. That state can explain the crash and makes the report more useful.
 
@@ -114,8 +114,8 @@ Do not clear the app's preferences or shared container before collecting diagnos
 
 These features depend on AWDL and are expected to be unavailable while Ping Protection is active.
 
-- Choose **Disable Ping Protection** to restore them until you turn protection on again.
-- Choose **Pause Blocking (10 Minutes)** if you need them briefly.
+- Choose **Turn Off Ping Protection** to restore them until you turn protection on again.
+- Choose **Pause for 10 Minutes** if you need them briefly.
 - If they remain unavailable after protection is off, quit Ping Warden and check the interface:
 
   ```bash
@@ -126,7 +126,7 @@ Report the issue if `awdl0` does not return to an active state.
 
 ## Uninstall Ping Warden
 
-1. Open **Settings > Advanced > Uninstall** and confirm.
+1. Open **Settings > Advanced > Prepare to Remove** and confirm.
 2. Wait for Ping Warden to quit.
 3. Move `/Applications/Ping Warden.app` to the Trash in Finder.
 4. Confirm that AWDL has returned:
@@ -140,7 +140,7 @@ The built-in flow is important because deleting the app alone does not reliably 
 ## Collect useful diagnostics
 
 1. Open **Settings > Advanced**.
-2. Click **Export Diagnostics**.
+2. Click **Create Snapshot** under Diagnostics Snapshot.
 3. Review the text file before sharing it. It contains app and macOS versions, helper state, relevant settings, an AWDL status snapshot, and only the selected target category. Custom hostnames and IP addresses are redacted.
 4. Note the approximate time of the problem and what Ping Warden was doing.
 5. Attach the file to a [bug report](https://github.com/oliverames/ping-warden/issues/new?template=bug_report.md).

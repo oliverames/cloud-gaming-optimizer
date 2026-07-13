@@ -8,7 +8,7 @@ PING_WARDEN_BUNDLE_ID="com.amesvt.pingwarden"
 PING_WARDEN_WIDGET_BUNDLE_ID="com.amesvt.pingwarden.widget"
 PING_WARDEN_HELPER_BUNDLE_ID="com.amesvt.pingwarden.helper"
 PING_WARDEN_TEAM_ID="PV3W52NDZ3"
-PING_WARDEN_APP_GROUP="group.com.amesvt.pingwarden"
+PING_WARDEN_APP_GROUP="PV3W52NDZ3.com.amesvt.pingwarden"
 
 release_validation_error() {
     echo "Error: $*" >&2

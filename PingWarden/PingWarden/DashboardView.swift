@@ -220,12 +220,15 @@ struct DashboardSettingsContent: View {
 
 struct ProtectedSessionCard: View {
     @ObservedObject var coordinator: ProtectedSessionCoordinator
+    @ObservedObject private var protectionExperience = ProtectionExperienceCoordinator.shared
+    @State private var showingClearHistoryConfirmation = false
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     var body: some View {
         VStack(alignment: .leading, spacing: 14) {
             HStack(alignment: .firstTextBaseline) {
                 VStack(alignment: .leading, spacing: 3) {
-                    Text("Protected Session")
+                    Text("Latency Session")
                         .font(.headline)
                     Text(coordinator.isActive ? activeSubtitle : "Measure one game or call from start to finish")
                         .font(.caption)
@@ -234,27 +237,39 @@ struct ProtectedSessionCard: View {
 
                 Spacer()
 
-                if coordinator.isActive {
-                    Button("End Session") {
-                        Task { await coordinator.stop() }
+                Group {
+                    if coordinator.isActive {
+                        Button("End Session") {
+                            Task { await protectionExperience.endManualSession() }
+                        }
+                        .buttonStyle(.borderedProminent)
+                        .tint(.red)
+                        .keyboardShortcut(".", modifiers: [.command, .shift])
+                    } else {
+                        Button("Start Session") {
+                            Task { await protectionExperience.startManualSession() }
+                        }
+                        .buttonStyle(.borderedProminent)
+                        .keyboardShortcut("s", modifiers: [.command, .shift])
                     }
-                    .buttonStyle(.borderedProminent)
-                    .tint(.red)
-                    .keyboardShortcut(".", modifiers: [.command, .shift])
-                } else {
-                    Button("Start Session") {
-                        Task { await coordinator.start() }
-                    }
-                    .buttonStyle(.borderedProminent)
-                    .keyboardShortcut("s", modifiers: [.command, .shift])
                 }
+                .disabled(protectionExperience.isBusy)
             }
 
-            if let error = coordinator.lastError {
+            if !coordinator.isActive {
+                Label(
+                    idleProtectionGuidance,
+                    systemImage: "shield.lefthalf.filled"
+                )
+                .font(.caption)
+                .foregroundStyle(.secondary)
+            }
+
+            if let error = coordinator.lastError ?? protectionExperience.lastError {
                 Label(error, systemImage: "exclamationmark.triangle.fill")
                     .font(.caption)
                     .foregroundStyle(.red)
-                    .accessibilityLabel("Session error: \(error)")
+                    .accessibilityLabel("Latency session error: \(error)")
             }
 
             if coordinator.isActive {
@@ -263,7 +278,7 @@ struct ProtectedSessionCard: View {
                 SessionRecapView(summary: summary)
             } else {
                 Label(
-                    "Session recaps stay on this Mac and never include hostnames, IP addresses, or game names.",
+                    "Recaps stay on this Mac and never include hostnames, IP addresses, or game names.",
                     systemImage: "lock.shield"
                 )
                 .font(.caption)
@@ -271,26 +286,49 @@ struct ProtectedSessionCard: View {
             }
 
             if !coordinator.history.isEmpty && !coordinator.isActive {
-                DisclosureGroup("Recent Sessions (\(coordinator.history.count))") {
-                    VStack(spacing: 8) {
-                        ForEach(coordinator.history.prefix(5)) { summary in
-                            RecentSessionRow(summary: summary)
-                        }
-                        HStack {
-                            Spacer()
-                            Button("Clear Session History", role: .destructive) {
-                                coordinator.clearHistory()
+                let recentSessions = Array(coordinator.history.dropFirst())
+
+                if !recentSessions.isEmpty {
+                    DisclosureGroup("Recent Latency Sessions (\(recentSessions.count))") {
+                        VStack(spacing: 8) {
+                            if recentSessions.count > 5 {
+                                Text("Last 5 of \(recentSessions.count) sessions")
+                                    .foregroundStyle(.secondary)
+                                    .frame(maxWidth: .infinity, alignment: .leading)
                             }
-                            .buttonStyle(.borderless)
-                            .font(.caption)
+
+                            ForEach(recentSessions.prefix(5)) { summary in
+                                RecentSessionRow(summary: summary)
+                            }
                         }
+                        .padding(.top, 8)
                     }
-                    .padding(.top, 8)
+                    .font(.caption)
                 }
-                .font(.caption)
+
+                HStack {
+                    Spacer()
+                    Button("Clear Latency Session History", role: .destructive) {
+                        showingClearHistoryConfirmation = true
+                    }
+                    .buttonStyle(.borderless)
+                    .font(.caption)
+                }
             }
         }
         .dashboardCardStyle()
+        .confirmationDialog(
+            "Clear Latency Session History?",
+            isPresented: $showingClearHistoryConfirmation,
+            titleVisibility: .visible
+        ) {
+            Button("Clear History", role: .destructive) {
+                coordinator.clearHistory()
+            }
+            Button("Cancel", role: .cancel) {}
+        } message: {
+            Text("This permanently removes every saved latency session recap from this Mac.")
+        }
     }
 
     private var activeSubtitle: String {
@@ -298,12 +336,23 @@ struct ProtectedSessionCard: View {
         return "\(trigger) session, \(Self.durationText(coordinator.elapsed))"
     }
 
+    private var idleProtectionGuidance: String {
+        if protectionExperience.policyState.persistentProtectionEnabled {
+            return "Ping Protection is already on and will stay on when the session ends."
+        }
+        return "Starting a session temporarily turns on Ping Protection, then turns it back off when the session ends."
+    }
+
     private var activeSessionBody: some View {
         HStack(spacing: 12) {
             Group {
                 if #available(macOS 14.0, *) {
-                    Image(systemName: "record.circle.fill")
-                        .symbolEffect(.pulse, options: .repeating)
+                    if reduceMotion {
+                        Image(systemName: "record.circle.fill")
+                    } else {
+                        Image(systemName: "record.circle.fill")
+                            .symbolEffect(.pulse, options: .repeating)
+                    }
                 } else {
                     Image(systemName: "record.circle.fill")
                 }
@@ -311,15 +360,15 @@ struct ProtectedSessionCard: View {
             .foregroundStyle(.red)
             .accessibilityHidden(true)
             VStack(alignment: .leading, spacing: 3) {
-                Text("Recording local latency measurements")
+                Text("Measuring latency locally")
                     .font(.subheadline)
-                Text("Ending the session creates a privacy-scrubbed recap.")
+                Text("Stopping creates a private recap without network addresses or raw samples.")
                     .font(.caption)
                     .foregroundStyle(.secondary)
             }
         }
         .accessibilityElement(children: .combine)
-        .accessibilityLabel("Protected session active for \(Self.durationText(coordinator.elapsed))")
+        .accessibilityLabel("Latency session active for \(Self.durationText(coordinator.elapsed))")
     }
 
     fileprivate static func durationText(_ duration: TimeInterval) -> String {
@@ -337,42 +386,83 @@ private struct SessionRecapView: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
             HStack {
-                Label("Latest Session", systemImage: "checkmark.shield.fill")
+                Label("Latest Latency Session", systemImage: "checkmark.shield.fill")
                     .font(.subheadline)
                     .foregroundStyle(.green)
                 Spacer()
-                ShareLink(item: summary.privacySafeShareText) {
-                    Label("Share Recap", systemImage: "square.and.arrow.up")
+                if hasLatencyMeasurements {
+                    ShareLink(item: summary.privacySafeShareText) {
+                        Label("Share Recap", systemImage: "square.and.arrow.up")
+                    }
+                    .buttonStyle(.borderless)
+                    .help("Share a recap without network targets or raw samples")
+                }
+            }
+
+            if hasLatencyMeasurements {
+                ViewThatFits(in: .horizontal) {
+                    HStack(spacing: 24) { metrics }
+                    VStack(alignment: .leading, spacing: 8) { metrics }
+                }
+
+                Text("Interventions count AWDL activity that Ping Warden blocked. They do not prove that a specific latency spike was avoided.")
+                    .font(.caption2)
+                    .foregroundStyle(.secondary)
+            } else {
+                Label("Not Enough Measurements", systemImage: "chart.xyaxis.line")
+                    .font(.subheadline)
+                Text(insufficientMeasurementsMessage)
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
+
+            Divider()
+
+            HStack(spacing: 12) {
+                Text("Ping Warden stays free. Donations help fund future releases.")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                Spacer(minLength: 12)
+                Button("Donate...") {
+                    PingWardenPreferences.shared.supportOpenedDate = Date()
+                    NSWorkspace.shared.open(DonationPromptView.donationURL)
                 }
                 .buttonStyle(.borderless)
-                .help("Share a recap without network targets or raw samples")
+                .accessibilityHint("Opens the Ping Warden donation page in your browser")
             }
-
-            ViewThatFits(in: .horizontal) {
-                HStack(spacing: 24) { metrics }
-                VStack(alignment: .leading, spacing: 8) { metrics }
-            }
-
-            Text("Interventions count AWDL activity that Ping Warden blocked. They do not prove that a specific latency spike was avoided.")
-                .font(.caption2)
-                .foregroundStyle(.secondary)
         }
+    }
+
+    private var hasLatencyMeasurements: Bool {
+        summary.successfulSampleCount > 0
+    }
+
+    private var insufficientMeasurementsMessage: String {
+        if summary.sampleCount == 0 {
+            return "The recording stopped before the first latency probe finished."
+        }
+        return "The target did not return a successful latency measurement during this recording."
     }
 
     @ViewBuilder
     private var metrics: some View {
         SessionMetric(label: "Duration", value: ProtectedSessionCard.durationText(summary.duration))
         SessionMetric(label: "Median", value: String(format: "%.0f ms", summary.medianLatencyMs))
-        SessionMetric(label: "P95", value: String(format: "%.0f ms", summary.p95LatencyMs))
+        SessionMetric(
+            label: "P95",
+            value: String(format: "%.0f ms", summary.p95LatencyMs),
+            helpText: "95% of successful latency measurements were at or below this value"
+        )
         SessionMetric(label: "Jitter", value: String(format: "%.0f ms", summary.jitterMs))
-        SessionMetric(label: "Loss", value: String(format: "%.1f%%", summary.packetLossPercent))
-        SessionMetric(label: "Blocked", value: "\(summary.interventionCount)")
+        SessionMetric(label: "Probe Failures", value: String(format: "%.1f%%", summary.packetLossPercent))
+        SessionMetric(label: "Interventions", value: "\(summary.interventionCount)")
     }
 }
 
 private struct SessionMetric: View {
     let label: String
     let value: String
+    var helpText: String? = nil
 
     var body: some View {
         VStack(alignment: .leading, spacing: 2) {
@@ -384,6 +474,8 @@ private struct SessionMetric: View {
                 .fontWeight(.semibold)
         }
         .accessibilityElement(children: .combine)
+        .accessibilityHint(helpText ?? "")
+        .help(helpText ?? "\(label): \(value)")
     }
 }
 
@@ -398,7 +490,7 @@ private struct RecentSessionRow: View {
                     .foregroundStyle(.secondary)
             }
             Spacer()
-            Text("\(summary.interventionCount) blocked")
+            Text("\(summary.interventionCount) interventions")
                 .foregroundStyle(.secondary)
         }
         .accessibilityElement(children: .combine)
@@ -409,6 +501,7 @@ private struct RecentSessionRow: View {
 
 struct StatusCard: View {
     @ObservedObject var viewModel: DashboardViewModel
+    @ObservedObject private var protectionExperience = ProtectionExperienceCoordinator.shared
     @ScaledMetric(relativeTo: .largeTitle) private var heroPingSize: CGFloat = 48
 
     var body: some View {
@@ -439,26 +532,54 @@ struct StatusCard: View {
 
     private var currentPingBlock: some View {
         VStack(alignment: .leading, spacing: 8) {
-            // ViewThatFits falls back to stacking the unit below the number
-            // when the @ScaledMetric hero font grows past the card width
-            // (AX5 + narrow Settings windows).
-            ViewThatFits(in: .horizontal) {
-                HStack(alignment: .firstTextBaseline, spacing: 4) {
-                    pingValueText
-                    pingUnitText
+            switch viewModel.latestProbeSucceeded {
+            case nil:
+                HStack(spacing: 8) {
+                    ProgressView()
+                        .controlSize(.small)
+                    Text("Measuring...")
+                        .font(.title3)
+                        .fontWeight(.semibold)
                 }
-                VStack(alignment: .leading, spacing: 0) {
-                    pingValueText
-                    pingUnitText
+                .accessibilityElement(children: .combine)
+                .accessibilityLabel("Measuring current latency")
+
+            case false?:
+                Label("Target Unreachable", systemImage: "exclamationmark.triangle.fill")
+                    .font(.title3)
+                    .fontWeight(.semibold)
+                    .foregroundStyle(LatencyPalette.poor)
+                    .accessibilityLabel("Latency target unreachable")
+
+            case true?:
+                // ViewThatFits falls back to stacking the unit below the number
+                // when the @ScaledMetric hero font grows past the card width
+                // (AX5 + narrow Settings windows).
+                ViewThatFits(in: .horizontal) {
+                    HStack(alignment: .firstTextBaseline, spacing: 4) {
+                        pingValueText
+                        pingUnitText
+                    }
+                    VStack(alignment: .leading, spacing: 0) {
+                        pingValueText
+                        pingUnitText
+                    }
                 }
+
+                Label(viewModel.stats.qualityDescription, systemImage: qualityIcon(viewModel.stats.quality))
+                    .font(.subheadline)
+                    .foregroundStyle(colorForQuality(viewModel.stats.quality))
             }
 
-            Label(viewModel.stats.qualityDescription, systemImage: qualityIcon(viewModel.stats.quality))
-                .font(.subheadline)
-                .foregroundStyle(colorForQuality(viewModel.stats.quality))
+            if let selectedTarget = viewModel.selectedTarget {
+                Text(selectedTarget.displayName)
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                    .lineLimit(2)
+            }
         }
         .accessibilityElement(children: .combine)
-        .accessibilityLabel("Current ping \(Int(viewModel.stats.currentPing.rounded())) milliseconds, network quality \(viewModel.stats.qualityDescription)")
+        .accessibilityLabel(currentPingAccessibilityLabel)
     }
 
     private var pingValueText: some View {
@@ -477,22 +598,48 @@ struct StatusCard: View {
     private var metricGrid: some View {
         HStack(alignment: .top, spacing: 28) {
             VStack(alignment: .leading, spacing: 10) {
-                MetricRow(label: "Average", value: String(format: "%.0f ms", viewModel.stats.averagePing))
-                MetricRow(label: "Best", value: String(format: "%.0f ms", viewModel.stats.minimumPing))
-                MetricRow(label: "Worst", value: String(format: "%.0f ms", viewModel.stats.maximumPing))
+                MetricRow(label: "Average", value: latencyMetric(viewModel.stats.averagePing))
+                MetricRow(label: "Best", value: latencyMetric(viewModel.stats.minimumPing))
+                MetricRow(label: "Worst", value: latencyMetric(viewModel.stats.maximumPing))
             }
 
             VStack(alignment: .leading, spacing: 10) {
-                MetricRow(label: "Jitter", value: String(format: "%.1f ms", viewModel.stats.jitter))
-                MetricRow(label: "Packet Loss", value: String(format: "%.1f%%", viewModel.stats.packetLoss))
+                MetricRow(label: "Jitter", value: latencyMetric(viewModel.stats.jitter, decimals: 1))
+                MetricRow(label: "Probe Failures", value: probeFailureMetric)
                 MetricRow(
                     label: "Protection",
-                    value: viewModel.isAWDLBlocking ? "Active" : "Off",
-                    tint: viewModel.isAWDLBlocking ? .green : .orange,
+                    value: isProtectionActive ? "Active" : "Off",
+                    tint: isProtectionActive ? .green : .orange,
                     useMonospacedValue: false
                 )
             }
         }
+    }
+
+    private var isProtectionActive: Bool {
+        protectionExperience.policyState.effectiveProtectionEnabled
+    }
+
+    private var currentPingAccessibilityLabel: String {
+        let target = viewModel.selectedTarget?.displayName ?? "selected target"
+        switch viewModel.latestProbeSucceeded {
+        case nil:
+            return "Measuring current latency to \(target)"
+        case false?:
+            return "Latency target unreachable: \(target)"
+        case true?:
+            return "Current ping \(Int(viewModel.stats.currentPing.rounded())) milliseconds to \(target), network quality \(viewModel.stats.qualityDescription)"
+        }
+    }
+
+    private func latencyMetric(_ value: Double, decimals: Int = 0) -> String {
+        guard viewModel.hasSuccessfulProbe else { return "--" }
+        return String(format: "%.*f ms", decimals, value)
+    }
+
+    private var probeFailureMetric: String {
+        guard viewModel.latestProbeSucceeded != nil else { return "--" }
+        return String(format: "%.1f%%", viewModel.stats.packetLoss)
     }
     
     private func colorForQuality(_ quality: PingMonitor.Quality) -> Color {
@@ -516,7 +663,7 @@ struct MetricRow: View {
     var useMonospacedValue: Bool = true
 
     /// Label-column width tracks the .caption font's Dynamic Type. At AX5
-    /// the labels ("Packet Loss", "Average") need roughly 2x the room they
+    /// the labels ("Probe Failures", "Average") need roughly 2x the room they
     /// do at default size; the previous fixed 74pt truncated long ones.
     @ScaledMetric(relativeTo: .caption) private var labelColumnWidth: CGFloat = 74
 
@@ -584,11 +731,11 @@ struct PingGraphCard: View {
                 }
             }
 
-            Text("Zoom: last \(timeframeLabel(for: viewModel.selectedTimeframe))")
+            Text("Showing the last \(timeframeLabel(for: viewModel.selectedTimeframe))")
                 .font(.caption)
                 .foregroundStyle(.secondary)
             
-            if viewModel.filteredHistory.isEmpty {
+            if viewModel.filteredProbeHistory.isEmpty {
                 VStack(spacing: 10) {
                     Image(systemName: "chart.xyaxis.line")
                         .font(.system(size: emptyChartIconSize))
@@ -608,25 +755,29 @@ struct PingGraphCard: View {
                             .lineStyle(StrokeStyle(lineWidth: 1, dash: [4, 4]))
                     }
 
-                    ForEach(viewModel.filteredHistory) { dataPoint in
-                        LineMark(
-                            x: .value("Time", dataPoint.timestamp),
-                            y: .value("Ping", dataPoint.latencyMs)
-                        )
-                        .foregroundStyle(seriesColor)
-                        .lineStyle(StrokeStyle(lineWidth: 2.5, lineCap: .round, lineJoin: .round))
-
-                        AreaMark(
-                            x: .value("Time", dataPoint.timestamp),
-                            y: .value("Ping", dataPoint.latencyMs)
-                        )
-                        .foregroundStyle(
-                            LinearGradient(
-                                colors: [seriesColor.opacity(0.22), .clear],
-                                startPoint: .top,
-                                endPoint: .bottom
+                    ForEach(successfulSegments.indices, id: \.self) { segmentIndex in
+                        ForEach(successfulSegments[segmentIndex]) { dataPoint in
+                            LineMark(
+                                x: .value("Time", dataPoint.timestamp),
+                                y: .value("Ping", dataPoint.latencyMs),
+                                series: .value("Successful Run", segmentIndex)
                             )
-                        )
+                            .foregroundStyle(seriesColor)
+                            .lineStyle(StrokeStyle(lineWidth: 2.5, lineCap: .round, lineJoin: .round))
+
+                            AreaMark(
+                                x: .value("Time", dataPoint.timestamp),
+                                y: .value("Ping", dataPoint.latencyMs),
+                                series: .value("Successful Run", segmentIndex)
+                            )
+                            .foregroundStyle(
+                                LinearGradient(
+                                    colors: [seriesColor.opacity(0.22), .clear],
+                                    startPoint: .top,
+                                    endPoint: .bottom
+                                )
+                            )
+                        }
                     }
 
                     ForEach(spikePoints) { dataPoint in
@@ -659,6 +810,19 @@ struct PingGraphCard: View {
                         RuleMark(x: .value("Event", event.timestamp))
                             .foregroundStyle(event.color.opacity(0.55))
                             .lineStyle(StrokeStyle(lineWidth: 1, dash: [4, 3]))
+                    }
+
+                    ForEach(failedProbePoints) { dataPoint in
+                        RuleMark(x: .value("Failed Probe", dataPoint.timestamp))
+                            .foregroundStyle(LatencyPalette.poor.opacity(0.35))
+                            .lineStyle(StrokeStyle(lineWidth: 1, dash: [2, 3]))
+
+                        PointMark(
+                            x: .value("Failed Probe Time", dataPoint.timestamp),
+                            y: .value("Failed Probe", 0)
+                        )
+                        .foregroundStyle(LatencyPalette.poor)
+                        .symbolSize(34)
                     }
                 }
                 .chartXScale(domain: xDomain)
@@ -701,7 +865,7 @@ struct PingGraphCard: View {
                 .accessibilityValue(chartAccessibilityValue)
                 .accessibilityChartDescriptor(
                     PingChartDescriptor(
-                        dataPoints: viewModel.filteredHistory,
+                        probeResults: viewModel.filteredProbeHistory,
                         timeframeMinutes: viewModel.selectedTimeframe
                     )
                 )
@@ -726,10 +890,15 @@ struct PingGraphCard: View {
     /// breath: how many samples, current value, average, peak, and whether
     /// any protection events fired during the window.
     private var chartAccessibilityValue: String {
-        let history = viewModel.filteredHistory
+        let probes = viewModel.filteredProbeHistory
+        let history = probes.filter(\.success)
         let timeframe = timeframeLabel(for: viewModel.selectedTimeframe)
-        guard !history.isEmpty else {
+        guard !probes.isEmpty else {
             return "No samples in the last \(timeframe)."
+        }
+        let failures = probes.count - history.count
+        guard !history.isEmpty else {
+            return "\(probes.count) failed probe\(probes.count == 1 ? "" : "s") in the last \(timeframe). The target did not return a successful latency measurement."
         }
         let pings = history.map(\.latencyMs)
         let current = Int((pings.last ?? 0).rounded())
@@ -739,7 +908,10 @@ struct PingGraphCard: View {
         let eventPhrase = events == 0
             ? ""
             : ", with \(events) protection event\(events == 1 ? "" : "s") in this window"
-        return "\(history.count) samples over the last \(timeframe). Current ping \(current) milliseconds, average \(avg), peak \(peak)\(eventPhrase)."
+        let failurePhrase = failures == 0
+            ? ""
+            : ", and \(failures) failed probe\(failures == 1 ? "" : "s")"
+        return "\(history.count) successful samples over the last \(timeframe)\(failurePhrase). Current ping \(current) milliseconds, average \(avg), peak \(peak)\(eventPhrase)."
     }
     
     private func timeframeLabel(for minutes: Int) -> String {
@@ -781,11 +953,38 @@ struct PingGraphCard: View {
     }
 
     private var latestPoint: PingMonitor.PingResult? {
-        viewModel.filteredHistory.last
+        guard viewModel.filteredProbeHistory.last?.success == true else { return nil }
+        return viewModel.filteredProbeHistory.last
     }
 
     private var spikePoints: [PingMonitor.PingResult] {
         viewModel.filteredHistory.filter { $0.latencyMs >= 100 }
+    }
+
+    private var failedProbePoints: [PingMonitor.PingResult] {
+        viewModel.filteredProbeHistory.filter { !$0.success }
+    }
+
+    /// Swift Charts connects every mark in a series. Give each uninterrupted
+    /// run of successful probes its own series so failed probes create honest
+    /// gaps instead of a line that visually bridges the outage.
+    private var successfulSegments: [[PingMonitor.PingResult]] {
+        var segments: [[PingMonitor.PingResult]] = []
+        var current: [PingMonitor.PingResult] = []
+
+        for probe in viewModel.filteredProbeHistory {
+            if probe.success {
+                current.append(probe)
+            } else if !current.isEmpty {
+                segments.append(current)
+                current = []
+            }
+        }
+
+        if !current.isEmpty {
+            segments.append(current)
+        }
+        return segments
     }
 
     private var latencyThresholds: [(value: Double, label: String, color: Color)] {
@@ -815,6 +1014,9 @@ struct PingGraphCard: View {
         LegendItem(color: LatencyPalette.good, label: "Good", range: "20-50ms")
         LegendItem(color: LatencyPalette.fair, label: "Fair", range: "50-100ms")
         LegendItem(color: LatencyPalette.poor, label: "Poor", range: ">100ms")
+        ChartEventLegendItem(color: LatencyPalette.poor, systemImage: "xmark.circle.fill", label: "Failed probe")
+        ChartEventLegendItem(color: .orange, systemImage: "exclamationmark.triangle.fill", label: "Latency spike")
+        ChartEventLegendItem(color: .green, systemImage: "shield.lefthalf.filled.badge.checkmark", label: "Protection event")
     }
 
     private var timeframePicker: some View {
@@ -866,18 +1068,39 @@ struct LegendItem: View {
     }
 }
 
+private struct ChartEventLegendItem: View {
+    let color: Color
+    let systemImage: String
+    let label: String
+
+    var body: some View {
+        HStack(spacing: 4) {
+            Image(systemName: systemImage)
+                .foregroundStyle(color)
+                .accessibilityHidden(true)
+            Text(label)
+                .foregroundStyle(.secondary)
+        }
+        .accessibilityElement(children: .combine)
+        .accessibilityLabel(label)
+    }
+}
+
 /// VoiceOver chart descriptor for `PingGraphCard`. Provides rotor-navigable
 /// access to the ping time series so VoiceOver users can browse individual
 /// samples instead of relying solely on the summary `accessibilityValue`.
 private struct PingChartDescriptor: AXChartDescriptorRepresentable {
-    let dataPoints: [PingMonitor.PingResult]
+    let probeResults: [PingMonitor.PingResult]
     let timeframeMinutes: Int
 
     func makeChartDescriptor() -> AXChartDescriptor {
+        let dataPoints = probeResults.filter(\.success)
+        let failedProbes = probeResults.filter { !$0.success }
         let xs = dataPoints.map { $0.timestamp.timeIntervalSince1970 }
         let ys = dataPoints.map { $0.latencyMs }
-        let xMin = xs.min() ?? 0
-        let xMax = xs.max() ?? (xMin + 1)
+        let allXs = probeResults.map { $0.timestamp.timeIntervalSince1970 }
+        let xMin = allXs.min() ?? 0
+        let xMax = allXs.max() ?? (xMin + 1)
         let yMax = max(100, ys.max() ?? 0)
 
         let xAxis = AXNumericDataAxisDescriptor(
@@ -895,18 +1118,30 @@ private struct PingChartDescriptor: AXChartDescriptorRepresentable {
             gridlinePositions: [],
             valueDescriptionProvider: { "\(Int($0)) milliseconds" }
         )
-        let series = AXDataSeriesDescriptor(
-            name: "Ping latency",
-            isContinuous: true,
-            dataPoints: zip(xs, ys).map { AXDataPoint(x: $0.0, y: $0.1) }
-        )
+        var series: [AXDataSeriesDescriptor] = []
+        if !dataPoints.isEmpty {
+            series.append(AXDataSeriesDescriptor(
+                name: "Ping latency",
+                isContinuous: true,
+                dataPoints: zip(xs, ys).map { AXDataPoint(x: $0.0, y: $0.1) }
+            ))
+        }
+        if !failedProbes.isEmpty {
+            series.append(AXDataSeriesDescriptor(
+                name: "Failed probes",
+                isContinuous: false,
+                dataPoints: failedProbes.map {
+                    AXDataPoint(x: $0.timestamp.timeIntervalSince1970, y: 0)
+                }
+            ))
+        }
         return AXChartDescriptor(
             title: "Ping latency over time",
-            summary: "Line chart of ping latency over the last \(timeframeMinutes) minute\(timeframeMinutes == 1 ? "" : "s")",
+            summary: "Line chart of ping latency and failed probes over the last \(timeframeMinutes) minute\(timeframeMinutes == 1 ? "" : "s")",
             xAxis: xAxis,
             yAxis: yAxis,
             additionalAxes: [],
-            series: [series]
+            series: series
         )
     }
 }
@@ -964,12 +1199,27 @@ struct LatencyTimelineCard: View {
 
 struct InterventionsCard: View {
     @ObservedObject var viewModel: DashboardViewModel
+    @ObservedObject private var protectionExperience = ProtectionExperienceCoordinator.shared
     @ScaledMetric(relativeTo: .largeTitle) private var heroCountSize: CGFloat = 48
 
     var body: some View {
         VStack(alignment: .leading, spacing: 14) {
-            Text("Ping Protection")
-                .font(.headline)
+            HStack {
+                Text("Ping Protection")
+                    .font(.headline)
+                Spacer()
+                Button(protectionActionTitle) {
+                    changeProtectionState()
+                }
+                .buttonStyle(.borderedProminent)
+                .disabled(protectionExperience.isBusy)
+            }
+
+            if let error = protectionExperience.lastError {
+                Label(error, systemImage: "exclamationmark.triangle.fill")
+                    .font(.caption)
+                    .foregroundStyle(.red)
+            }
 
             ViewThatFits(in: .horizontal) {
                 HStack(alignment: .center, spacing: 32) {
@@ -992,9 +1242,35 @@ struct InterventionsCard: View {
         .dashboardCardStyle()
     }
 
+    private var protectionActionTitle: String {
+        let monitor = PingWardenMonitor.shared
+        guard monitor.isHelperRegistered else { return "Finish Setup..." }
+        return monitor.isMonitoringRequested || monitor.isMonitoringActive
+            ? "Turn Off"
+            : "Turn On"
+    }
+
+    private func changeProtectionState() {
+        let monitor = PingWardenMonitor.shared
+        guard monitor.isHelperRegistered else {
+            monitor.registerHelper { success in
+                guard success else { return }
+                Task { @MainActor in
+                    await protectionExperience.setPersistentProtection(true)
+                }
+            }
+            return
+        }
+
+        let shouldEnable = !monitor.isMonitoringRequested && !monitor.isMonitoringActive
+        Task {
+            await protectionExperience.setPersistentProtection(shouldEnable)
+        }
+    }
+
     private var interventionCountBlock: some View {
         VStack(alignment: .leading, spacing: 8) {
-            Text("Interventions Today")
+            Text("Interventions Since Launch")
                 .font(.caption)
                 .foregroundStyle(.secondary)
 
@@ -1013,7 +1289,7 @@ struct InterventionsCard: View {
             }
         }
         .accessibilityElement(children: .combine)
-        .accessibilityLabel("Interventions today: \(viewModel.interventionCount) wireless interruptions blocked")
+        .accessibilityLabel("Interventions since launch: \(viewModel.interventionCount) AWDL activation attempts blocked")
     }
 
     private var interventionCountText: some View {
@@ -1024,7 +1300,7 @@ struct InterventionsCard: View {
     }
 
     private var interventionUnitText: some View {
-        Text("wireless interruptions blocked")
+        Text("AWDL activation attempts blocked")
             .font(.caption)
             .foregroundStyle(.secondary)
             .fixedSize(horizontal: false, vertical: true)
@@ -1033,23 +1309,23 @@ struct InterventionsCard: View {
     private var interventionStatusBlock: some View {
         VStack(alignment: .leading, spacing: 8) {
             if viewModel.interventionCount > 0 {
-                Label("Wireless interference blocked", systemImage: "exclamationmark.triangle.fill")
+                Label("AWDL activity blocked", systemImage: "shield.lefthalf.filled.badge.checkmark")
                     .font(.subheadline)
                     .foregroundStyle(.orange)
 
-                Text("Ping Warden blocked it \(viewModel.interventionCount) times to keep your connection stable.")
+                Text("Ping Warden stopped \(viewModel.interventionCount) AWDL activation attempt\(viewModel.interventionCount == 1 ? "" : "s") while protection was active.")
                     .font(.caption)
                     .foregroundStyle(.secondary)
                     .fixedSize(horizontal: false, vertical: true)
             } else {
                 Label(
-                    viewModel.isAWDLBlocking ? "No interference detected" : "Protection is off",
-                    systemImage: viewModel.isAWDLBlocking ? "checkmark.shield" : "pause.circle"
+                    isProtectionActive ? "No activation attempts recorded" : "Protection is off",
+                    systemImage: isProtectionActive ? "checkmark.shield" : "pause.circle"
                 )
                 .font(.subheadline)
-                .foregroundStyle(viewModel.isAWDLBlocking ? .green : .orange)
+                .foregroundStyle(isProtectionActive ? .green : .orange)
 
-                Text(viewModel.isAWDLBlocking ? "Protection is active and your connection is stable." : "Enable Ping Protection to block wireless interruptions.")
+                Text(isProtectionActive ? "Ping Protection is active." : "Turn on Ping Protection to block AWDL activation attempts.")
                     .font(.caption)
                     .foregroundStyle(.secondary)
             }
@@ -1057,6 +1333,10 @@ struct InterventionsCard: View {
         .padding(12)
         .frame(maxWidth: .infinity, alignment: .leading)
         .modifier(InnerCalloutBackground(cornerRadius: 8, fallbackOpacity: 0.28))
+    }
+
+    private var isProtectionActive: Bool {
+        protectionExperience.policyState.effectiveProtectionEnabled
     }
 }
 
@@ -1127,14 +1407,22 @@ struct ServerSelectionCard: View {
                                 viewModel.autoSelectNearestEndpoint()
                             } label: {
                                 if viewModel.isAutoSelectingTarget {
-                                    ProgressView()
-                                        .controlSize(.small)
+                                    HStack(spacing: 6) {
+                                        ProgressView()
+                                            .controlSize(.small)
+                                        Text("Finding Fastest Target...")
+                                    }
                                 } else {
-                                    Text("Auto-Select Nearest")
+                                    Text("Find Fastest Target")
                                 }
                             }
                             .buttonStyle(.bordered)
                             .disabled(viewModel.isAutoSelectingTarget || viewModel.targets.isEmpty)
+                            .accessibilityLabel(
+                                viewModel.isAutoSelectingTarget
+                                    ? "Finding fastest latency target"
+                                    : "Find fastest latency target"
+                            )
 
                             if let selectedTarget = viewModel.selectedTarget,
                                let baseline = viewModel.baselineLatencyResults[selectedTarget.id] {
@@ -1142,6 +1430,13 @@ struct ServerSelectionCard: View {
                                     .font(.caption2)
                                     .foregroundStyle(.secondary)
                             }
+                        }
+
+                        if let autoSelectionError = viewModel.autoSelectionError {
+                            Label(autoSelectionError, systemImage: "exclamationmark.triangle.fill")
+                                .font(.caption)
+                                .foregroundStyle(.red)
+                                .accessibilityLabel("Target selection error: \(autoSelectionError)")
                         }
                     }
                 }
@@ -1173,12 +1468,20 @@ struct ServerSelectionCard: View {
 /// validation path runs whether input comes from this UI or from a future
 /// import/config-file flow.
 struct CustomServersCard: View {
+    private enum Field: Hashable {
+        case name
+        case host
+        case port
+    }
+
     @ObservedObject var viewModel: DashboardViewModel
     @State private var isAdding = false
     @State private var newName = ""
     @State private var newHost = ""
     @State private var newPortText = "53"
     @State private var validationMessage: String?
+    @FocusState private var focusedField: Field?
+    @AccessibilityFocusState private var validationErrorFocused: Bool
 
     var body: some View {
         VStack(alignment: .leading, spacing: 14) {
@@ -1237,18 +1540,33 @@ struct CustomServersCard: View {
             if isAdding {
                 Divider()
                 VStack(alignment: .leading, spacing: 10) {
-                    TextField("Name (e.g. NextDNS)", text: $newName)
-                        .textFieldStyle(.roundedBorder)
-                        .accessibilityLabel("Server name")
-                    TextField("Host (hostname or IP)", text: $newHost)
-                        .textFieldStyle(.roundedBorder)
-                        .accessibilityLabel("Server host")
+                    VStack(alignment: .leading, spacing: 4) {
+                        Text("Name")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                        TextField("For example, NextDNS", text: $newName)
+                            .textFieldStyle(.roundedBorder)
+                            .focused($focusedField, equals: .name)
+                            .accessibilityLabel("Server name")
+                    }
+
+                    VStack(alignment: .leading, spacing: 4) {
+                        Text("Host")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                        TextField("Hostname or IP address", text: $newHost)
+                            .textFieldStyle(.roundedBorder)
+                            .focused($focusedField, equals: .host)
+                            .accessibilityLabel("Server host")
+                    }
+
                     HStack(spacing: 8) {
                         Text("Port")
                             .foregroundStyle(.secondary)
                         TextField("53", text: $newPortText)
                             .textFieldStyle(.roundedBorder)
                             .frame(width: 80)
+                            .focused($focusedField, equals: .port)
                             .accessibilityLabel("Port")
                             .onChangeCompat(of: newPortText) { newValue in
                                 let filtered = newValue.filter(\.isNumber)
@@ -1264,6 +1582,7 @@ struct CustomServersCard: View {
                             .font(.caption)
                             .foregroundStyle(.red)
                             .accessibilityLabel("Validation error: \(validationMessage)")
+                            .accessibilityFocused($validationErrorFocused)
                     }
 
                     HStack {
@@ -1272,6 +1591,7 @@ struct CustomServersCard: View {
                             cancelAdd()
                         }
                         .buttonStyle(.bordered)
+                        .keyboardShortcut(.cancelAction)
                         Button("Save") {
                             commitAdd()
                         }
@@ -1291,22 +1611,45 @@ struct CustomServersCard: View {
         newHost = ""
         newPortText = "53"
         validationMessage = nil
+        validationErrorFocused = false
         isAdding = true
+        Task { @MainActor in
+            focusedField = .name
+        }
     }
 
     private func cancelAdd() {
         isAdding = false
         validationMessage = nil
+        validationErrorFocused = false
+        focusedField = nil
     }
 
     private func commitAdd() {
         let port = Int(newPortText) ?? 0
+        let host = newHost.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+        if (1...65_535).contains(port),
+           viewModel.targets.contains(where: { $0.id == "\(host):\(port)" }) {
+            showValidationError("A server with this host and port already exists.")
+            return
+        }
+
         if let failure = viewModel.addCustomTarget(displayName: newName, host: newHost, port: port) {
-            validationMessage = failure.userMessage
+            showValidationError(failure.userMessage)
             return
         }
         validationMessage = nil
+        validationErrorFocused = false
         isAdding = false
+        focusedField = nil
+    }
+
+    private func showValidationError(_ message: String) {
+        validationErrorFocused = false
+        validationMessage = message
+        Task { @MainActor in
+            validationErrorFocused = true
+        }
     }
 }
 

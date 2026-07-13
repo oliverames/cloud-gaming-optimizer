@@ -532,8 +532,9 @@ final class CustomPingTargetStoreTests: XCTestCase {
     private var store: CustomPingTargetStore!
 
     override func setUpWithError() throws {
-        suiteName = "pingwarden-test-\(UUID().uuidString)"
+        suiteName = "com.amesvt.pingwarden.tests.\(UUID().uuidString)"
         defaults = try XCTUnwrap(UserDefaults(suiteName: suiteName))
+        defaults.removePersistentDomain(forName: suiteName)
         store = CustomPingTargetStore(userDefaults: defaults)
     }
 

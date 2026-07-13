@@ -29,9 +29,9 @@ class DashboardViewModel: ObservableObject {
     @Published private(set) var telemetryRevision: UInt64 = 0
     @Published private(set) var timelineEvents: [LatencyTimelineEvent] = []
     @Published var interventionCount: Int = 0
-    @Published var isAWDLBlocking: Bool = false
     @Published private(set) var baselineLatencyResults: [String: Double] = [:]
     @Published private(set) var isAutoSelectingTarget: Bool = false
+    @Published private(set) var autoSelectionError: String?
     @Published var selectedTimeframe: Int = 15 { // minutes
         didSet {
             if !DashboardConfig.timeframeOptions.contains(selectedTimeframe) {
@@ -45,6 +45,7 @@ class DashboardViewModel: ObservableObject {
     @Published var selectedTargetID: String = "" {
         didSet {
             guard selectedTargetID != oldValue else { return }
+            autoSelectionError = nil
             if !isApplyingProgrammaticSelection {
                 // An explicit user selection supersedes a saved target that
                 // is still waiting for its async source (gateway/GFN zones).
@@ -78,6 +79,13 @@ class DashboardViewModel: ObservableObject {
     @Published private(set) var isRefreshingGFNServers: Bool = false
     @Published private(set) var customTargets: [CustomPingTarget] = []
 
+    /// `nil` means the current target has not returned its first probe yet.
+    /// Keeping failure distinct from a numeric zero lets the dashboard say
+    /// "Measuring" or "Target Unreachable" instead of presenting 0 ms as a
+    /// real latency measurement.
+    private(set) var latestProbeSucceeded: Bool?
+    private(set) var hasSuccessfulProbe = false
+
     private let pingMonitor = PingMonitor.shared
     private let telemetryConsumerID = UUID()
     private var telemetryObserverToken: UUID?
@@ -108,19 +116,25 @@ class DashboardViewModel: ObservableObject {
     /// second, and Swift Charts degrades sharply past ~1000 marks — burning
     /// CPU exactly during the gaming sessions the app exists to protect.
     private(set) var filteredHistory: [PingMonitor.PingResult] = []
+    /// The same bounded window including failed probes. The chart uses this to
+    /// split its line into successful runs and draw explicit failure markers.
+    private(set) var filteredProbeHistory: [PingMonitor.PingResult] = []
 
     private static let maxChartPoints = 720
 
     private func refreshFilteredHistory() {
         let cutoff = Date().addingTimeInterval(-TimeInterval(selectedTimeframe * 60))
-        let windowed = pingHistory.filter { $0.timestamp > cutoff && $0.success }
-        filteredHistory = Self.downsample(windowed, maxCount: Self.maxChartPoints)
+        let windowed = pingHistory.filter { $0.timestamp > cutoff }
+        filteredProbeHistory = Self.downsample(windowed, maxCount: Self.maxChartPoints)
+        filteredHistory = filteredProbeHistory.filter(\.success)
     }
 
-    /// Uniform-stride downsampling that always keeps latency spikes
-    /// (>=100 ms) and the newest sample, so thinning the line never hides
-    /// the events the chart exists to show.
+    /// Uniform-stride downsampling that favors latency spikes (>=100 ms) and
+    /// always keeps the newest sample, so thinning the line preserves the
+    /// events the chart exists to show without drawing an unbounded number of
+    /// marks during a sustained outage.
     private static func downsample(_ points: [PingMonitor.PingResult], maxCount: Int) -> [PingMonitor.PingResult] {
+        guard maxCount > 1 else { return points.last.map { [$0] } ?? [] }
         guard points.count > maxCount else { return points }
         let strideLength = Double(points.count) / Double(maxCount)
         var kept: [PingMonitor.PingResult] = []
@@ -135,7 +149,21 @@ class DashboardViewModel: ObservableObject {
                 }
             }
         }
-        return kept
+        guard kept.count > maxCount else { return kept }
+
+        // A prolonged series of timeouts or spikes can make every point look
+        // important. Apply a second uniform pass so the chart's performance
+        // bound remains real, while still retaining the newest point.
+        let boundedStride = Double(kept.count - 1) / Double(maxCount - 1)
+        var bounded: [PingMonitor.PingResult] = []
+        bounded.reserveCapacity(maxCount)
+        for index in 0..<(maxCount - 1) {
+            bounded.append(kept[Int((Double(index) * boundedStride).rounded(.down))])
+        }
+        if let newest = kept.last {
+            bounded.append(newest)
+        }
+        return bounded
     }
 
     var filteredTimelineEvents: [LatencyTimelineEvent] {
@@ -246,9 +274,6 @@ class DashboardViewModel: ObservableObject {
 
         startMonitoring(clearHistory: false)
 
-        // Update AWDL status
-        updateAWDLStatus()
-
         // Populate GeForce NOW zones up front so they're already in the picker
         // when the user opens it. (Previously a Picker .onTapGesture tried to
         // do this on open, but Pickers swallow the tap so it rarely fired.)
@@ -259,7 +284,6 @@ class DashboardViewModel: ObservableObject {
         interventionTimer = Timer.scheduledTimer(withTimeInterval: 5.0, repeats: true) { [weak self] _ in
             Task { @MainActor in
                 self?.updateInterventionCount()
-                self?.updateAWDLStatus()
             }
         }
     }
@@ -316,6 +340,8 @@ class DashboardViewModel: ObservableObject {
         )
         if clearHistory {
             pingHistory.removeAll()
+            latestProbeSucceeded = nil
+            hasSuccessfulProbe = false
             refreshFilteredHistory()
             telemetryRevision &+= 1
         }
@@ -324,6 +350,8 @@ class DashboardViewModel: ObservableObject {
     private func handleTelemetrySnapshot(_ snapshot: PingMonitor.Snapshot) {
         stats = snapshot.statistics
         pingHistory = snapshot.history
+        latestProbeSucceeded = snapshot.latestResult.success
+        hasSuccessfulProbe = snapshot.history.contains(where: \.success)
         refreshFilteredHistory()
         telemetryRevision &+= 1
 
@@ -339,7 +367,7 @@ class DashboardViewModel: ObservableObject {
     private func updateInterventionCount() {
         PingWardenMonitor.shared.getInterventionCount { [weak self] count in
             Task { @MainActor in
-                guard let self else { return }
+                guard let self, let count else { return }
 
                 if !self.hasInitializedInterventionBaseline {
                     self.previousInterventionCount = count
@@ -359,10 +387,6 @@ class DashboardViewModel: ObservableObject {
         }
     }
 
-    private func updateAWDLStatus() {
-        isAWDLBlocking = PingWardenMonitor.shared.isMonitoringActive
-    }
-
     func refreshGeForceNOWTargetsOnDemand() {
         refreshGeForceNOWTargets(force: true)
     }
@@ -372,6 +396,7 @@ class DashboardViewModel: ObservableObject {
 
         baselineSelectionTask?.cancel()
         isAutoSelectingTarget = true
+        autoSelectionError = nil
 
         let candidates = targets
         baselineSelectionTask = Task { [weak self] in
@@ -391,6 +416,7 @@ class DashboardViewModel: ObservableObject {
 
                 guard let best = self.baselineLatencyResults.min(by: { $0.value < $1.value }),
                       self.targets.contains(where: { $0.id == best.key }) else {
+                    self.autoSelectionError = "No targets responded. Check your connection and try again."
                     return
                 }
 

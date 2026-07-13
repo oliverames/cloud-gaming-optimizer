@@ -19,7 +19,9 @@ final class ProtectedSessionAccumulatorTests: XCTestCase {
 
         let summary = accumulator.finish(
             endedAt: start.addingTimeInterval(120),
-            endingInterventionCount: 17
+            endingInterventionCount: 17,
+            endReason: .protectionPaused,
+            protectionWasInterrupted: true
         )
 
         XCTAssertEqual(summary.id, accumulator.id)
@@ -32,6 +34,8 @@ final class ProtectedSessionAccumulatorTests: XCTestCase {
         XCTAssertEqual(summary.jitterMs, 15, accuracy: 0.001)
         XCTAssertEqual(summary.packetLossPercent, 25, accuracy: 0.001)
         XCTAssertEqual(summary.interventionCount, 5)
+        XCTAssertEqual(summary.endReason, .protectionPaused)
+        XCTAssertTrue(summary.protectionWasInterrupted)
     }
 
     func testCounterRestartNeverProducesNegativeInterventions() {
@@ -66,8 +70,10 @@ final class ProtectedSessionAccumulatorTests: XCTestCase {
         )
 
         let text = summary.privacySafeShareText
-        XCTAssertTrue(text.contains("Ping Warden"))
+        XCTAssertTrue(text.contains("Ping Warden Latency Session"))
+        XCTAssertTrue(text.contains("Probe Failures: 1 of 10 (10.0%)"))
         XCTAssertTrue(text.contains("3 wireless interruptions blocked"))
+        XCTAssertFalse(text.contains("Packet loss"))
         XCTAssertFalse(text.contains("hostname"))
         XCTAssertFalse(text.contains("127.0.0.1"))
     }
@@ -89,6 +95,103 @@ final class ProtectedSessionAccumulatorTests: XCTestCase {
         )
 
         XCTAssertTrue(summary.privacySafeShareText.contains("1 hour, 1 minute"))
+    }
+
+    func testShareTextDoesNotPresentZeroesAsMeasurementsWhenNoProbesComplete() {
+        let start = Date(timeIntervalSince1970: 100)
+        let summary = ProtectedSessionSummary(
+            id: UUID(),
+            startedAt: start,
+            endedAt: start.addingTimeInterval(10),
+            trigger: .manual,
+            sampleCount: 0,
+            successfulSampleCount: 0,
+            medianLatencyMs: 0,
+            p95LatencyMs: 0,
+            jitterMs: 0,
+            packetLossPercent: 0,
+            interventionCount: 0
+        )
+
+        let text = summary.privacySafeShareText
+        XCTAssertTrue(text.contains("No probes completed"))
+        XCTAssertFalse(text.contains("0 ms"))
+        XCTAssertFalse(text.contains("0.0%"))
+    }
+
+    func testShareTextDoesNotPresentLatencyZeroesWhenEveryProbeFails() {
+        let start = Date(timeIntervalSince1970: 100)
+        let summary = ProtectedSessionSummary(
+            id: UUID(),
+            startedAt: start,
+            endedAt: start.addingTimeInterval(10),
+            trigger: .manual,
+            sampleCount: 3,
+            successfulSampleCount: 0,
+            medianLatencyMs: 0,
+            p95LatencyMs: 0,
+            jitterMs: 0,
+            packetLossPercent: 100,
+            interventionCount: 0
+        )
+
+        let text = summary.privacySafeShareText
+        XCTAssertTrue(text.contains("No successful probes"))
+        XCTAssertTrue(text.contains("Probe Failures: 3 of 3 (100.0%)"))
+        XCTAssertFalse(text.contains("Median latency: 0 ms"))
+        XCTAssertFalse(text.contains("P95 latency: 0 ms"))
+    }
+
+    func testLegacyStoredSummaryDecodesWithSafeDefaults() throws {
+        let json = """
+        {
+          "id": "AAAAAAAA-BBBB-CCCC-DDDD-EEEEEEEEEEEE",
+          "startedAt": "1970-01-01T00:01:40Z",
+          "endedAt": "1970-01-01T00:02:40Z",
+          "trigger": "manual",
+          "sampleCount": 2,
+          "successfulSampleCount": 2,
+          "medianLatencyMs": 20,
+          "p95LatencyMs": 30,
+          "jitterMs": 10,
+          "packetLossPercent": 0,
+          "interventionCount": 1
+        }
+        """
+
+        let decoder = JSONDecoder()
+        decoder.dateDecodingStrategy = .iso8601
+        let summary = try decoder.decode(
+            ProtectedSessionSummary.self,
+            from: try XCTUnwrap(json.data(using: .utf8))
+        )
+
+        XCTAssertEqual(summary.endReason, .unknown)
+        XCTAssertFalse(summary.protectionWasInterrupted)
+    }
+
+    func testNewSessionFieldsRoundTripThroughCodable() throws {
+        let start = Date(timeIntervalSince1970: 100)
+        let summary = ProtectedSessionSummary(
+            id: UUID(),
+            startedAt: start,
+            endedAt: start.addingTimeInterval(60),
+            trigger: .gameMode,
+            sampleCount: 2,
+            successfulSampleCount: 1,
+            medianLatencyMs: 22,
+            p95LatencyMs: 22,
+            jitterMs: 0,
+            packetLossPercent: 50,
+            interventionCount: 2,
+            endReason: .protectionFailed,
+            protectionWasInterrupted: true
+        )
+
+        let data = try JSONEncoder().encode(summary)
+        let decoded = try JSONDecoder().decode(ProtectedSessionSummary.self, from: data)
+
+        XCTAssertEqual(decoded, summary)
     }
 }
 
