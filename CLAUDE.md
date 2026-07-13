@@ -56,7 +56,7 @@ package's `PingWardenCore` target points at `PingWarden/PingWarden/Core/` via
 an explicit `path:` so the same Swift sources back both build systems.
 The package is **cross-platform**: `TCPProbe` and the test suite compile on
 Linux (`#if canImport(Darwin)/Glibc` shims, poll(2) instead of select), and
-CI runs `swift test` on both `macos-14` and an `ubuntu-latest` Swift
+CI runs `swift test` on both the macOS 26 runner and an `ubuntu-latest` Swift
 container. Keep new Core code Foundation/POSIX-only.
 
 ```bash
@@ -89,7 +89,7 @@ xcrun notarytool store-credentials "notarytool-profile"
 4. `bash release.sh X.Y.Z ../../RELEASE_NOTES.md` — runs `notarize.sh` (re-sign + notarize app + DMG + staple), signs the Sparkle update, creates the GitHub release, uploads dSYMs to Sentry, **and pushes the gh-pages `appcast.xml` automatically**.
 5. `release.sh` leaves `appcast.xml` modified on `main` after its gh-pages push; commit the main-side copy too: `git add appcast.xml && git commit -m "Update appcast for vX.Y.Z" && git push`.
 
-**Beta releases:** prefix step 4 with `BETA_CHANNEL=1` (same env-flag pattern as the existing `CRITICAL_UPDATE=1`). The script writes to `appcast-beta.xml` on `gh-pages` instead of `appcast.xml`, uses distinct channel metadata, and writes a different commit message. Same EdDSA signing, same DMG packaging, same GitHub release flow — beta is a Sparkle-layer concept only. Users opted into the beta channel via Settings → Advanced → Updates get routed there by `SPUUpdaterDelegate.feedURLString(for:)`.
+**Beta releases:** prefix step 4 with `BETA_CHANNEL=1` (same env-flag pattern as the existing `CRITICAL_UPDATE=1`). The script writes to `appcast-beta.xml` on `gh-pages` instead of `appcast.xml`, uses distinct channel metadata, and writes a different commit message. Same EdDSA signing, same DMG packaging, same GitHub release flow; beta is a Sparkle-layer concept only. Users opted into the beta channel via Settings → Advanced → Updates get routed there by `SPUUpdaterDelegate.feedURLString(for:)`.
 ```bash
 BETA_CHANNEL=1 bash release.sh 3.1.0-beta.1 ../../RELEASE_NOTES.md
 ```

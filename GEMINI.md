@@ -54,6 +54,8 @@ The Foundation-only core helpers are covered by a SwiftPM test target driven
 by `Package.swift` at the repo root. The Xcode app build is unaffected — the
 package's `PingWardenCore` target points at `PingWarden/PingWarden/Core/` via
 an explicit `path:` so the same Swift sources back both build systems.
+Core helpers and tests stay Foundation/POSIX-only so CI can run them on both
+the macOS 26 runner and an `ubuntu-latest` Swift container.
 
 ```bash
 swift test            # canonical command
@@ -61,11 +63,13 @@ swift test            # canonical command
 ```
 
 Coverage: `PingStatistics.calculate()` edge cases (empty, healthy, lossy,
-even-count median), `XPCReconnectPolicy.delayForAttempt` (backoff curve),
+even-count median, fair band, min/max, all-failures, single-sample jitter),
+`XPCReconnectPolicy.delayForAttempt` (backoff curve, 30 s cap, monotonicity),
 `TCPProbe` failure and success paths (invalid hostname, closed loopback port,
 open loopback port), `StateObserverRegistry` add/remove/snapshot lifecycle,
-and `HelperBundleValidator` failure modes (missing binary, missing plist,
-non-executable binary, valid bundle).
+`VersionPromptPolicy` and custom-target boundaries, and `HelperBundleValidator`
+failure modes (missing binary, missing plist, non-executable binary, valid
+bundle).
 
 ## Release Process
 
@@ -83,7 +87,7 @@ xcrun notarytool store-credentials "notarytool-profile"
 4. `bash release.sh X.Y.Z ../../RELEASE_NOTES.md` — runs `notarize.sh` (re-sign + notarize app + DMG + staple), signs the Sparkle update, creates the GitHub release, uploads dSYMs to Sentry, **and pushes the gh-pages `appcast.xml` automatically**.
 5. `release.sh` leaves `appcast.xml` modified on `main` after its gh-pages push; commit the main-side copy too: `git add appcast.xml && git commit -m "Update appcast for vX.Y.Z" && git push`.
 
-**Beta releases:** prefix step 4 with `BETA_CHANNEL=1` (same env-flag pattern as the existing `CRITICAL_UPDATE=1`). The script writes to `appcast-beta.xml` on `gh-pages` instead of `appcast.xml`, uses distinct channel metadata, and writes a different commit message. Same EdDSA signing, same DMG packaging, same GitHub release flow — beta is a Sparkle-layer concept only. Users opted into the beta channel via Settings → Advanced → Updates get routed there by `SPUUpdaterDelegate.feedURLString(for:)`.
+**Beta releases:** prefix step 4 with `BETA_CHANNEL=1` (same env-flag pattern as the existing `CRITICAL_UPDATE=1`). The script writes to `appcast-beta.xml` on `gh-pages` instead of `appcast.xml`, uses distinct channel metadata, and writes a different commit message. Same EdDSA signing, same DMG packaging, same GitHub release flow; beta is a Sparkle-layer concept only. Users opted into the beta channel via Settings → Advanced → Updates get routed there by `SPUUpdaterDelegate.feedURLString(for:)`.
 ```bash
 BETA_CHANNEL=1 bash release.sh 3.1.0-beta.1 ../../RELEASE_NOTES.md
 ```
