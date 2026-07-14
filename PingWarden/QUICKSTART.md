@@ -12,7 +12,7 @@ Ping Protection keeps Apple's AWDL network interface offline. While it is active
 
 ### 2. Approve the helper
 
-1. Click **Set Up Now** in the welcome window.
+1. Click **Set Up and Turn On Protection** in the welcome window.
 2. Approve Ping Warden in System Settings when macOS asks.
 3. Return to Ping Warden after the approval is complete.
 

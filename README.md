@@ -59,7 +59,7 @@ Download the latest DMG from [Releases](https://github.com/oliverames/ping-warde
 
 ### 2. Approve the helper
 
-Click **Set Up Now**, then approve Ping Warden in System Settings when macOS asks. The helper needs this one-time approval because changing the AWDL interface requires elevated access.
+Click **Set Up and Turn On Protection**, then approve Ping Warden in System Settings when macOS asks. The helper needs this one-time approval because changing the AWDL interface requires elevated access.
 
 ### 3. Turn on Ping Protection and verify it
 

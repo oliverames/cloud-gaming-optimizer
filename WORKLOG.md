@@ -1,5 +1,65 @@
 # Ping Warden Worklog
 
+## 2026-07-13 - 3.0.0 public release and UX hardening
+
+**What changed**:
+- Completed the 3.0 product, performance, donation, security, accessibility,
+  and release audit. The menu bar now has one persistent Ping Protection
+  control, while Latency Sessions live in the dashboard with local recaps.
+- Reworked onboarding, donation, Settings, About, menu, and dashboard surfaces.
+  Onboarding uses a predictable 500 by 580 point default with a fixed action
+  footer and scroll fallback. Accessibility text sizes can scroll the whole
+  surface, so content and actions remain reachable on displays with less
+  vertical space. The donation window uses the same bounded-content approach.
+- Added the 3.0 session experience, donation opportunities that never gate
+  features, stronger helper and XPC validation, signed diagnostics and update
+  paths, and the expanded 79-test Foundation/POSIX core suite.
+- Fixed stable GitHub release creation under the system Bash 3.2 runtime after
+  the real release exposed an empty-array expansion failure in `release.sh`.
+- Published stable v3.0.0, the signed public appcast, Sentry release and dSYMs,
+  and an immutable GitHub release. Updated setup and appcast documentation
+  during wrap-up to match the shipped UI and automated release flow.
+
+**Decisions made**:
+- Protection and measurement remain separate concepts: the menu owns the one
+  persistent protection control; the dashboard owns measured Latency Sessions.
+- Primary windows use predictable default sizes and minimum constraints, with
+  scrolling as the safety mechanism for constrained displays and accessibility
+  text sizes. Essential actions must never depend on a specific monitor height.
+- The stable feed continues to support macOS 13 and newer. The Control Center
+  widget remains macOS 26 and newer, and intentionally remains outside the App
+  Sandbox because its current intent flow launches the main app.
+
+**Verification**:
+- `swift test` passed 79 of 79 tests serially and in parallel. Address, Thread,
+  and Undefined Behavior sanitizer runs also passed 79 of 79.
+- Release builds and analysis passed locally. GitHub macOS build, Linux core
+  tests, shell lint, and CodeQL all completed successfully with zero open code,
+  secret-scanning, or Dependabot alerts.
+- The app and DMG passed Developer ID signature checks, notarization, stapling,
+  Gatekeeper assessment, Sparkle feed verification, and Sparkle archive
+  signature verification. A real 2.4.3 client using Sparkle 2.8.1 discovered,
+  downloaded, extracted, and installed 3.0.0.
+- The independently downloaded public build is installed in `/Applications`.
+  Its 3.0 helper is running, the saved protection preference is effective, and
+  `awdl0` is inactive. Generated archives, builds, screenshots, harnesses,
+  logs, DMGs, and mounted test volumes were removed after verification.
+
+**Left off at**:
+- v3.0.0 is live on the stable channel at the immutable GitHub release. The
+  public appcast advertises 3.0.0 build 30000 with macOS 13 as its minimum.
+- Resolved from the prior 2.5.0 entry: PR #34 is merged, signing and
+  notarization are proven, and the incorrect appcast minimum of macOS 26 is now
+  13.0. The widget's unsandboxed architecture remains an intentional, documented
+  constraint rather than an unreviewed release blocker.
+
+**Open questions**:
+- No blocking 3.0 work remains. A physical or virtual macOS 13 runtime smoke
+  test would add coverage beyond the verified deployment metadata, macOS 26 CI,
+  and macOS 27 beta host testing when that environment is available.
+
+---
+
 ## 2026-07-03 - 2.5.0: Full reliability audit (helper/XPC/widget/monitoring/tooling)
 
 **What changed**:
