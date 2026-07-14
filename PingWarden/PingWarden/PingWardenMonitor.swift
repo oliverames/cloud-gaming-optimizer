@@ -309,6 +309,7 @@ class PingWardenMonitor: @unchecked Sendable {
                 log.info("Registration request submitted")
                 // Start polling for approval
                 startPollingForRegistration(completion: completion)
+                signposter.endInterval("RegisterHelper", state)
             } catch let error as NSError {
                 log.error("Registration failed: \(error.localizedDescription) (code: \(error.code))")
                 signposter.endInterval("RegisterHelper", state)
