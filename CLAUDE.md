@@ -75,31 +75,12 @@ binary, missing plist, non-executable binary, valid bundle).
 
 ## Release Process
 
-`notarize.sh` pre-validates notarytool credentials automatically (it calls
-`xcrun notarytool history --keychain-profile` and aborts with a setup hint
-before doing any work). If the profile ever expires, run:
+The full release runbook lives in the **`ames-dev-workflows:ping-warden-release` skill** (unsigned-archive workaround for the broken Xcode 26 `-exportArchive`, standalone notarize test, beta channel, post-release appcast commit). Invoke it for any release. Canonical path, from a clean pushed commit:
+
 ```bash
-xcrun notarytool store-credentials "notarytool-profile"
+cd PingWarden/PingWarden && bash release.sh X.Y.Z ../../RELEASE_NOTES.md
+# then commit the main-side appcast.xml the script leaves modified
 ```
-
-**Do NOT use `xcodebuild -exportArchive`** — broken in Xcode 26 (IDEDistributionMethodManagerErrorDomain Code=2). Archive **unsigned** and let `notarize.sh` apply the real Developer ID signature (fully headless, no Xcode UI needed):
-1. `xcodebuild archive -project PingWarden.xcodeproj -scheme PingWarden -configuration Release -archivePath /tmp/PingWarden-X.Y.Z.xcarchive -destination 'generic/platform=macOS' CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO`. The `CODE_SIGNING_ALLOWED=NO` is **required** so the archive is deterministic and does not depend on Xcode's provisioning UI. The app uses a Team-ID-prefixed macOS App Group that does not require a profile. `notarize.sh` re-signs every component with `codesign --entitlements` (Developer ID, no profile). The archive's signing is throwaway. The archive yields both the `.app` **and** `dSYMs/` (the latter is needed by `release.sh` for Sentry).
-2. `rsync -a "/tmp/PingWarden-X.Y.Z.xcarchive/Products/Applications/Ping Warden.app/" "PingWarden/build/Ping Warden.app/"`
-3. `cd PingWarden/PingWarden && bash notarize.sh X.Y.Z` (optional — standalone notarize test; `release.sh` runs it internally)
-4. `bash release.sh X.Y.Z ../../RELEASE_NOTES.md` — runs `notarize.sh` (re-sign + notarize app + DMG + staple), signs the Sparkle update, creates the GitHub release, uploads dSYMs to Sentry, **and pushes the gh-pages `appcast.xml` automatically**.
-5. `release.sh` leaves `appcast.xml` modified on `main` after its gh-pages push; commit the main-side copy too: `git add appcast.xml && git commit -m "Update appcast for vX.Y.Z" && git push`.
-
-**Beta releases:** prefix step 4 with `BETA_CHANNEL=1` (same env-flag pattern as the existing `CRITICAL_UPDATE=1`). The script writes to `appcast-beta.xml` on `gh-pages` instead of `appcast.xml`, uses distinct channel metadata, and writes a different commit message. Same EdDSA signing, same DMG packaging, same GitHub release flow; beta is a Sparkle-layer concept only. Users opted into the beta channel via Settings → Advanced → Updates get routed there by `SPUUpdaterDelegate.feedURLString(for:)`.
-```bash
-BETA_CHANNEL=1 bash release.sh 3.1.0-beta.1 ../../RELEASE_NOTES.md
-```
-
-The canonical release path is now one command from a clean, pushed commit:
-`cd PingWarden/PingWarden && bash release.sh X.Y.Z ../../RELEASE_NOTES.md`.
-It creates and validates the unsigned archive and dSYMs itself before running
-the signing, notarization, DMG, appcast, GitHub, Sentry, and `gh-pages` steps.
-The numbered commands above remain useful only for a standalone notarization
-test.
 
 Sparkle EdDSA key is in keychain account `"ed25519"`. Notarytool profile: `"notarytool-profile"`.
 
@@ -130,6 +111,6 @@ Sparkle EdDSA key is in keychain account `"ed25519"`. Notarytool profile: `"nota
 
 ## Gotchas
 
-- **`xcodebuild -exportArchive` is broken** in Xcode 26 — use the rsync workaround in the Release Process section above.
+- **`xcodebuild -exportArchive` is broken** in Xcode 26 — use the unsigned-archive + rsync workaround in the `ping-warden-release` skill.
 - **SMAppService requires `/Applications`**: The daemon registration (`SMAppService.daemon(plistName:)`) refuses to register when the app runs from Xcode's DerivedData. To test the full helper registration flow, build in Release, copy to `/Applications`, and launch from there. Running from Xcode is fine for non-helper UI work.
 - **Appcast publishing is automated**: `release.sh` snapshots the signed appcast, publishes it to `gh-pages`, and restores the original branch. It leaves the signed appcast modified on `main`, so commit and push that main-side copy after the release succeeds.
