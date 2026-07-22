@@ -1,5 +1,19 @@
 # Ping Warden Worklog
 
+## 2026-07-22 - Consolidate and merge open maintenance pull requests
+
+**What changed**: Consolidated the useful changes from four overlapping pull requests into one coherent merge and closed the superseded branches. The merge also fixed mixed CodeQL action revisions.
+
+**Decisions made**: Avoided stacking conflicting dependency branches while preserving the signed-feed repair already on `main`.
+
+**Left off at**: Zero pull requests remain open; `main` is clean and synchronized.
+
+**Open questions**: None introduced by this maintenance pass.
+
+**Verification**: The 79-test suite, pull-request build, CodeQL analysis, and post-merge build passed.
+
+---
+
 ## 2026-07-22 - Repair signed beta update feed
 
 **What changed**: Audited Ping Warden after Bridgeport and Apple Core exposed missing complete-appcast signatures under Sparkle's opt-in `SURequireSignedFeed` policy. The stable Ping Warden feed already verified. The older `appcast-beta.xml` on `gh-pages` had no whole-feed signature, so beta-channel users would have received the same validation error. Signed the existing beta feed with Ping Warden's matching EdDSA key and published it as commit `e2bd556`.
