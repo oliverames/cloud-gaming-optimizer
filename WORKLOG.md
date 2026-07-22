@@ -1,5 +1,19 @@
 # Ping Warden Worklog
 
+## 2026-07-22 - Repair signed beta update feed
+
+**What changed**: Audited Ping Warden after Bridgeport and Apple Core exposed missing complete-appcast signatures under Sparkle's opt-in `SURequireSignedFeed` policy. The stable Ping Warden feed already verified. The older `appcast-beta.xml` on `gh-pages` had no whole-feed signature, so beta-channel users would have received the same validation error. Signed the existing beta feed with Ping Warden's matching EdDSA key and published it as commit `e2bd556`.
+
+**Decisions made**: Kept signed-feed enforcement enabled. No application rebuild or new release was needed because the correction changed only the feed. The existing release script already signs and verifies future stable and beta appcasts after all XML mutations.
+
+**Verification**: Sparkle's `sign_update --verify` accepts both exact public GitHub Pages URLs, `appcast.xml` and `appcast-beta.xml`. The configured `SUPublicEDKey` matches the signing account's public key.
+
+**Left off at**: Stable and beta update feeds are valid and public. The active local Dependabot merge branch was left untouched; this worklog entry was committed from an isolated `main` worktree.
+
+**Open questions**: **NEW:** none.
+
+---
+
 ## 2026-07-13 - 3.0.0 public release and UX hardening
 
 **What changed**:
