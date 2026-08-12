@@ -64,14 +64,7 @@ swift test            # canonical command
 ./scripts/run-smoke-tests.sh   # thin wrapper, runs `swift test`
 ```
 
-Coverage: `PingStatistics.calculate()` edge cases (empty, healthy, lossy,
-even-count median, fair band, min/max, all-failures, single-sample jitter),
-`XPCReconnectPolicy.delayForAttempt` (backoff curve, 30 s cap, monotonicity),
-`TCPProbe` failure and success paths (invalid hostname, closed loopback port,
-open loopback port), `StateObserverRegistry` add/remove/snapshot lifecycle,
-`VersionPromptPolicy` (incl. single-component fail-closed), custom-target
-validation boundaries, and `HelperBundleValidator` failure modes (missing
-binary, missing plist, non-executable binary, valid bundle).
+Read the SwiftPM test target for current coverage; it is the authoritative list.
 
 ## Release Process
 
