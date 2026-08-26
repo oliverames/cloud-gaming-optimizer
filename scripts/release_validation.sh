@@ -253,6 +253,41 @@ validate_app_artifact() {
     validate_universal_binary "$helper_path" "privileged helper" || return 1
     validate_universal_binary "$app_path/Contents/PlugIns/PingWardenWidget.appex/Contents/MacOS/$widget_executable" "Control Center widget" || return 1
 
+    # The helper embeds its Info.plist in the binary
+    # (CREATE_INFOPLIST_SECTION_IN_BINARY), so its version lives outside the
+    # plists checked above. Extract the section and pin both version keys to
+    # the app's so a hand-edited bump cannot ship half-applied. segedit only
+    # operates on thin Mach-O files, so isolate the arm64 slice first when
+    # the artifact is a universal binary.
+    local helper_plist_extract="${TMPDIR:-/tmp}/pingwarden_helper_info.$$.plist"
+    local helper_thin="${TMPDIR:-/tmp}/pingwarden_helper_arm64.$$.bin"
+    local helper_for_extraction="$helper_path"
+    if lipo -info "$helper_path" 2>/dev/null | grep -q "fat file"; then
+        if ! lipo "$helper_path" -thin arm64 -output "$helper_thin"; then
+            rm -f "$helper_thin" "$helper_plist_extract"
+            release_validation_error "could not isolate arm64 slice of privileged helper for version extraction"
+            return 1
+        fi
+        helper_for_extraction="$helper_thin"
+    fi
+    if ! xcrun segedit "$helper_for_extraction" -extract __TEXT __info_plist "$helper_plist_extract" >/dev/null 2>&1; then
+        rm -f "$helper_thin" "$helper_plist_extract"
+        release_validation_error "could not extract embedded Info.plist section from privileged helper"
+        return 1
+    fi
+    local helper_short_version helper_bundle_version
+    helper_short_version="$(plist_value "$helper_plist_extract" CFBundleShortVersionString || true)"
+    helper_bundle_version="$(plist_value "$helper_plist_extract" CFBundleVersion || true)"
+    rm -f "$helper_thin" "$helper_plist_extract"
+    if [ "$helper_short_version" != "$VALIDATED_SHORT_VERSION" ]; then
+        release_validation_error "privileged helper marketing version is '$helper_short_version', expected '$VALIDATED_SHORT_VERSION'"
+        return 1
+    fi
+    if [ "$helper_bundle_version" != "$VALIDATED_BUNDLE_VERSION" ]; then
+        release_validation_error "privileged helper build version does not match the app"
+        return 1
+    fi
+
     if [ "$require_signature" = "1" ]; then
         validate_distribution_signature "$app_path" || return 1
     fi
