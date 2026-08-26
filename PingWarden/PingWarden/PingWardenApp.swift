@@ -104,6 +104,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSMenuDele
     private var menuMetricsTimer: Timer?
     private var menuCurrentPingMs: Double?
     private var menuInterventionCount: Int?
+    private var isStatusMenuOpen = false
     private let sessionCoordinator = ProtectedSessionCoordinator.shared
     private let protectionExperience = ProtectionExperienceCoordinator.shared
     private let settingsNavigation = SettingsNavigationModel()
@@ -1158,9 +1159,24 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSMenuDele
 
     func menuWillOpen(_ menu: NSMenu) {
         guard menu === statusMenu else { return }
+        isStatusMenuOpen = true
         syncMenuMetricsTargetIfNeeded()
         updateMenuItem()
         refreshMenuInterventionCount()
+        // Live dropdown metrics only run while the menu can actually show
+        // them; opening starts the probe and intervention polling and
+        // closing tears it down again.
+        if PingWardenPreferences.shared.showMenuDropdownMetrics {
+            startMenuMetricsMonitoring()
+        }
+    }
+
+    func menuDidClose(_ menu: NSMenu) {
+        guard menu === statusMenu else { return }
+        isStatusMenuOpen = false
+        if PingWardenPreferences.shared.showMenuDropdownMetrics {
+            stopMenuMetricsMonitoring()
+        }
     }
 
     @objc private func toggleMonitoring() {
@@ -1207,7 +1223,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSMenuDele
             return
         }
 
-        if PingWardenPreferences.shared.showMenuDropdownMetrics {
+        if PingWardenPreferences.shared.showMenuDropdownMetrics, isStatusMenuOpen {
             startMenuMetricsMonitoring()
         } else {
             stopMenuMetricsMonitoring()
