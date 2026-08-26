@@ -77,6 +77,7 @@ class DashboardViewModel: ObservableObject {
         }
     }
     @Published private(set) var isRefreshingGFNServers: Bool = false
+    @Published private(set) var gfnRefreshError: String?
     @Published private(set) var customTargets: [CustomPingTarget] = []
 
     /// `nil` means the current target has not returned its first probe yet.
@@ -433,6 +434,7 @@ class DashboardViewModel: ObservableObject {
 
         gfnRefreshTask?.cancel()
         isRefreshingGFNServers = true
+        gfnRefreshError = nil
         lastGFNRefreshDate = Date()
 
         gfnRefreshTask = Task { [weak self] in
@@ -443,8 +445,13 @@ class DashboardViewModel: ObservableObject {
                 self.isRefreshingGFNServers = false
                 // nil = fetch failed. Keep whatever zones we already have —
                 // wiping them would reset the user's selected GFN target and
-                // clear their chart history over a transient network blip.
-                guard let discoveredTargets else { return }
+                // clear their chart history over a transient network blip —
+                // but tell the user, since a stale zone list can silently
+                // cost real latency.
+                guard let discoveredTargets else {
+                    self.gfnRefreshError = "Could not refresh GeForce NOW zones. The list may be out of date."
+                    return
+                }
                 self.gfnTargets = discoveredTargets
                 self.rebuildTargets()
             }

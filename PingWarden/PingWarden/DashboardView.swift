@@ -1400,6 +1400,18 @@ struct ServerSelectionCard: View {
                             Text("Refreshing GeForce NOW zones...")
                                 .font(.caption2)
                                 .foregroundStyle(.secondary)
+                        } else if let gfnRefreshError = viewModel.gfnRefreshError {
+                            HStack(spacing: 6) {
+                                Text(gfnRefreshError)
+                                    .font(.caption2)
+                                    .foregroundStyle(.secondary)
+                                Button("Retry") {
+                                    viewModel.refreshGeForceNOWTargetsOnDemand()
+                                }
+                                .buttonStyle(.borderless)
+                                .font(.caption2)
+                                .accessibilityLabel("Retry refreshing GeForce NOW zones")
+                            }
                         }
 
                         HStack(spacing: 8) {
