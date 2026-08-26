@@ -1305,7 +1305,12 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSMenuDele
     private func handleMonitoringStateChange() {
         let shouldMonitor = PingWardenPreferences.shared.isMonitoringEnabled
         Task { @MainActor in
-            _ = await protectionExperience.setPersistentProtection(shouldMonitor)
+            // A persisted pause restored at launch outranks the stored
+            // protection intent until it expires; resumeProtection enables
+            // blocking when the pause timer fires.
+            if !protectionExperience.isPauseActive {
+                _ = await protectionExperience.setPersistentProtection(shouldMonitor)
+            }
             updateMenuBarIcon()
             updateMenuItem()
         }

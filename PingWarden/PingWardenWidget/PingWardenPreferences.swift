@@ -24,6 +24,7 @@ final class PingWardenPreferences: @unchecked Sendable {
     private let monitoringEnabledKey = "AWDLMonitoringEnabled"
     private let effectiveMonitoringEnabledKey = "AWDLEffectiveMonitoringEnabled"
     private let lastStateKey = "AWDLLastState"
+    private let protectionPauseUntilKey = "ProtectionPauseUntil"
     private let controlCenterEnabledKey = "ControlCenterWidgetEnabled"
     private let gameModeAutoDetectKey = "GameModeAutoDetect"
     private let showDockIconKey = "ShowDockIcon"
@@ -81,6 +82,27 @@ final class PingWardenPreferences: @unchecked Sendable {
                 return
             }
             defaults.set(newValue, forKey: lastStateKey)
+        }
+    }
+
+    /// Expiration time of an active protection pause, persisted by the main
+    /// app. The widget currently only reads it for display decisions.
+    var protectionPauseUntil: Date? {
+        get {
+            let timestamp = defaults?.double(forKey: protectionPauseUntilKey) ?? 0
+            guard timestamp > 0 else { return nil }
+            return Date(timeIntervalSince1970: timestamp)
+        }
+        set {
+            guard let defaults = defaults else {
+                log.error("Cannot set \(self.protectionPauseUntilKey): defaults is nil")
+                return
+            }
+            if let newValue {
+                defaults.set(newValue.timeIntervalSince1970, forKey: protectionPauseUntilKey)
+            } else {
+                defaults.removeObject(forKey: protectionPauseUntilKey)
+            }
         }
     }
 

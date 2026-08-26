@@ -29,10 +29,18 @@ final class ProtectionExperienceCoordinator: ObservableObject {
     private var gameModeGeneration = 0
     private var requestedSessionTrigger: ProtectedSessionTrigger?
 
-    private init() {}
+    private init() {
+        restorePersistedPauseIfActive()
+    }
 
     var isBusy: Bool {
         transition != .idle || session.isTransitioning
+    }
+
+    /// Whether a pause is in effect right now. A persisted pause restored at
+    /// launch outranks the stored protection intent until it expires.
+    var isPauseActive: Bool {
+        pauseUntil.map { $0 > Date() } ?? false
     }
 
     var policyState: ProtectionExperiencePolicy.State {
@@ -169,6 +177,7 @@ final class ProtectionExperienceCoordinator: ObservableObject {
         }
 
         pauseUntil = Date().addingTimeInterval(10 * 60)
+        preferences.protectionPauseUntil = pauseUntil
         schedulePauseTimer()
         transition = .disablingProtection
         let success = await monitor.setProtectionEnabled(
@@ -269,7 +278,9 @@ final class ProtectionExperienceCoordinator: ObservableObject {
     }
 
     func finishForTermination() {
-        clearPause()
+        // Keep the persisted pause: quitting mid-pause expresses no new
+        // intent, so a relaunch inside the window must stay paused.
+        clearPause(persistStoredPause: false)
         session.finishForTermination()
         if monitor.isMonitoringRequested || monitor.isMonitoringActive {
             // The app cannot wait for an asynchronous XPC reply while AppKit
@@ -394,9 +405,26 @@ final class ProtectionExperienceCoordinator: ObservableObject {
         pauseTimer = timer
     }
 
-    private func clearPause() {
+    private func clearPause(persistStoredPause: Bool = true) {
         pauseTimer?.invalidate()
         pauseTimer = nil
         pauseUntil = nil
+        if persistStoredPause {
+            preferences.protectionPauseUntil = nil
+        }
+    }
+
+    /// Restore a pause that was active when the app last quit or crashed, so
+    /// an expiring ten-minute window is not cut short by a relaunch. Expired
+    /// leftovers are cleared; protection state itself reconciles elsewhere.
+    private func restorePersistedPauseIfActive() {
+        guard let stored = preferences.protectionPauseUntil else { return }
+        if stored > Date() {
+            protectionExperienceLog.info("Restoring protection pause until \(stored, privacy: .public)")
+            pauseUntil = stored
+            schedulePauseTimer()
+        } else {
+            preferences.protectionPauseUntil = nil
+        }
     }
 }

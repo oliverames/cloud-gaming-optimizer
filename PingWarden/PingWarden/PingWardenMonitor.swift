@@ -177,8 +177,16 @@ class PingWardenMonitor: @unchecked Sendable {
 
             // Check if we should restore monitoring state
             if PingWardenPreferences.shared.isMonitoringEnabled {
-                log.info("  Restoring monitoring state from preferences")
-                startMonitoring(persistUserPreference: false)
+                if let pausedUntil = PingWardenPreferences.shared.protectionPauseUntil,
+                   pausedUntil > Date() {
+                    // A persisted pause outranks the stored protection intent
+                    // until it expires; the coordinator's pause timer resumes
+                    // blocking when it fires.
+                    log.info("  Monitoring restore deferred: paused until \(pausedUntil)")
+                } else {
+                    log.info("  Restoring monitoring state from preferences")
+                    startMonitoring(persistUserPreference: false)
+                }
             }
         }
 

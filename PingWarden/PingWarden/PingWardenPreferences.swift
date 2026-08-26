@@ -22,6 +22,7 @@ final class PingWardenPreferences: @unchecked Sendable {
     private let legacyMigrationKey = "LegacyAppGroupMigrationCompleted"
     private let monitoringEnabledKey = "AWDLMonitoringEnabled" // User intent
     private let effectiveMonitoringEnabledKey = "AWDLEffectiveMonitoringEnabled" // Runtime state
+    private let protectionPauseUntilKey = "ProtectionPauseUntil" // Epoch seconds of an active pause, absent when none
     private let lastStateKey = "AWDLLastState"
     private let controlCenterEnabledKey = "ControlCenterWidgetEnabled"
     private let gameModeAutoDetectKey = "GameModeAutoDetect"
@@ -137,6 +138,23 @@ final class PingWardenPreferences: @unchecked Sendable {
     var lastKnownState: String {
         get { defaults.string(forKey: lastStateKey) ?? "unknown" }
         set { defaults.set(newValue, forKey: lastStateKey) }
+    }
+
+    /// Expiration time of an active protection pause, persisted so the pause
+    /// survives an app relaunch or crash. `nil` means no pause is stored.
+    var protectionPauseUntil: Date? {
+        get {
+            let timestamp = defaults.double(forKey: protectionPauseUntilKey)
+            guard timestamp > 0 else { return nil }
+            return Date(timeIntervalSince1970: timestamp)
+        }
+        set {
+            if let newValue {
+                defaults.set(newValue.timeIntervalSince1970, forKey: protectionPauseUntilKey)
+            } else {
+                defaults.removeObject(forKey: protectionPauseUntilKey)
+            }
+        }
     }
 
     /// Whether Control Center widget mode is enabled (hides menu bar icon)
