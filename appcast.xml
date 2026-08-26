@@ -6,6 +6,92 @@
     <description>Updates for Ping Warden - AWDL blocking for cloud gaming</description>
     <language>en</language>
     <item>
+      <title>Version 3.1.0</title>
+      <link>https://github.com/oliverames/ping-warden/releases/tag/v3.1.0</link>
+      <sparkle:version>30100</sparkle:version>
+      <sparkle:shortVersionString>3.1.0</sparkle:shortVersionString>
+      <description><![CDATA[
+<style>
+body {
+    font-family: -apple-system, BlinkMacSystemFont, "Helvetica Neue", Helvetica, Arial, sans-serif;
+    font-size: 13px;
+    line-height: 1.55;
+    color: #1d1d1f;
+    margin: 0;
+    padding: 0;
+}
+h1, h2, h3 { color: #000; font-weight: 600; }
+h1 { font-size: 18px; margin: 0 0 10px 0; }
+h2 {
+    font-size: 11px;
+    text-transform: uppercase;
+    letter-spacing: 0.6px;
+    color: #6e6e73;
+    margin: 18px 0 6px 0;
+}
+h3 { font-size: 13px; margin: 14px 0 6px 0; }
+p { margin: 0 0 10px 0; }
+ul, ol { padding-left: 20px; margin: 0 0 10px 0; }
+li { margin-bottom: 5px; }
+li > strong:first-child { color: #000; }
+code {
+    font-family: ui-monospace, "SF Mono", Menlo, monospace;
+    background: #f2f2f7;
+    padding: 1px 5px;
+    border-radius: 3px;
+    font-size: 12px;
+}
+a { color: #f5a542; text-decoration: none; }
+a:hover { text-decoration: underline; }
+hr { border: 0; border-top: 1px solid #e5e5ea; margin: 16px 0; }
+@media (prefers-color-scheme: dark) {
+    body { color: #f5f5f7; }
+    h1, h2, h3, li > strong:first-child { color: #fff; }
+    h2 { color: #98989d; }
+    code { background: #2c2c2e; }
+    hr { border-top-color: #38383a; }
+}
+</style>
+<p><a href="https://buymeacoffee.com/oliverames" rel="nofollow">Donate to Ping Warden on Buy Me a Coffee</a></p>
+<p>Ping Warden 3.1 keeps your choices where you put them. A pause now survives a quit, a failed server refresh tells you instead of going quiet, and the app stops working when nobody is looking at it.</p>
+<h2>Protection</h2>
+<ul>
+<li>Pausing protection survives quitting and relaunching. Ping Warden used to store nothing on disk when you paused, so quitting during the ten minute window silently re-blocked AWDL while you were still trying to AirDrop or share a screen. The pause window now persists, and every path that genuinely ends it still clears it.</li>
+<li>Protection controls stay responsive when several state changes race each other. Toggling from the menu, the dashboard, or the Control Center widget at the same time could strand the controls mid-transition and disable them until relaunch.</li>
+<li>Stopping protection no longer leaves monitoring stuck on. A slow reply from the privileged helper used to be discarded after the timeout, so the app reported protection as active across relaunch while AWDL was already restored.</li>
+</ul>
+<h2>Cloud gaming</h2>
+<ul>
+<li>A failed GeForce NOW zone refresh now says so and offers Retry. The server picker previously dropped its "Refreshing" caption and left a stale list with no explanation. Existing zones are kept through the failure, so a network blip cannot reset your selection or chart history.</li>
+</ul>
+<h2>Battery and idle power</h2>
+<ul>
+<li>Live menu metrics run only while the menu is open. Turning on "Show Live Metrics in Menu" used to start a permanent two second probe and a five second intervention poll, which sent tens of thousands of pointless network connections a day toward numbers nobody was reading. Opening the menu still shows a fresh reading immediately.</li>
+<li>Game Mode detection backs off while you are idle. Auto-detect scanned the full window list every ten seconds forever; after about ninety quiet seconds it now moves to thirty. App and display events still trigger an immediate check, so a game launching from deep idle is caught right away.</li>
+</ul>
+<h2>Security</h2>
+<ul>
+<li>Sparkle updates to 2.9.6, which carries a symlink hardening fix in the installer's archive handling and a privilege escalation fix for root-invoked Sparkle processes.</li>
+<li>The privileged helper now accepts XPC only from root and the logged-in console user. The previous check rejected system accounts but would have let any second desktop account drive the root daemon with a copy of the signed app.</li>
+<li>Sentry updates to 9.26.0. Crash reporting remains off by default.</li>
+</ul>
+<h2>Release engineering</h2>
+<ul>
+<li>Release validation now checks the helper's embedded version metadata, not just the app and widget. The helper's version lives in a plist compiled into its binary, so a half-applied version bump could previously ship with validation still reporting success.</li>
+</ul>
+      ]]></description>
+      <pubDate>Wed, 26 Aug 2026 18:12:11 +0000</pubDate>
+      <enclosure
+        url="https://github.com/oliverames/ping-warden/releases/download/v3.1.0/PingWarden-3.1.0.dmg"
+        sparkle:version="30100"
+        sparkle:shortVersionString="3.1.0"
+        length="5685996"
+        type="application/octet-stream"
+        sparkle:edSignature="VNpZgXV5k5h4lMAnQYGPI20sXSl/OgwejnuyrkDj5zHAA2fzjP0fDaxUtsW4QtLuNpHKj/GKulAJmT9FimwLBw=="
+      />
+      <sparkle:minimumSystemVersion>13.0</sparkle:minimumSystemVersion>
+    </item>
+    <item>
       <title>Version 3.0.0</title>
       <link>https://github.com/oliverames/ping-warden/releases/tag/v3.0.0</link>
       <sparkle:version>30000</sparkle:version>
@@ -832,6 +918,6 @@ hr { border: 0; border-top: 1px solid #e5e5ea; margin: 16px 0; }
   </channel>
 </rss>
 <!-- sparkle-signatures:
-edSignature: r+6mtWKdXdgqAy34TjdvmFU6Vqxgp/c9NxgFOu+9CGNawi78S4ZWHqHDRX+kkX8okr8ET2HhtD+uPzSLTMMPAA==
-length: 38285
+edSignature: i5mgd5lJ/cwCnlA83cODyaZPzY8h5HYL+AWB8FerOh9cWYuiIb+BYWLX6jenbIXrYZOCOxMwX5xXH7ErHIs6DA==
+length: 43269
 -->
