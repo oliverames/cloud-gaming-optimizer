@@ -12,6 +12,7 @@
 
 #import <Foundation/Foundation.h>
 #import <Security/Security.h>
+#import <SystemConfiguration/SystemConfiguration.h>
 #import <os/log.h>
 
 #import "../Common/HelperProtocol.h"
@@ -51,9 +52,10 @@ static NSXPCListener *gListener = nil;
 
 /// Resolve the helper's own version string. Prefer the bundle's
 /// CFBundleShortVersionString — the helper embeds its Info.plist via
-/// CREATE_INFOPLIST_SECTION_IN_BINARY, and release.sh keeps it in lockstep
-/// with the app — and fall back to the compiled-in constant only if the
-/// embedded value is somehow unavailable. This keeps the version reported over
+/// CREATE_INFOPLIST_SECTION_IN_BINARY — and fall back to the compiled-in
+/// constant only if the embedded value is somehow unavailable. Versions are
+/// bumped by hand in lockstep with the app; scripts/release_validation.sh
+/// fails the release if any copy drifts. This keeps the version reported over
 /// XPC (health check, diagnostics export) honest instead of frozen at whatever
 /// the macro last said.
 static NSString *helperVersionString(void) {
@@ -62,6 +64,21 @@ static NSString *helperVersionString(void) {
         return bundleVersion;
     }
     return HELPER_VERSION;
+}
+
+#pragma mark - Console User
+
+/// UID of the currently logged-in console (GUI) user, or (uid_t)-1 when no
+/// user owns the console session (login window, SSH-only boot).
+static uid_t consoleUserID(void) {
+    uid_t uid = (uid_t)-1;
+    gid_t gid = (gid_t)-1;
+    CFStringRef name = SCDynamicStoreCopyConsoleUser(NULL, &uid, &gid);
+    if (name) {
+        CFRelease(name);
+        return uid;
+    }
+    return (uid_t)-1;
 }
 
 #pragma mark - Code Signing Helpers
@@ -237,13 +254,18 @@ static BOOL isProperlyCodeSigned(void) {
     os_log(LOG, "New XPC connection from PID %d (euid: %d)", conn.processIdentifier, conn.effectiveUserIdentifier);
 
     // Defense-in-depth in addition to connectionCodeSigningRequirement.
+    // The signing requirement pins callers to this team's app and widget
+    // identifiers; this check confines them further to processes running in
+    // the logged-in console session (the menu bar app and its widget both
+    // qualify) or as root. A copy of the signed app launched by a different
+    // local account is rejected.
     uid_t callerEUID = conn.effectiveUserIdentifier;
     uid_t myEUID = geteuid();
-    // Allow: root (0), same user as helper, and console users (UID >= 501).
-    // Reject system/daemon UIDs (1–500). The helper runs as root via
-    // LaunchDaemon; legitimate callers are the app running as the logged-in user.
-    if (callerEUID != 0 && callerEUID != myEUID && callerEUID < 501) {
-        os_log_error(LOG, "Rejecting XPC connection from unexpected euid %d (helper euid %d)", callerEUID, myEUID);
+    uid_t consoleUID = consoleUserID();
+    BOOL isConsoleUser = (consoleUID != (uid_t)-1 && callerEUID == consoleUID);
+    if (callerEUID != 0 && callerEUID != myEUID && !isConsoleUser) {
+        os_log_error(LOG, "Rejecting XPC connection from unexpected euid %d (helper euid %d, console uid %d)",
+                     callerEUID, myEUID, consoleUID);
         return NO;
     }
 
