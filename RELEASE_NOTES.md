@@ -1,3 +1,36 @@
+# Ping Warden 3.1.0
+
+[Donate to Ping Warden on Buy Me a Coffee](https://buymeacoffee.com/oliverames)
+
+Ping Warden 3.1 keeps your choices where you put them. A pause now survives a quit, a failed server refresh tells you instead of going quiet, and the app stops working when nobody is looking at it.
+
+## Protection
+
+- Pausing protection survives quitting and relaunching. Ping Warden used to store nothing on disk when you paused, so quitting during the ten minute window silently re-blocked AWDL while you were still trying to AirDrop or share a screen. The pause window now persists, and every path that genuinely ends it still clears it.
+- Protection controls stay responsive when several state changes race each other. Toggling from the menu, the dashboard, or the Control Center widget at the same time could strand the controls mid-transition and disable them until relaunch.
+- Stopping protection no longer leaves monitoring stuck on. A slow reply from the privileged helper used to be discarded after the timeout, so the app reported protection as active across relaunch while AWDL was already restored.
+
+## Cloud gaming
+
+- A failed GeForce NOW zone refresh now says so and offers Retry. The server picker previously dropped its "Refreshing" caption and left a stale list with no explanation. Existing zones are kept through the failure, so a network blip cannot reset your selection or chart history.
+
+## Battery and idle power
+
+- Live menu metrics run only while the menu is open. Turning on "Show Live Metrics in Menu" used to start a permanent two second probe and a five second intervention poll, which sent tens of thousands of pointless network connections a day toward numbers nobody was reading. Opening the menu still shows a fresh reading immediately.
+- Game Mode detection backs off while you are idle. Auto-detect scanned the full window list every ten seconds forever; after about ninety quiet seconds it now moves to thirty. App and display events still trigger an immediate check, so a game launching from deep idle is caught right away.
+
+## Security
+
+- Sparkle updates to 2.9.6, which carries a symlink hardening fix in the installer's archive handling and a privilege escalation fix for root-invoked Sparkle processes.
+- The privileged helper now accepts XPC only from root and the logged-in console user. The previous check rejected system accounts but would have let any second desktop account drive the root daemon with a copy of the signed app.
+- Sentry updates to 9.26.0. Crash reporting remains off by default.
+
+## Release engineering
+
+- Release validation now checks the helper's embedded version metadata, not just the app and widget. The helper's version lives in a plist compiled into its binary, so a half-applied version bump could previously ship with validation still reporting success.
+
+---
+
 # Ping Warden 3.0.0
 
 [Donate to Ping Warden on Buy Me a Coffee](https://buymeacoffee.com/oliverames)
