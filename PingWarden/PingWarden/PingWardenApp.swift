@@ -2829,6 +2829,7 @@ final class GameModeDetector: @unchecked Sendable {
     private var appDidActivateObserver: NSObjectProtocol?
     private var screenParametersObserver: NSObjectProtocol?
     private var inactiveFullscreenSamples = 0
+    private var idleStreakTicks = 0
 
     private static let ignoredFullscreenOwners: Set<String> = [
         "Finder",
@@ -2946,6 +2947,7 @@ final class GameModeDetector: @unchecked Sendable {
             timer = nil
             gameCheckCache.removeAll()
             inactiveFullscreenSamples = 0
+            idleStreakTicks = 0
 
             if isGameModeActive {
                 isGameModeActive = false
@@ -2992,6 +2994,9 @@ final class GameModeDetector: @unchecked Sendable {
     private func scheduleGameModeStatusCheck() {
         detectionQueue.async { [weak self] in
             guard let self, self.isRunning else { return }
+            // An activation or display change means the user just did
+            // something; drop back to the responsive polling tier.
+            self.idleStreakTicks = 0
             self.checkGameModeStatus()
         }
     }
@@ -3000,7 +3005,10 @@ final class GameModeDetector: @unchecked Sendable {
         dispatchPrecondition(condition: .onQueue(detectionQueue))
         timer?.cancel()
 
-        let interval = GameModePollingPolicy.interval(isActive: isGameModeActive)
+        let interval = GameModePollingPolicy.interval(
+            isActive: isGameModeActive,
+            idleStreakTicks: idleStreakTicks
+        )
         let newTimer = DispatchSource.makeTimerSource(queue: detectionQueue)
         newTimer.schedule(
             deadline: .now() + interval,
@@ -3021,6 +3029,7 @@ final class GameModeDetector: @unchecked Sendable {
 
         if isFullscreen {
             inactiveFullscreenSamples = 0
+            idleStreakTicks = 0
             if !isGameModeActive {
                 isGameModeActive = true
                 log.info("Game Mode detected: true")
@@ -3034,10 +3043,15 @@ final class GameModeDetector: @unchecked Sendable {
 
         guard isGameModeActive else {
             inactiveFullscreenSamples = 0
+            idleStreakTicks += 1
+            // Recreate the repeating timer so a streak crossing the idle
+            // threshold takes effect on the very next tick.
+            scheduleSafetyTimer()
             return
         }
 
         inactiveFullscreenSamples += 1
+        idleStreakTicks += 1
         guard inactiveFullscreenSamples >= 2 else {
             return
         }

@@ -338,4 +338,43 @@ final class GameModePollingPolicyTests: XCTestCase {
     func testInactiveDetectionUsesLowWakeupInterval() {
         XCTAssertEqual(GameModePollingPolicy.interval(isActive: false), 10)
     }
+
+    func testIdleTierKeepsInactiveCadenceBelowThreshold() {
+        XCTAssertLessThan(
+            GameModePollingPolicy.idleStreakThreshold,
+            Int.max
+        )
+        XCTAssertEqual(
+            GameModePollingPolicy.interval(isActive: false, idleStreakTicks: 0),
+            GameModePollingPolicy.inactiveInterval
+        )
+        XCTAssertEqual(
+            GameModePollingPolicy.interval(
+                isActive: false,
+                idleStreakTicks: GameModePollingPolicy.idleStreakThreshold - 1
+            ),
+            GameModePollingPolicy.inactiveInterval
+        )
+    }
+
+    func testDeepIdleDropsToIdleTierAtThreshold() {
+        XCTAssertEqual(
+            GameModePollingPolicy.interval(
+                isActive: false,
+                idleStreakTicks: GameModePollingPolicy.idleStreakThreshold
+            ),
+            GameModePollingPolicy.idleInterval
+        )
+        XCTAssertEqual(
+            GameModePollingPolicy.interval(isActive: false, idleStreakTicks: .max),
+            GameModePollingPolicy.idleInterval
+        )
+    }
+
+    func testActiveModeIgnoresIdleStreak() {
+        XCTAssertEqual(
+            GameModePollingPolicy.interval(isActive: true, idleStreakTicks: 1_000),
+            GameModePollingPolicy.activeInterval
+        )
+    }
 }
