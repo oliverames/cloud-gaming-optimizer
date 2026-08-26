@@ -1,5 +1,19 @@
 # Ping Warden Worklog
 
+## 2026-08-26 - Cut and publish the 3.1.0 stable release
+
+**What changed**: Released 3.1.0 to the stable channel. The version moved from 3.0.0 to 3.1.0 and build 30000 to 30100 across the four Xcode targets, the app, widget, and helper `Info.plist` files, and the helper's `HELPER_VERSION` define. `RELEASE_NOTES.md` gained a 3.1.0 section covering the persisted protection pause, the GeForce NOW refresh retry, the two idle-power reductions, the console-user XPC gate, Sparkle 2.9.6, and the helper version validation. `release.sh 3.1.0` then archived, signed, notarized, packaged, signed the feed, published the GitHub release, uploaded dSYMs to Sentry, and pushed `gh-pages` commit `8f3866e`.
+
+**Decisions made**: Chose a semver minor rather than a patch because two user-facing features shipped alongside the fixes. Kept the release on the stable channel instead of staging a beta, since the changes are incremental on top of a 3.0 line that has been public since July.
+
+**Verification**: `swift test` passed all 82 tests before the build. The DMG is Developer ID signed under Team `PV3W52NDZ3`, notarized, stapled, and `spctl` accepted as `Notarized Developer ID`; the app inside it carries the hardened runtime. The app, widget, and helper all report 3.1.0 and 30100, with the helper read out of its `__TEXT,__info_plist` section rather than trusted from the source tree. The DMG downloaded from the GitHub release has SHA-256 `5ac5df85...0bff265`, identical to the notarized local artifact, and validates its own staple. Sparkle's `sign_update --verify` accepts the live feed at `https://oliverames.github.io/ping-warden/appcast.xml`, and the enclosure `edSignature` in that feed reproduces exactly when recomputed against the downloaded DMG.
+
+**Left off at**: 3.1.0 is public on both the GitHub release page and the stable appcast. `main` is clean at `cf91843` with the appcast copy committed.
+
+**Open questions**: The update was verified by signature and feed rather than by installing an older build and taking the update through Sparkle's UI. That end-to-end install path is untested for this version.
+
+---
+
 ## 2026-07-22 - Consolidate and merge open maintenance pull requests
 
 **What changed**: Consolidated the useful changes from four overlapping pull requests into one coherent merge and closed the superseded branches. The merge also fixed mixed CodeQL action revisions.
