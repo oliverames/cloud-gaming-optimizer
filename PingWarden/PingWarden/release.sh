@@ -100,12 +100,12 @@ fi
 
 # Sentry pre-flight. We require sentry-cli, op CLI, and a readable token in
 # the vault. Anything missing -> abort here, before notarization. The previous
-# inline checks in Step 6 would have *warned and continued*, which means a
+# inline checks in Step 7 would have *warned and continued*, which means a
 # Mac without the tooling could ship a release with no dSYMs uploaded and
 # the maintainer would only notice weeks later when crashes came in
 # unsymbolicated. That failure mode is closed by checking up-front.
 if [ "${SKIP_SENTRY:-0}" != "1" ]; then
-    # Match the runtime PATH that Step 6 uses so this check sees the same binaries.
+    # Match the runtime PATH that Step 7 uses so this check sees the same binaries.
     export PATH="$HOME/.local/bin:$PATH"
     SENTRY_PREFLIGHT_OK=1
     if ! command -v sentry-cli >/dev/null 2>&1; then
@@ -472,7 +472,7 @@ fi
 
 echo ""
 
-# Step 6: Upload dSYMs and tag the release in Sentry.
+# Step 7: Upload dSYMs and tag the release in Sentry.
 #
 # Sentry needs the dSYMs to symbolicate crash reports — without them the
 # stacks are raw memory addresses. We also create a release object so

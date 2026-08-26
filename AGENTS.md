@@ -37,7 +37,7 @@ PingWarden/
 │   └── PingWardenMonitor.h/.m  # AF_ROUTE socket listener, ifconfig calls
 ├── PingWardenWidget/         # macOS Control Center widget (toggle intent + preferences)
 ├── Common/                   # Shared XPC protocol (HelperProtocol.h)
-├── create-dmg.sh             # DMG packaging with background image
+├── create-dmg.sh             # DMG packaging
 └── PingWarden.xcodeproj
 ```
 
@@ -116,8 +116,7 @@ Sparkle EdDSA key is in keychain account `"ed25519"`. Notarytool profile: `"nota
 |--------|----------|---------|
 | `notarize.sh` | `PingWarden/PingWarden/` | Notarize, poll, staple |
 | `release.sh` | `PingWarden/PingWarden/` | DMG + Sparkle appcast entry + GitHub release |
-| `create-dmg.sh` | `PingWarden/` | DMG packaging with background image |
-| `core_logic_smoke.swift` | `scripts/` | Standalone smoke tests |
+| `create-dmg.sh` | `PingWarden/` | DMG packaging |
 
 ## Architecture Notes
 

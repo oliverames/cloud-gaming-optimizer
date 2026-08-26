@@ -8,7 +8,7 @@ updates:
     open-pull-requests-limit: 5
 
   - package-ecosystem: swift
-    directory: /PingWarden
+    directory: /
     schedule:
       interval: weekly
       day: monday
