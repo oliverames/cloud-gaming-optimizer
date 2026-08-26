@@ -68,7 +68,7 @@ Read the SwiftPM test target for current coverage; it is the authoritative list.
 
 ## Release Process
 
-The full release runbook lives in the **`ames-dev-workflows:ping-warden-release` skill** (unsigned-archive workaround for the broken Xcode 26 `-exportArchive`, standalone notarize test, beta channel, post-release appcast commit). Invoke it for any release. Canonical path, from a clean pushed commit:
+The full release runbook lives in the **`ames-dev-workflows:project-release-runbooks` skill** (Ping Warden runbook) (unsigned-archive workaround for the broken Xcode 26 `-exportArchive`, standalone notarize test, beta channel, post-release appcast commit). Invoke it for any release. Canonical path, from a clean pushed commit:
 
 ```bash
 cd PingWarden/PingWarden && bash release.sh X.Y.Z ../../RELEASE_NOTES.md
@@ -104,6 +104,6 @@ Sparkle EdDSA key is in keychain account `"ed25519"`. Notarytool profile: `"nota
 
 ## Gotchas
 
-- **`xcodebuild -exportArchive` is broken** in Xcode 26 — use the unsigned-archive + rsync workaround in the `ping-warden-release` skill.
+- **`xcodebuild -exportArchive` is broken** in Xcode 26 — use the unsigned-archive + rsync workaround in the `project-release-runbooks` skill.
 - **SMAppService requires `/Applications`**: The daemon registration (`SMAppService.daemon(plistName:)`) refuses to register when the app runs from Xcode's DerivedData. To test the full helper registration flow, build in Release, copy to `/Applications`, and launch from there. Running from Xcode is fine for non-helper UI work.
 - **Appcast publishing is automated**: `release.sh` snapshots the signed appcast, publishes it to `gh-pages`, and restores the original branch. It leaves the signed appcast modified on `main`, so commit and push that main-side copy after the release succeeds.
