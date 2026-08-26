@@ -175,13 +175,17 @@ final class TCPProbeTests: XCTestCase {
     }
 
     /// Bind a real listener on a kernel-assigned port and verify the probe
-    /// returns a non-negative latency. `listen()` queues the incoming SYN
-    /// even before any accept() so the handshake completes without a race.
+    /// returns a plausible loopback latency. The upper bound catches unit
+    /// regressions (seconds reported as milliseconds) and constant-value bugs
+    /// that a bare `>= 0` assertion cannot see; a real loopback connect takes
+    /// tens of microseconds, so even a heavily loaded runner stays far below
+    /// the 1 second ceiling.
     func testOpenLoopbackPortReturnsLatency() throws {
         let port = try XCTUnwrap(Self.startLoopbackListener(), "failed to bind loopback listener")
         let latency = TCPProbe.measureLatency(host: "127.0.0.1", port: port, timeoutSeconds: 2)
         let unwrappedLatency = try XCTUnwrap(latency, "probe should return non-nil latency")
         XCTAssertGreaterThanOrEqual(unwrappedLatency, 0)
+        XCTAssertLessThan(unwrappedLatency, 1_000)
         XCTAssertTrue(TCPProbe.connect(host: "127.0.0.1", port: port, timeoutSeconds: 2))
     }
 
