@@ -538,12 +538,18 @@ class PingWardenMonitor: @unchecked Sendable {
         proxy.setAWDLEnabled(true, reply: { [weak self] success in
             guard let monitor = self else { return }
             DispatchQueue.main.async {
-                guard claimCompletion() else { return }
                 guard monitor.isCurrentProtectionOperation(operationID) else {
                     log.info("Ignoring stale disable-protection reply")
-                    completion?(false)
+                    if claimCompletion() { completion?(false) }
                     return
                 }
+                // Unlike the enable path, apply the state change even when a
+                // timeout already claimed completion. The stop command is the
+                // last message in flight, so a late success is the truth about
+                // the radio; discarding it left _isMonitoring stuck true while
+                // AirDrop was already restored. Completion is still reported
+                // at most once.
+                let reportCompletion = claimCompletion()
                 if success {
                     monitor.isMonitoring = false
                     if persistUserPreference {
@@ -553,7 +559,6 @@ class PingWardenMonitor: @unchecked Sendable {
                     PingWardenPreferences.shared.lastKnownState = "up"
                     monitor.notifyStateChange()
                     log.info("✅ AWDL monitoring stopped - AirDrop/Handoff available")
-                    completion?(true)
                 } else {
                     log.error("❌ Failed to enable AWDL")
                     PingWardenPreferences.shared.lastKnownState = "unknown"
@@ -561,8 +566,9 @@ class PingWardenMonitor: @unchecked Sendable {
                     if persistUserPreference || completion != nil {
                         monitor.showError("Failed to turn off Ping Protection.\n\nQuit Ping Warden to restore wireless sharing, then try again.")
                     }
-                    completion?(false)
                 }
+                guard reportCompletion else { return }
+                completion?(success)
             }
         })
     }

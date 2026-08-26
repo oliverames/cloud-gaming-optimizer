@@ -123,7 +123,16 @@ final class ProtectionExperienceCoordinator: ObservableObject {
             enabled,
             persistUserPreference: true
         )
-        guard generation == actionGeneration else { return success }
+        guard generation == actionGeneration else {
+            // A newer action or an externally applied state owns the outcome.
+            // Release the transition only if no newer action has claimed it,
+            // otherwise leaving it set wedges every protection control.
+            if transition == (enabled ? .enablingProtection : .disablingProtection) {
+                transition = .idle
+            }
+            objectWillChange.send()
+            return success
+        }
 
         transition = .idle
         if !success {
@@ -166,6 +175,17 @@ final class ProtectionExperienceCoordinator: ObservableObject {
             false,
             persistUserPreference: false
         )
+        if generation != actionGeneration {
+            // Superseded while the disable was in flight, for example by a
+            // widget-driven state change. The winner owns both the radio and
+            // the UI; stay quiet instead of reporting a failure the user
+            // did not cause.
+            if transition == .disablingProtection {
+                transition = .idle
+            }
+            objectWillChange.send()
+            return
+        }
         transition = .idle
         if !success {
             clearPause()
@@ -212,9 +232,18 @@ final class ProtectionExperienceCoordinator: ObservableObject {
     }
 
     func handleExternallyAppliedProtectionState(_ enabled: Bool) async {
+        // A user toggle's XPC reply writes the shared preference, which loops
+        // back here through the distributed notification. A signal that
+        // agrees with the in-flight transition is that action's own echo:
+        // bumping the generation would stale the awaiting action and strand
+        // `transition` non-idle, disabling every protection control.
+        if isEchoOfInFlightTransition(enabled) { return }
         actionGeneration += 1
         lastError = nil
         clearPause()
+        // The external writer owns the radio now; release any transition a
+        // superseded local action left behind so the UI stays interactive.
+        transition = .idle
         monitor.adoptExternallyAppliedMonitoringState(enabled)
 
         if !enabled, session.phase != .idle {
@@ -226,6 +255,17 @@ final class ProtectionExperienceCoordinator: ObservableObject {
         }
 
         objectWillChange.send()
+    }
+
+    private func isEchoOfInFlightTransition(_ enabled: Bool) -> Bool {
+        switch transition {
+        case .idle:
+            return false
+        case .enablingProtection:
+            return enabled
+        case .disablingProtection:
+            return !enabled
+        }
     }
 
     func finishForTermination() {
