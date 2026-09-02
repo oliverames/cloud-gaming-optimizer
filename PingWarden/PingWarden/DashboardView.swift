@@ -419,13 +419,12 @@ private struct SessionRecapView: View {
             Divider()
 
             HStack(spacing: 12) {
-                Text("Ping Warden stays free. Donations help fund future releases.")
+                Text("Ping Warden stays open source. Donations help fund future releases.")
                     .font(.caption)
                     .foregroundStyle(.secondary)
                 Spacer(minLength: 12)
                 Button("Donate...") {
-                    PingWardenPreferences.shared.supportOpenedDate = Date()
-                    NSWorkspace.shared.open(DonationPromptView.donationURL)
+                    NSWorkspace.shared.open(URL(string: "https://buymeacoffee.com/oliverames")!)
                 }
                 .buttonStyle(.borderless)
                 .accessibilityHint("Opens the Ping Warden donation page in your browser")

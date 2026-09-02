@@ -40,6 +40,12 @@ final class PingWardenPreferences: @unchecked Sendable {
     /// intent handlers must surface an error instead of proceeding.
     let usesAppGroupSuite: Bool
 
+    /// Read-only defaults access for the license gate, which mirrors the
+    /// main app's cached license state from the same shared suite.
+    var defaultsForLicenseGate: UserDefaults {
+        defaults ?? .standard
+    }
+
     private init() {
         if let suite = UserDefaults(suiteName: appGroupID) {
             log.debug("Successfully connected to App Group suite")

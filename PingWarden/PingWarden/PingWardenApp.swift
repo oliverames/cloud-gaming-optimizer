@@ -95,7 +95,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSMenuDele
     private var settingsWindow: NSWindow?
     private var aboutWindow: NSWindow?
     private var welcomeWindow: NSWindow?
-    private var donationWindow: NSWindow?
+    private var licenseNoticeWindow: NSWindow?
     private var gameModeDetector: GameModeDetector?
     private var monitorStateObserverToken: UUID?
     private var lastToggleTime: Date = .distantPast
@@ -116,11 +116,6 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSMenuDele
         sessionCoordinator.onSessionStateChanged = { [weak self] in
             self?.updateQuickActionMenuItems()
         }
-        sessionCoordinator.onSessionCompleted = { [weak self] _ in
-            Task { @MainActor in
-                self?.showDonationPromptIfNeeded()
-            }
-        }
 
         // Optional anonymous crash reporting (Sentry). New installations start
         // with it off; the Settings privacy toggle is checked before startup.
@@ -140,6 +135,29 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSMenuDele
 
         // Initialize monitoring before Sparkle so first-run UX can be gated on setup state.
         let monitor = PingWardenMonitor.shared
+
+        // Licensing: grandfather existing installs (protection already
+        // enabled) for 90 days, then enforce the license gate.
+        LicenseManager.shared.establishGrandfatheringIfNeeded()
+        LicenseManager.shared.onReverificationSettled = { [weak self] in
+            Task { @MainActor in
+                await self?.protectionExperience.handleLicenseReverification()
+            }
+        }
+        LicenseManager.shared.startPeriodicReverification()
+
+        // One-time notice for grandfathered installs so the move to a
+        // paid model is explained, never a surprise.
+        if LicenseManager.shared.isGrandfathered,
+           !LicenseManager.shared.transitionNoticeShown {
+            DispatchQueue.main.asyncAfter(deadline: .now() + 1.0) { [weak self] in
+                guard let self else { return }
+                guard LicenseManager.shared.isGrandfathered,
+                      !LicenseManager.shared.transitionNoticeShown else { return }
+                LicenseManager.shared.transitionNoticeShown = true
+                self.showLicenseTransitionNotice()
+            }
+        }
 #if DEBUG
         let debugWindowPrefix = "--show-window="
         let debugWindowTarget = ProcessInfo.processInfo.arguments
@@ -361,7 +379,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSMenuDele
         let settingsVisible = settingsWindow?.isVisible ?? false
         let aboutVisible = aboutWindow?.isVisible ?? false
         let welcomeVisible = welcomeWindow?.isVisible ?? false
-        let donationVisible = donationWindow?.isVisible ?? false
+        let licenseNoticeVisible = licenseNoticeWindow?.isVisible ?? false
 
         // Lockout invariant (H2): never hide the dock icon while Control
         // Center mode has the menu bar icon removed. Without this, unchecking
@@ -380,7 +398,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSMenuDele
             // the activation policy unset for the whole session.
         }
 
-        if PingWardenPreferences.shared.showDockIcon || settingsVisible || aboutVisible || welcomeVisible || donationVisible {
+        if PingWardenPreferences.shared.showDockIcon || settingsVisible || aboutVisible || welcomeVisible || licenseNoticeVisible {
             NSApp.setActivationPolicy(.regular)
             ensureApplicationMenuItems()
         } else {
@@ -394,7 +412,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSMenuDele
         guard let window = notification.object as? NSWindow else { return }
 
         // Update dock icon visibility when a managed window closes.
-        if window === settingsWindow || window === aboutWindow || window === welcomeWindow || window === donationWindow {
+        if window === settingsWindow || window === aboutWindow || window === welcomeWindow || window === licenseNoticeWindow {
             if window === settingsWindow {
                 settingsWindow = nil
             }
@@ -404,11 +422,8 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSMenuDele
             if window === welcomeWindow {
                 welcomeWindow = nil
             }
-            if window === donationWindow {
-                // Treat the close control as Maybe Later and start the normal
-                // value-prompt cooldown.
-                PingWardenPreferences.shared.supportLastPromptDate = Date()
-                donationWindow = nil
+            if window === licenseNoticeWindow {
+                licenseNoticeWindow = nil
             }
             DispatchQueue.main.async { [weak self] in
                 self?.updateDockIconVisibility()
@@ -458,8 +473,12 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSMenuDele
                         completion(false)
                         return
                     }
-                    let enabled = await experience.setPersistentProtection(true)
-                    completion(enabled)
+                    // Setup is complete even without a license; only the
+                    // protection toggle itself is gated. An unlicensed
+                    // enable reports false and shows its message in the
+                    // protectionExperience error surface.
+                    _ = await experience.setPersistentProtection(true)
+                    completion(true)
                 }
             }
         } onOpenDashboard: {
@@ -520,84 +539,38 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSMenuDele
         ensureApplicationMenuItems()
     }
 
-    // MARK: - Donation Prompt
+    // MARK: - License Transition Notice
 
-    private func showDonationPromptIfNeeded() {
-        // Manual sessions start from the dashboard. Only offer the contextual
-        // prompt while that Ping Warden window is still frontmost, so Game
-        // Mode completion, launch-at-login, and app termination can never
-        // interrupt another app.
-        guard !isTerminating,
-              donationWindow == nil,
-              NSApp.isActive,
-              settingsWindow?.isVisible == true else {
-            return
-        }
+    /// One-time window explaining the paid-model transition to
+    /// grandfathered installs. Shown only on the first launch of the
+    /// licensed build that observes protection already enabled.
+    private func showLicenseTransitionNotice() {
+        guard licenseNoticeWindow == nil,
+              LicenseManager.shared.isGrandfathered else { return }
 
-        let prefs = PingWardenPreferences.shared
-        let context = SupportPromptPolicy.Context(
-            setupComplete: PingWardenMonitor.shared.isHelperRegistered,
-            completedSessionCount: prefs.completedProtectedSessionCount,
-            lifetimeInterventionCount: prefs.lifetimeInterventionCount,
-            activeSession: sessionCoordinator.isActive,
-            updateInProgress: updaterController?.updater.sessionInProgress ?? false,
-            dismissedPermanently: prefs.donationPromptDismissedPermanently,
-            lastPromptDate: prefs.supportLastPromptDate,
-            supportOpenedDate: prefs.supportOpenedDate,
-            now: Date()
-        )
-
-        guard SupportPromptPolicy.shouldPrompt(context) else {
-            return
-        }
-
-        presentDonationPrompt()
-    }
-
-    private func presentDonationPrompt(
-        completedSessionCount: Int? = nil,
-        lifetimeInterventionCount: Int? = nil
-    ) {
-        guard donationWindow == nil else { return }
-
-        let prefs = PingWardenPreferences.shared
-        log.info("Showing value-based support prompt")
-
-        let view = DonationPromptView(
-            onSupport: { [weak self] in
-                NSWorkspace.shared.open(DonationPromptView.donationURL)
-                prefs.supportOpenedDate = Date()
-                prefs.supportLastPromptDate = Date()
-                self?.closeDonationWindow()
+        let view = LicenseTransitionNoticeView(
+            daysRemaining: LicenseManager.shared.grandfatherDaysRemaining,
+            onOpenLicenseSettings: { [weak self] in
+                self?.closeLicenseNoticeWindow()
+                self?.settingsNavigation.selectedSection = .license
+                self?.openSettings()
             },
-            onMaybeLater: { [weak self] in
-                prefs.supportLastPromptDate = Date()
-                self?.closeDonationWindow()
-            },
-            onDontAskAgain: { [weak self] in
-                prefs.supportLastPromptDate = Date()
-                prefs.donationPromptDismissedPermanently = true
-                self?.closeDonationWindow()
-            },
-            completedSessionCount: completedSessionCount ?? prefs.completedProtectedSessionCount,
-            lifetimeInterventionCount: lifetimeInterventionCount ?? prefs.lifetimeInterventionCount
+            onDismiss: { [weak self] in
+                self?.closeLicenseNoticeWindow()
+            }
         )
 
         let hostingController = NSHostingController(rootView: view)
-        let contentSize = NSSize(
-            width: DonationPromptView.contentSize.width,
-            height: DonationPromptView.contentSize.height
-        )
-        hostingController.view.frame = NSRect(origin: .zero, size: contentSize)
+        hostingController.view.frame = NSRect(origin: .zero, size: LicenseTransitionNoticeView.contentSize)
 
         let window = NSWindow(
-            contentRect: NSRect(origin: .zero, size: contentSize),
+            contentRect: NSRect(origin: .zero, size: LicenseTransitionNoticeView.contentSize),
             styleMask: [.titled, .closable, .fullSizeContentView],
             backing: .buffered,
             defer: false
         )
         window.contentViewController = hostingController
-        window.title = "Donate to Ping Warden"
+        window.title = "Ping Warden Is Moving to a License"
         window.titlebarAppearsTransparent = true
         window.titleVisibility = .hidden
         window.isMovableByWindowBackground = true
@@ -606,7 +579,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSMenuDele
         window.isReleasedWhenClosed = false
         window.delegate = self
 
-        donationWindow = window
+        licenseNoticeWindow = window
 
         NSApp.setActivationPolicy(.regular)
         window.makeKeyAndOrderFront(nil)
@@ -614,9 +587,9 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSMenuDele
         ensureApplicationMenuItems()
     }
 
-    private func closeDonationWindow() {
-        donationWindow?.close()
-        donationWindow = nil
+    private func closeLicenseNoticeWindow() {
+        licenseNoticeWindow?.close()
+        licenseNoticeWindow = nil
         updateDockIconVisibility()
     }
 
@@ -637,8 +610,6 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSMenuDele
             openSettings()
         case "about":
             showAbout()
-        case "donation":
-            presentDonationPrompt(completedSessionCount: 3, lifetimeInterventionCount: 12)
         default:
             log.error("Unknown debug window target: \(name, privacy: .public)")
         }
@@ -924,8 +895,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSMenuDele
     }
 
     @objc private func supportPingWarden() {
-        PingWardenPreferences.shared.supportOpenedDate = Date()
-        NSWorkspace.shared.open(DonationPromptView.donationURL)
+        NSWorkspace.shared.open(URL(string: "https://buymeacoffee.com/oliverames")!)
     }
 
     @objc private func checkForUpdates() {
@@ -1655,6 +1625,102 @@ struct WelcomeView: View {
     }
 }
 
+// MARK: - License Transition Notice View
+
+/// One-time notice shown on the first launch of the licensed build for
+/// grandfathered installs. Explains the paid-model move, the 90-day
+/// transition, and the donation-honoring offer.
+struct LicenseTransitionNoticeView: View {
+    static let contentSize = CGSize(width: 460, height: 460)
+
+    let daysRemaining: Int?
+    let onOpenLicenseSettings: () -> Void
+    let onDismiss: () -> Void
+
+    @ScaledMetric(relativeTo: .largeTitle) private var heroIconSize: CGFloat = 40
+
+    var body: some View {
+        ScrollView {
+            VStack(spacing: 0) {
+                Image(systemName: "checkmark.seal")
+                    .font(.system(size: heroIconSize, weight: .light))
+                    .foregroundStyle(.tint)
+                    .accessibilityHidden(true)
+                    .padding(.top, 24)
+
+                VStack(spacing: 10) {
+                    Text("Ping Warden Is Moving to a License")
+                        .font(.title2)
+                        .fontWeight(.semibold)
+                        .multilineTextAlignment(.center)
+
+                    VStack(spacing: 8) {
+                        if let daysRemaining {
+                            Text("Starting with this release, the AWDL blocking feature (Ping Protection) requires a one-time $15 license.")
+                            Text("As a thank-you for being an early user, this Mac keeps full Ping Protection for \(daysRemaining) more days. Nothing changes today, and no action is needed right now.")
+                        } else {
+                            Text("Starting with this release, the AWDL blocking feature (Ping Protection) requires a one-time $15 license.")
+                            Text("As a thank-you for being an early user, this Mac keeps full Ping Protection during a 90-day transition. Nothing changes today, and no action is needed right now.")
+                        }
+                        Text("Everything else in Ping Warden stays free, and the source code remains open under the MIT License.")
+                    }
+                    .font(.body)
+                    .multilineTextAlignment(.center)
+                    .foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+                    .frame(maxWidth: 380)
+                }
+                .padding(.top, 16)
+                .padding(.horizontal, 24)
+
+                VStack(alignment: .leading, spacing: 8) {
+                    Text("Already supported Ping Warden?")
+                        .font(.headline)
+                    Text("If you donated through the Buy Me a Coffee link before this release, email \(LicenseManager.donationConversionEmail) and that support will be honored as a full license.")
+                        .font(.callout)
+                        .foregroundStyle(.secondary)
+                        .fixedSize(horizontal: false, vertical: true)
+                    Button("Email \(LicenseManager.donationConversionEmail)") {
+                        NSWorkspace.shared.open(URL(string: "mailto:\(LicenseManager.donationConversionEmail)?subject=Ping%20Warden%20license%20from%20donation")!)
+                    }
+                    .controlSize(.small)
+                }
+                .padding(.top, 20)
+                .padding(.horizontal, 32)
+
+                VStack(spacing: 10) {
+                    Button {
+                        onOpenLicenseSettings()
+                    } label: {
+                        Text("View License Options")
+                            .frame(maxWidth: .infinity)
+                    }
+                    .buttonStyle(.borderedProminent)
+                    .controlSize(.large)
+                    .keyboardShortcut(.defaultAction)
+
+                    Button {
+                        onDismiss()
+                    } label: {
+                        Text("Continue Using Ping Warden")
+                            .frame(maxWidth: .infinity)
+                    }
+                    .buttonStyle(.bordered)
+                    .controlSize(.large)
+                    .keyboardShortcut(.cancelAction)
+                }
+                .padding(.top, 24)
+                .padding(.horizontal, 32)
+                .padding(.bottom, 24)
+            }
+            .frame(maxWidth: .infinity)
+        }
+        .frame(width: Self.contentSize.width, height: Self.contentSize.height)
+        .background(.regularMaterial)
+        .accessibilityElement(children: .contain)
+    }
+}
+
 struct FeatureRow: View {
     let icon: String
     let title: String
@@ -1751,6 +1817,7 @@ private extension View {
 enum SettingsSection: String, CaseIterable, Identifiable {
     case dashboard = "Dashboard"
     case general = "General"
+    case license = "License"
     case automation = "Automation"
     case advanced = "Advanced"
 
@@ -1760,6 +1827,7 @@ enum SettingsSection: String, CaseIterable, Identifiable {
         switch self {
         case .dashboard: return "chart.xyaxis.line"
         case .general: return "gearshape"
+        case .license: return "checkmark.seal"
         case .automation: return "sparkles"
         case .advanced: return "wrench.and.screwdriver"
         }
@@ -1777,6 +1845,8 @@ struct SettingsContentView: View {
                 dashboardContent
             case .general:
                 GeneralSettingsContent(onCheckForUpdates: onCheckForUpdates)
+            case .license:
+                LicenseSettingsContent()
             case .automation:
                 AutomationSettingsContent()
             case .advanced:
@@ -2041,16 +2111,16 @@ struct GeneralSettingsContent: View {
             Section("Support") {
                 LabeledContent {
                     Button("Donate...") {
-                        PingWardenPreferences.shared.supportOpenedDate = Date()
-                        NSWorkspace.shared.open(DonationPromptView.donationURL)
+                        NSWorkspace.shared.open(URL(string: "https://buymeacoffee.com/oliverames")!)
                     }
                     .buttonStyle(.bordered)
                 } label: {
                     VStack(alignment: .leading, spacing: 2) {
                         Text("Support Development")
-                        Text("Ping Warden is free. Contributions help fund future releases.")
+                        Text("Ping Warden is free. Contributions help fund future releases. Donations made before the current release are honored as full licenses; email \(LicenseManager.donationConversionEmail) to claim yours.")
                             .font(.caption)
                             .foregroundStyle(.secondary)
+                            .fixedSize(horizontal: false, vertical: true)
                     }
                 }
             }
@@ -2117,6 +2187,203 @@ struct GeneralSettingsContent: View {
     private var statusText: String {
         if !monitorState.isHelperRegistered { return "Not Set Up" }
         return monitorState.isMonitoring ? "Protected" : "Not Protected"
+    }
+}
+
+// MARK: - License Settings Content
+
+struct LicenseSettingsContent: View {
+    @ObservedObject private var license = LicenseManager.shared
+    @ObservedObject private var protectionExperience = ProtectionExperienceCoordinator.shared
+    @State private var keyField = ""
+    @State private var licenseMessage: String?
+
+    var body: some View {
+        Form {
+            Section {
+                VStack(alignment: .leading, spacing: 8) {
+                    HStack(spacing: 8) {
+                        Image(systemName: license.canEnableProtection ? "checkmark.seal.fill" : "seal")
+                            .foregroundStyle(license.canEnableProtection ? .green : .secondary)
+                            .accessibilityHidden(true)
+                        Text(license.canEnableProtection ? "Licensed" : "Unlicensed")
+                            .font(.headline)
+                    }
+
+                    Text(statusCaption)
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+            } header: {
+                Text("Ping Protection License")
+            } footer: {
+                Text("Ping Warden is open source, and everything except enabling Ping Protection is free. A license keeps AWDL blocking available and supports development.")
+            }
+
+            if license.isGrandfathered {
+                Section {
+                    VStack(alignment: .leading, spacing: 8) {
+                        if let days = license.grandfatherDaysRemaining {
+                            Text("Ping Warden is moving to a paid model for the AWDL blocking feature. As an existing user, this Mac keeps full Ping Protection for \(days) more days, free and with no action needed.")
+                                .font(.caption)
+                                .fixedSize(horizontal: false, vertical: true)
+                        } else {
+                            Text("Ping Warden is moving to a paid model for the AWDL blocking feature. As an existing user, this Mac keeps full Ping Protection during a 90-day transition, free and with no action needed.")
+                                .font(.caption)
+                                .fixedSize(horizontal: false, vertical: true)
+                        }
+                        Text("After the transition ends, a $15 one-time license keeps Ping Protection available. Everything else in the app stays free, and the source remains open under MIT.")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                            .fixedSize(horizontal: false, vertical: true)
+                        Text("If you donated through the Buy Me a Coffee link before this release, thank you. Email \(LicenseManager.donationConversionEmail) and that support will be honored as a full license.")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                            .fixedSize(horizontal: false, vertical: true)
+                        Button("Email \(LicenseManager.donationConversionEmail)") {
+                            NSWorkspace.shared.open(URL(string: "mailto:\(LicenseManager.donationConversionEmail)?subject=Ping%20Warden%20license%20from%20donation")!)
+                        }
+                        .controlSize(.small)
+                    }
+                } header: {
+                    Text("Transition Period")
+                } footer: {
+                    Text("Enter a license key below any time during the transition. Nothing changes until it ends.")
+                }
+
+                Section("Enter License Key") {
+                    SecureField("License key", text: $keyField)
+                        .accessibilityLabel("License key")
+
+                    HStack {
+                        Button {
+                            Task {
+                                let entitled = await license.verify(key: keyField)
+                                licenseMessage = entitled
+                                    ? "License verified. Ping Protection is available."
+                                    : licenseMessageForLastResult
+                                if entitled { keyField = "" }
+                            }
+                        } label: {
+                            if license.isVerifying {
+                                ProgressView()
+                                    .controlSize(.small)
+                            } else {
+                                Text("Verify")
+                            }
+                        }
+                        .buttonStyle(.borderedProminent)
+                        .disabled(license.isVerifying || keyField.trimmingCharacters(in: .whitespaces).isEmpty)
+
+                        Button("Buy a License...") {
+                            NSWorkspace.shared.open(URL(string: "https://olivera40.gumroad.com/l/pingwarden")!)
+                        }
+                    }
+
+                    if let licenseMessage {
+                        Label(licenseMessage, systemImage: messageIcon)
+                            .font(.caption)
+                            .foregroundStyle(messageIsError ? .red : .secondary)
+                            .fixedSize(horizontal: false, vertical: true)
+                    }
+                }
+            } else if !license.canEnableProtection {
+                Section("Enter License Key") {
+                    SecureField("License key", text: $keyField)
+                        .accessibilityLabel("License key")
+
+                    HStack {
+                        Button {
+                            Task {
+                                let entitled = await license.verify(key: keyField)
+                                licenseMessage = entitled
+                                    ? "License verified. Ping Protection is available."
+                                    : licenseMessageForLastResult
+                                if entitled { keyField = "" }
+                            }
+                        } label: {
+                            if license.isVerifying {
+                                ProgressView()
+                                    .controlSize(.small)
+                            } else {
+                                Text("Verify")
+                            }
+                        }
+                        .buttonStyle(.borderedProminent)
+                        .disabled(license.isVerifying || keyField.trimmingCharacters(in: .whitespaces).isEmpty)
+
+                        Button("Buy a License...") {
+                            NSWorkspace.shared.open(URL(string: "https://olivera40.gumroad.com/l/pingwarden")!)
+                        }
+                    }
+
+                    if let licenseMessage {
+                        Label(licenseMessage, systemImage: messageIcon)
+                            .font(.caption)
+                            .foregroundStyle(messageIsError ? .red : .secondary)
+                            .fixedSize(horizontal: false, vertical: true)
+                    }
+                }
+
+                Section {
+                    VStack(alignment: .leading, spacing: 8) {
+                        Text("If you donated through the Buy Me a Coffee link before this release, thank you. Email \(LicenseManager.donationConversionEmail) and that support will be honored as a full license.")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                            .fixedSize(horizontal: false, vertical: true)
+                        Button("Email \(LicenseManager.donationConversionEmail)") {
+                            NSWorkspace.shared.open(URL(string: "mailto:\(LicenseManager.donationConversionEmail)?subject=Ping%20Warden%20license%20from%20donation")!)
+                        }
+                        .controlSize(.small)
+                    }
+                } header: {
+                    Text("Donated Before?")
+                }
+            }
+
+            if let error = protectionExperience.lastError,
+               error.contains("license") {
+                Label(error, systemImage: "exclamationmark.triangle.fill")
+                    .font(.caption)
+                    .foregroundStyle(.red)
+            }
+        }
+        .formStyle(.grouped)
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+    }
+
+    private var statusCaption: String {
+        if license.isGrandfathered {
+            return "Full Ping Protection continues free during the transition period."
+        }
+        if license.canEnableProtection {
+            return "Ping Protection is available on this Mac."
+        }
+        return "Enter a license key to enable Ping Protection."
+    }
+
+    private var licenseMessageForLastResult: String {
+        switch license.lastVerificationResult {
+        case .revoked:
+            return "This license key is not valid (refunded, cancelled, or disabled)."
+        case .invalidKey:
+            return "That key does not look like a Gumroad license key. Check it and try again."
+        case .unreachable:
+            return "Gumroad could not be reached. Connect to the internet and try again."
+        case .valid, .none:
+            return "The license could not be verified."
+        }
+    }
+
+    private var messageIcon: String {
+        if case .valid = license.lastVerificationResult { return "checkmark.circle.fill" }
+        return "exclamationmark.triangle.fill"
+    }
+
+    private var messageIsError: Bool {
+        if case .valid = license.lastVerificationResult { return false }
+        return true
     }
 }
 
@@ -2629,6 +2896,7 @@ struct AdvancedSettingsContent: View {
         // App Group preferences survive app deletion, so clear them only after
         // the helper has been turned off and unregistered successfully.
         try ProtectedSessionStore().removeAll()
+        LicenseManager.shared.resetForRemoval()
         PingWardenPreferences.shared.resetForRemoval()
         if let bundleID = Bundle.main.bundleIdentifier {
             UserDefaults.standard.removePersistentDomain(forName: bundleID)
@@ -2782,8 +3050,7 @@ struct AboutView: View {
 
     private var aboutDonateButton: some View {
         Button("Donate") {
-            PingWardenPreferences.shared.supportOpenedDate = Date()
-            openURL(DonationPromptView.donationURL)
+            openURL(URL(string: "https://buymeacoffee.com/oliverames")!)
         }
     }
 
@@ -3204,6 +3471,12 @@ final class GameModeDetector: @unchecked Sendable {
 #Preview("Automation Settings") {
     AutomationSettingsContent()
         .frame(width: 450, height: 300)
+        .background(.regularMaterial)
+}
+
+#Preview("License Settings") {
+    LicenseSettingsContent()
+        .frame(width: 450, height: 350)
         .background(.regularMaterial)
 }
 

@@ -28,10 +28,6 @@ final class PingWardenPreferences: @unchecked Sendable {
     private let gameModeAutoDetectKey = "GameModeAutoDetect"
     private let showDockIconKey = "ShowDockIcon"
     private let showMenuDropdownMetricsKey = "ShowMenuDropdownMetrics"
-    private let donationLastSeenVersionKey = "DonationPromptLastSeenVersion"
-    private let donationDismissedPermanentlyKey = "DonationPromptDismissedPermanently"
-    private let supportLastPromptDateKey = "SupportPromptLastDate"
-    private let supportOpenedDateKey = "SupportOpenedDate"
     private let completedSessionCountKey = "CompletedProtectedSessionCount"
     private let lifetimeInterventionCountKey = "LifetimeInterventionCount"
     private let crashReportingEnabledKey = "CrashReportingEnabled"
@@ -191,37 +187,6 @@ final class PingWardenPreferences: @unchecked Sendable {
             defaults.set(newValue, forKey: showMenuDropdownMetricsKey)
             NotificationCenter.default.post(name: .menuDropdownMetricsChanged, object: nil)
         }
-    }
-
-    /// Last `CFBundleShortVersionString` for which the donation prompt was
-    /// shown (or postponed via "Maybe later"). `nil` until the very first
-    /// time the prompt would have fired.
-    var donationPromptLastSeenVersion: String? {
-        get { defaults.string(forKey: donationLastSeenVersionKey) }
-        set {
-            if let newValue {
-                defaults.set(newValue, forKey: donationLastSeenVersionKey)
-            } else {
-                defaults.removeObject(forKey: donationLastSeenVersionKey)
-            }
-        }
-    }
-
-    /// User-set kill switch. Once true, the donation prompt never fires
-    /// again on this Mac for any future version. Reset by `performUninstall`.
-    var donationPromptDismissedPermanently: Bool {
-        get { defaults.bool(forKey: donationDismissedPermanentlyKey) }
-        set { defaults.set(newValue, forKey: donationDismissedPermanentlyKey) }
-    }
-
-    var supportLastPromptDate: Date? {
-        get { defaults.object(forKey: supportLastPromptDateKey) as? Date }
-        set { defaults.set(newValue, forKey: supportLastPromptDateKey) }
-    }
-
-    var supportOpenedDate: Date? {
-        get { defaults.object(forKey: supportOpenedDateKey) as? Date }
-        set { defaults.set(newValue, forKey: supportOpenedDateKey) }
     }
 
     var completedProtectedSessionCount: Int {

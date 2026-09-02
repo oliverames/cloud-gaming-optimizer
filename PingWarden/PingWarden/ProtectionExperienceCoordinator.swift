@@ -24,6 +24,7 @@ final class ProtectionExperienceCoordinator: ObservableObject {
     private let monitor = PingWardenMonitor.shared
     private let preferences = PingWardenPreferences.shared
     private let session = ProtectedSessionCoordinator.shared
+    private let license = LicenseManager.shared
     private var pauseTimer: Timer?
     private var actionGeneration = 0
     private var gameModeGeneration = 0
@@ -95,8 +96,52 @@ final class ProtectionExperienceCoordinator: ObservableObject {
         }
     }
 
+    /// Called after a license re-verification settles. A revoked or
+    /// invalid license while protection is actively enabled turns
+    /// protection off immediately; the user sees why in the menu and
+    /// Settings. An unreachable API never triggers this: the offline
+    /// grace window in LicensePolicy covers that case.
+    func handleLicenseReverification() async {
+        objectWillChange.send()
+
+        guard monitor.isMonitoringActive,
+              !license.canEnableProtection else {
+            return
+        }
+
+        actionGeneration += 1
+        if session.phase != .idle {
+            requestedSessionTrigger = nil
+            await session.stop(
+                endReason: .protectionTurnedOff,
+                protectionWasInterrupted: true
+            )
+        }
+        transition = .disablingProtection
+        let success = await monitor.setProtectionEnabled(
+            false,
+            persistUserPreference: false
+        )
+        transition = .idle
+        lastError = success
+            ? "The license for Ping Protection is no longer valid, so protection turned off. Enter a valid license key in Settings → License."
+            : "The license for Ping Protection is no longer valid, and it could not turn off cleanly. Quit Ping Warden to restore wireless sharing."
+        objectWillChange.send()
+    }
+
     @discardableResult
     func setPersistentProtection(_ enabled: Bool) async -> Bool {
+        // The license gate covers every path that would put AWDL down:
+        // persistent toggles, latency sessions, Game Mode, and launch
+        // reconciliation all funnel through the two entry points below.
+        if enabled, !license.canEnableProtection {
+            lastError = license.grandfatherWindowExpired
+                ? "The transition period has ended. Enter a license key in Settings → License to keep Ping Protection. Donated before? Email \(LicenseManager.donationConversionEmail)."
+                : "Ping Protection requires a license. Enter your key in Settings → License. Donated before? Email \(LicenseManager.donationConversionEmail)."
+            objectWillChange.send()
+            return false
+        }
+
         actionGeneration += 1
         let generation = actionGeneration
         lastError = nil
@@ -298,6 +343,14 @@ final class ProtectionExperienceCoordinator: ObservableObject {
         trigger: ProtectedSessionTrigger,
         gameModeRequest: Int?
     ) async -> Bool {
+        if !license.canEnableProtection {
+            lastError = license.grandfatherWindowExpired
+                ? "The transition period has ended. Enter a license key in Settings → License to keep Ping Protection. Donated before? Email \(LicenseManager.donationConversionEmail)."
+                : "Ping Protection requires a license. Enter your key in Settings → License. Donated before? Email \(LicenseManager.donationConversionEmail)."
+            objectWillChange.send()
+            return false
+        }
+
         guard monitor.isHelperRegistered, session.phase == .idle else {
             lastError = monitor.isHelperRegistered
                 ? nil

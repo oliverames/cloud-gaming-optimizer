@@ -137,6 +137,7 @@ Settings sections:
 
 - Dashboard
 - General
+- License
 - Automation
 - Advanced
 
@@ -199,6 +200,12 @@ Tools:
 - Create a local diagnostics snapshot and review it before sharing.
 - Repair the helper connection without changing the protection preference.
 - Prepare for removal by turning off protection, unregistering services, clearing local data, revealing the app, and quitting.
+
+### 8.5 License
+
+- View status (Licensed, transition period with days remaining, or Unlicensed).
+- Enter a license key and verify with Gumroad, or open the Gumroad product page.
+- Transition messaging explains why Ping Protection is moving to a license and that existing installs keep protection for 90 days. If you donated before this release, the pane shows how to have it honored at [oliver@ames.consulting](mailto:oliver@ames.consulting).
 
 ## 9. Menu Bar and App Menu Integration
 
@@ -375,6 +382,12 @@ Release/update:
 - [jamestut/awdlkiller](https://github.com/jamestut/awdlkiller)
 - [james-howard/AWDLControl](https://github.com/james-howard/AWDLControl), SMAppService and XPC architecture inspiration
 
-## 21. License
+## 21. License and Pricing
 
-MIT License. Copyright (c) 2025-2026 Oliver Ames.
+The source code is MIT, Copyright (c) 2025-2026 Oliver Ames. You can build from source under MIT whether you buy a license or not. See the repository [LICENSE](../LICENSE).
+
+The prebuilt, signed, and notarized app is free to download. Everything except enabling Ping Protection is free to use. Enabling Ping Protection in the prebuilt app requires a one-time $15 license at [Gumroad](https://olivera40.gumroad.com/l/pingwarden). One key works on the Macs you own. The app verifies once with Gumroad, then re-checks roughly every 6 hours and at launch; verification is offline-friendly for up to 14 days.
+
+Why a license: After two years of free builds, donations cover only a fraction of the ongoing work — Developer ID signing, Apple notarization, testing across macOS releases, and release engineering. A one-time license for the Ping Protection feature makes that work sustainable without subscriptions, ads, or analytics. The source stays MIT and auditable.
+
+Existing installs that had Ping Protection enabled before this release keep protection for a 90-day transition starting on first launch of the licensed build. Check the time remaining in **Settings → License**. When the transition ends, enter a license key there to keep protection available. If you donated through [Buy Me a Coffee](https://www.buymeacoffee.com/oliverames) before this release, email [oliver@ames.consulting](mailto:oliver@ames.consulting) with your receipt and it will be honored as a full license.

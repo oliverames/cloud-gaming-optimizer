@@ -47,18 +47,16 @@ a specific latency spike.
 - Describe interventions as wireless interruptions blocked, not guaranteed lag
   spikes prevented.
 - Provide a privacy-scrubbed text share/export action.
-- Offer a donation prompt only after demonstrated use and outside active gameplay.
 
-### Donations
+### License
 
-- A contextual donation prompt requires completed setup and either three
-  completed sessions or a meaningful intervention threshold.
-- Apply a cooldown after dismissal and a longer suppression after the user opens
-  the donation link.
-- Never prompt during launch, an active session, an error, or update activity.
-- Keep permanent opt-out and never gate features.
-- Provide persistent Donate to Ping Warden actions in the menu, Settings, and
-  About window.
+- Ping Warden requires a Gumroad license to enable Ping Protection. All other features remain free, and the source stays MIT.
+- Verify the key at `api.gumroad.com/v2/licenses/verify` with the product ID and license key. Cache a successful verification so it survives offline for 14 days. Fail closed on a placeholder product ID.
+- Existing installs that had protection enabled keep entitlement for a 90-day grandfather window starting on first launch of the licensed build. The transition notice explains why and appears only once per install.
+- A 100% off hidden offer code (`DONOR-HONOR`) honors pre-release Buy Me a Coffee donations. Email `oliver@ames.consulting` to claim it.
+- Settings provides a dedicated License pane. It shows status (Licensed, transition with days remaining, or Unlicensed), key entry with verification, the Gumroad purchase link, and the donor-honoring note with a mailto button. The enable-protection gate surfaces donor wording when it blocks.
+- The Control Center widget reads a cached entitlement from the shared app group and refuses to enable without a valid license. Disabling is always allowed.
+- When a license goes bad while protection is enabled, turn protection off immediately and show the revocation notice. Periodic re-verification runs roughly every six hours while the app is running.
 
 ## Architecture
 
@@ -124,7 +122,7 @@ is reproducible.
 - Swift concurrency warnings are resolved.
 - Accessibility checks cover VoiceOver labels, keyboard navigation, reduced
   motion, increased contrast, and maximum supported text size. Onboarding and
-  donation content remains fully visible at standard sizes and scrollable when
+  license content remains fully visible at standard sizes and scrollable when
   accessibility text cannot fit inside the available screen.
 - Update tests pass from the last public 2.x version on macOS 13, 15, and 26.
 - Signed app and DMG pass strict nested signing, Gatekeeper, notarization, and
@@ -140,7 +138,7 @@ is reproducible.
 
 - No silent behavioral analytics.
 - No remote storage of latency sessions.
-- No paywall or donor-only feature tier.
+- No paywall beyond the Ping Protection license.
 - No claim that an intervention proves a particular latency spike was avoided.
 - No Mac App Store migration in 3.0.
 

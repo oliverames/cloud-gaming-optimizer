@@ -18,11 +18,15 @@ Ping Protection keeps Apple's AWDL network interface offline. While it is active
 
 The helper needs one-time approval because changing the AWDL interface requires elevated access.
 
-### 3. Turn on Ping Protection
+### 3. Activate your license (prebuilt app)
 
-Open the menu bar menu and choose **Turn On Ping Protection**. The menu bar icon will show that protection is active.
+Ping Protection in the prebuilt app requires a one-time $15 license. Buy it at [Gumroad](https://olivera40.gumroad.com/l/pingwarden), then open **Settings → License** and enter the key. The app verifies once and then works offline for up to 14 days. Existing users who had protection enabled before this release keep protection for a 90-day transition starting on first launch of the licensed build; check the time remaining in **Settings → License**. If you donated through [Buy Me a Coffee](https://www.buymeacoffee.com/oliverames) before this release, email [oliver@ames.consulting](mailto:oliver@ames.consulting) with your receipt and it will be honored as a full license.
 
-### 4. Verify the connection
+### 4. Turn on Ping Protection
+
+Open the menu bar menu and choose **Turn On Ping Protection**. If you haven't activated a license (and you aren't in the transition period), the app will point you to **Settings → License**. The menu bar icon will show that protection is active.
+
+### 5. Verify the connection
 
 Open the dashboard and confirm that Ping Protection is active. Leave it open during a normal game or call to compare live latency, jitter, and probe failures. The intervention count increases whenever macOS tries to reactivate AWDL and Ping Warden blocks it.
 

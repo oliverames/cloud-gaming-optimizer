@@ -70,6 +70,14 @@ private enum PingProtectionIntentHandler {
             throw AWDLError.toggleFailed
         }
 
+        // Enabling protection requires a license. The main app owns
+        // verification; the widget reads the same shared cache, so the
+        // gate cannot drift between the two toggle surfaces.
+        if desiredState, !PingWardenWidgetLicenseGate.canEnableProtection(preferences) {
+            log.warning("License gate blocked enabling Ping Protection from widget")
+            throw AWDLError.licenseRequired
+        }
+
         log.info("Applying authenticated monitoring state: \(desiredState)")
         try await PingWardenWidgetHelperClient.setProtectionEnabled(desiredState)
 
@@ -108,6 +116,7 @@ enum AWDLError: Error, CustomLocalizedStringResourceConvertible {
     case toggleFailed
     case monitoringFailed
     case appLaunchFailed
+    case licenseRequired
 
     var localizedStringResource: LocalizedStringResource {
         switch self {
@@ -117,6 +126,8 @@ enum AWDLError: Error, CustomLocalizedStringResourceConvertible {
             return "Ping Protection could not reach its helper. Open Ping Warden and finish setup."
         case .appLaunchFailed:
             return "Ping Warden could not be opened."
+        case .licenseRequired:
+            return "Ping Protection requires a license. Open Ping Warden to enter your license key."
         }
     }
 }
