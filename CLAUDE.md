@@ -79,6 +79,8 @@ cd PingWarden/PingWarden && bash release.sh X.Y.Z ../../RELEASE_NOTES.md
 
 Sparkle EdDSA key is in keychain account `"ed25519"`. Notarytool profile: `"notarytool-profile"`.
 
+**Version bump touches six carriers, and `release.sh` aborts if any lags:** the four `MARKETING_VERSION` / `CURRENT_PROJECT_VERSION` pairs in `PingWarden/PingWarden.xcodeproj/project.pbxproj`, the hardcoded `CFBundleShortVersionString` / `CFBundleVersion` in `PingWarden/PingWarden/Info.plist`, `PingWarden/PingWardenHelper/Info.plist`, and `PingWarden/PingWardenWidget/Info.plist`, and `HELPER_VERSION` in `PingWarden/PingWardenHelper/main.m`. Build number is the version with dots removed and a trailing zero pair (4.0.1 → 40001). Commit the bump as `release: bump to X.Y.Z` before running the script.
+
 ## Distribution
 
 - **Sparkle** auto-update framework with EdDSA signing (keychain account `"ed25519"`)
