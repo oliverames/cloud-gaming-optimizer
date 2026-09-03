@@ -1,5 +1,15 @@
 # Ping Warden Worklog
 
+## 2026-09-03 - Landing page restyled to the ames.consulting web system; license keys switched on
+
+**What changed**: Rebuilt `landing.html` in the ames.consulting web family: Barlow Condensed and Lora embedded as base64 `@font-face` data URIs (latin subsets, about 170 KB), warm white `#faf8f5` light mode and the `#1c2929` Ames Shovels dark mode under both `prefers-color-scheme` and an explicit three-state toggle, gold at rest with red on hover, the Stripe-tier hero (eyebrow chip, red emphasis word, pill CTAs, facts-only proof strip), practice-style cards, numbered steps, the dark CTA band with a gold primary button, and the gold-rule section kickers. The real app icon (extracted from `Ping Warden.app`'s `AppIcon.icns`, unchanged since the project rename) replaces the CSS gradient mark in the nav and floats over the hero screenshot, and the same icon is now the product thumbnail on Gumroad. Dropped the fabricated live-latency badge. Added a 1.5 s safety timer so reveal sections never stay hidden if the sandbox's IntersectionObserver does not fire.
+
+**License keys**: The product was live with no key generation. Gumroad's current editor has no Settings checkbox for this; a product issues keys only when its rich content carries a `licenseKey` node (Insert → License key on the Content tab). Added the node plus a one-line activation note via `gumroad products content set`, and the editor now shows the "License key (sample)" card with the product ID. Gotcha rewritten in `CLAUDE.md`, `AGENTS.md`, and `GEMINI.md` with the new check command.
+
+**Verification**: Sanitizer preview and publish both clean (only head `meta`/`title` stripped; five woff2 data URIs, both icon data URIs, one `<style>`, one `<script>`, and six buy elements survived). Live page renders the embedded fonts and icon at `https://amesconsulting.gumroad.com/l/pingwarden`; clicking "Unlock Ping Protection" opens Gumroad checkout at US$15. Light, dark, desktop, and 800 px layouts checked in the in-app browser.
+
+**Left off at**: First real purchase is still the end-to-end proof of key delivery. Sales count is 0.
+
 ## 2026-09-03 - Gumroad becomes the initial-install channel
 
 **What changed**: Split distribution into two lanes. Gumroad now delivers the first install (DMG attached to the product plus the license key) and Sparkle via GitHub releases remains the update path. `PingWarden-4.0.0.dmg` attached to product `pingwarden` via `gumroad products update qthvm --file ...` (file id `57U--GuBwUarVbaI3OxkLA==`). Product description and custom summary rewritten: download from the Gumroad receipt/library, GitHub builds accept the same key. New `landing.html` (repo root, committed) published as the custom landing page at `https://amesconsulting.gumroad.com/l/pingwarden` and verified live, including a new "Can I use the GitHub download with my license?" FAQ. `release.sh` gained Step 9 (fail-soft Gumroad DMG upload, skipped for `BETA_CHANNEL=1`, `SKIP_GUMROAD=1` opts out, `GUMROAD_PRODUCT_ID` overrides, default `qthvm`); header comment, release summary, `AGENTS.md`, and `GEMINI.md` updated to match. Committed as `5e109b1` and pushed to `main`.
