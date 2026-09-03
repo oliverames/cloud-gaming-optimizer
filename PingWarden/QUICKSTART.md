@@ -6,7 +6,7 @@ Ping Protection keeps Apple's AWDL network interface offline. While it is active
 
 ### 1. Install Ping Warden
 
-1. [Download the latest DMG](https://github.com/oliverames/ping-warden/releases/latest).
+1. Buy the [Ping Warden License on Gumroad](https://amesconsulting.gumroad.com/l/pingwarden). The signed DMG is attached to the purchase and your license key arrives in the same email. To try the free features first, [download the same build from Releases](https://github.com/oliverames/ping-warden/releases/latest).
 2. Open the DMG and drag Ping Warden to Applications.
 3. Launch Ping Warden from Applications or Spotlight.
 
@@ -20,7 +20,7 @@ The helper needs one-time approval because changing the AWDL interface requires 
 
 ### 3. Activate your license (prebuilt app)
 
-Ping Protection in the prebuilt app requires a one-time $15 license. Buy it at [Gumroad](https://olivera40.gumroad.com/l/pingwarden), then open **Settings → License** and enter the key. The app verifies once and then works offline for up to 14 days. Existing users who had protection enabled before this release keep protection for a 90-day transition starting on first launch of the licensed build; check the time remaining in **Settings → License**. If you donated through [Buy Me a Coffee](https://www.buymeacoffee.com/oliverames) before this release, email [oliver@ames.consulting](mailto:oliver@ames.consulting) with your receipt and it will be honored as a full license.
+Ping Protection in the prebuilt app requires a one-time $15 license. Buy it at [Gumroad](https://amesconsulting.gumroad.com/l/pingwarden), then open **Settings → License** and enter the key. The app verifies once and then works offline for up to 14 days. Existing users who had protection enabled before this release keep protection for a 90-day transition starting on first launch of the licensed build; check the time remaining in **Settings → License**. If you donated through [Buy Me a Coffee](https://www.buymeacoffee.com/oliverames) before this release, email [oliver@ames.consulting](mailto:oliver@ames.consulting) with your receipt and it will be honored as a full license.
 
 ### 4. Turn on Ping Protection
 

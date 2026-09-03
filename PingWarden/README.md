@@ -386,7 +386,7 @@ Release/update:
 
 The source code is MIT, Copyright (c) 2025-2026 Oliver Ames. You can build from source under MIT whether you buy a license or not. See the repository [LICENSE](../LICENSE).
 
-The prebuilt, signed, and notarized app is free to download. Everything except enabling Ping Protection is free to use. Enabling Ping Protection in the prebuilt app requires a one-time $15 license at [Gumroad](https://olivera40.gumroad.com/l/pingwarden). One key works on the Macs you own. The app verifies once with Gumroad, then re-checks roughly every 6 hours and at launch; verification is offline-friendly for up to 14 days.
+The prebuilt, signed, and notarized app is free to download. Everything except enabling Ping Protection is free to use. Enabling Ping Protection in the prebuilt app requires a one-time $15 license at [Gumroad](https://amesconsulting.gumroad.com/l/pingwarden). One key works on the Macs you own. The app verifies once with Gumroad, then re-checks roughly every 6 hours and at launch; verification is offline-friendly for up to 14 days.
 
 Why a license: After two years of free builds, donations cover only a fraction of the ongoing work — Developer ID signing, Apple notarization, testing across macOS releases, and release engineering. A one-time license for the Ping Protection feature makes that work sustainable without subscriptions, ads, or analytics. The source stays MIT and auditable.
 

@@ -227,4 +227,77 @@ final class LicensePolicyTests: XCTestCase {
         XCTAssertTrue(body.contains("product_id=id%20with%20spaces"))
         XCTAssertFalse(body.contains("id with spaces"))
     }
+
+    // MARK: - Clock plausibility
+
+    func testClockIsPlausibleForOrdinaryTimestamps() {
+        let now = Date()
+        XCTAssertTrue(LicensePolicy.clockIsPlausible(
+            now: now,
+            lastVerifiedAt: now.addingTimeInterval(-3600),
+            lastSeenAt: now.addingTimeInterval(-60)
+        ))
+        XCTAssertTrue(LicensePolicy.clockIsPlausible(now: now, lastVerifiedAt: nil, lastSeenAt: nil))
+    }
+
+    func testClockRolledBackPastVerificationIsNotPlausible() {
+        let now = Date()
+        XCTAssertFalse(LicensePolicy.clockIsPlausible(
+            now: now,
+            lastVerifiedAt: now.addingTimeInterval(2 * 3600),
+            lastSeenAt: nil
+        ))
+    }
+
+    func testClockRolledBackPastLastSeenIsNotPlausible() {
+        let now = Date()
+        XCTAssertFalse(LicensePolicy.clockIsPlausible(
+            now: now,
+            lastVerifiedAt: nil,
+            lastSeenAt: now.addingTimeInterval(2 * 86400)
+        ))
+    }
+
+    func testSmallClockSkewStaysPlausible() {
+        let now = Date()
+        XCTAssertTrue(LicensePolicy.clockIsPlausible(
+            now: now,
+            lastVerifiedAt: now.addingTimeInterval(1800),
+            lastSeenAt: now.addingTimeInterval(3600)
+        ))
+    }
+
+    // MARK: - Seal payload
+
+    func testSealPayloadIsCanonicalAndDeterministic() {
+        let verified = Date(timeIntervalSince1970: 1_800_000_000.9)
+        let deadline = Date(timeIntervalSince1970: 1_807_776_000)
+        let payload = LicensePolicy.sealPayload(
+            cachedLicenseValid: true,
+            lastVerifiedAt: verified,
+            grandfatherDeadline: deadline,
+            lastSeenAt: nil,
+            deviceIdentifier: "ABC-123"
+        )
+        XCTAssertEqual(payload, "pwlic1|valid=1|verified=1800000000|grandfather=1807776000|seen=0|device=ABC-123")
+    }
+
+    func testSealPayloadChangesWithEveryInput() {
+        let base = LicensePolicy.sealPayload(
+            cachedLicenseValid: false, lastVerifiedAt: nil, grandfatherDeadline: nil,
+            lastSeenAt: nil, deviceIdentifier: "A"
+        )
+        XCTAssertNotEqual(base, LicensePolicy.sealPayload(
+            cachedLicenseValid: true, lastVerifiedAt: nil, grandfatherDeadline: nil,
+            lastSeenAt: nil, deviceIdentifier: "A"
+        ))
+        XCTAssertNotEqual(base, LicensePolicy.sealPayload(
+            cachedLicenseValid: false, lastVerifiedAt: nil, grandfatherDeadline: nil,
+            lastSeenAt: nil, deviceIdentifier: "B"
+        ))
+        XCTAssertNotEqual(base, LicensePolicy.sealPayload(
+            cachedLicenseValid: false, lastVerifiedAt: nil,
+            grandfatherDeadline: Date(timeIntervalSince1970: 1), lastSeenAt: nil, deviceIdentifier: "A"
+        ))
+    }
 }

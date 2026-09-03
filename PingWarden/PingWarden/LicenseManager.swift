@@ -7,11 +7,15 @@
 //  api.gumroad.com/v2/licenses/verify; decisions are made by the pure
 //  LicensePolicy in Core so they stay testable.
 //
-//  Storage: the license key and verification timestamp live in the
-//  keychain (service "com.amesvt.pingwarden.license"). The grandfather
-//  deadline and cached-valid flag live in the shared App Group
-//  defaults so the widget reads them too. Nothing about licensing is
-//  sent off-device beyond the verify request itself.
+//  Storage: the license key and the one-shot grandfather marker live in
+//  the keychain (service "com.amesvt.pingwarden.license"). The cached
+//  gate state (cached-valid flag, verification time, grandfather
+//  deadline, last-seen clock mark) lives in the shared App Group
+//  defaults so the widget reads it too, and every read verifies an
+//  HMAC seal bound to this Mac (LicenseStateSeal) so a hand-written
+//  `defaults write` or a plist copied from another Mac is ignored.
+//  Nothing about licensing is sent off-device beyond the verify request
+//  itself.
 //
 
 import Foundation
@@ -29,12 +33,20 @@ final class LicenseManager: ObservableObject {
     /// "pingwarden").
     nonisolated static let gumroadProductID = "FmGG0pxyEyzJqp_BG4itFQ=="
 
+    /// Where to buy a license. The Gumroad storefront moved from
+    /// olivera40 to amesconsulting on 2026-09-03; the old host 404s.
+    nonisolated static let purchaseURL = URL(string: "https://amesconsulting.gumroad.com/l/pingwarden")!
+
+    nonisolated private static let appGroupSuiteName = "PV3W52NDZ3.com.amesvt.pingwarden"
     private let keychainService = "com.amesvt.pingwarden.license"
     private let keychainAccount = "gumroad-key"
-    private let cachedValidKey = "LicenseCachedValid"
-    private let lastVerifiedKey = "LicenseLastVerifiedAt"
-    private let grandfatherDeadlineKey = "LicenseGrandfatherDeadline"
-    private let grandfatherCheckedKey = "LicenseGrandfatherChecked"
+    private let grandfatherMarkerAccount = "grandfather-checked"
+    nonisolated private static let cachedValidKey = "LicenseCachedValid"
+    nonisolated private static let lastVerifiedKey = "LicenseLastVerifiedAt"
+    nonisolated private static let grandfatherDeadlineKey = "LicenseGrandfatherDeadline"
+    nonisolated private static let lastSeenKey = "LicenseLastSeenAt"
+    nonisolated private static let sealKey = "LicenseStateSeal"
+    private let legacyGrandfatherCheckedKey = "LicenseGrandfatherChecked"
     private let transitionNoticeShownKey = "LicenseTransitionNoticeShown"
 
     @Published private(set) var lastVerificationResult: LicensePolicy.Verification?
@@ -48,13 +60,105 @@ final class LicenseManager: ObservableObject {
     private var periodicReverifyTimer: Timer?
 
     private init() {
+        defaults = Self.sharedDefaults()
+    }
+
+    nonisolated private static func sharedDefaults() -> UserDefaults {
         // Prefer the App Group suite so the widget sees the same gate
         // state; fall back the same way PingWardenPreferences does.
-        if let suite = UserDefaults(suiteName: "PV3W52NDZ3.com.amesvt.pingwarden") {
-            defaults = suite
-        } else {
-            defaults = .standard
+        UserDefaults(suiteName: appGroupSuiteName) ?? .standard
+    }
+
+    // MARK: - Sealed cache
+
+    /// The gate inputs as last written by a successful verification,
+    /// a revocation, or a grandfather grant. Absent when nothing was
+    /// written yet or the seal does not match this Mac.
+    nonisolated private struct SealedState {
+        var cachedLicenseValid: Bool
+        var lastVerifiedAt: Date?
+        var grandfatherDeadline: Date?
+        var lastSeenAt: Date?
+    }
+
+    nonisolated private static func readSealedState(from defaults: UserDefaults) -> SealedState? {
+        func date(_ key: String) -> Date? {
+            let timestamp = defaults.double(forKey: key)
+            guard timestamp > 0 else { return nil }
+            return Date(timeIntervalSince1970: timestamp)
         }
+        let state = SealedState(
+            cachedLicenseValid: defaults.bool(forKey: cachedValidKey),
+            lastVerifiedAt: date(lastVerifiedKey),
+            grandfatherDeadline: date(grandfatherDeadlineKey),
+            lastSeenAt: date(lastSeenKey)
+        )
+        let payload = LicensePolicy.sealPayload(
+            cachedLicenseValid: state.cachedLicenseValid,
+            lastVerifiedAt: state.lastVerifiedAt,
+            grandfatherDeadline: state.grandfatherDeadline,
+            lastSeenAt: state.lastSeenAt,
+            deviceIdentifier: LicenseStateSeal.deviceIdentifier()
+        )
+        guard LicenseStateSeal.matches(defaults.string(forKey: sealKey), payload: payload) else {
+            return nil
+        }
+        return state
+    }
+
+    nonisolated private static func writeSealedState(_ state: SealedState, to defaults: UserDefaults) {
+        func stamp(_ date: Date?) -> Double {
+            guard let date else { return 0 }
+            return date.timeIntervalSince1970.rounded(.down)
+        }
+        // Whole seconds on disk so the payload rebuilt on read matches
+        // the one sealed on write.
+        let normalized = SealedState(
+            cachedLicenseValid: state.cachedLicenseValid,
+            lastVerifiedAt: state.lastVerifiedAt.map { Date(timeIntervalSince1970: stamp($0)) },
+            grandfatherDeadline: state.grandfatherDeadline.map { Date(timeIntervalSince1970: stamp($0)) },
+            lastSeenAt: state.lastSeenAt.map { Date(timeIntervalSince1970: stamp($0)) }
+        )
+        defaults.set(normalized.cachedLicenseValid, forKey: cachedValidKey)
+        defaults.set(stamp(normalized.lastVerifiedAt), forKey: lastVerifiedKey)
+        defaults.set(stamp(normalized.grandfatherDeadline), forKey: grandfatherDeadlineKey)
+        defaults.set(stamp(normalized.lastSeenAt), forKey: lastSeenKey)
+        let payload = LicensePolicy.sealPayload(
+            cachedLicenseValid: normalized.cachedLicenseValid,
+            lastVerifiedAt: normalized.lastVerifiedAt,
+            grandfatherDeadline: normalized.grandfatherDeadline,
+            lastSeenAt: normalized.lastSeenAt,
+            deviceIdentifier: LicenseStateSeal.deviceIdentifier()
+        )
+        defaults.set(LicenseStateSeal.seal(payload), forKey: sealKey)
+    }
+
+    private var sealedState: SealedState? {
+        Self.readSealedState(from: defaults)
+    }
+
+    private func updateSealedState(_ mutate: (inout SealedState) -> Void) {
+        var state = sealedState ?? SealedState(cachedLicenseValid: false)
+        mutate(&state)
+        Self.writeSealedState(state, to: defaults)
+    }
+
+    nonisolated private static func entitlement(from defaults: UserDefaults, now: Date) -> Bool {
+        guard let state = readSealedState(from: defaults) else { return false }
+        guard LicensePolicy.clockIsPlausible(
+            now: now,
+            lastVerifiedAt: state.lastVerifiedAt,
+            lastSeenAt: state.lastSeenAt
+        ) else {
+            licenseLog.warning("Cached license state ignored: the clock moved backwards")
+            return false
+        }
+        return LicensePolicy.canEnableProtection(
+            cachedLicenseValid: state.cachedLicenseValid,
+            lastVerifiedAt: state.lastVerifiedAt,
+            now: now,
+            grandfatherDeadline: state.grandfatherDeadline
+        )
     }
 
     // MARK: - Entitlement
@@ -63,19 +167,25 @@ final class LicenseManager: ObservableObject {
     /// Runs entirely from cached state; the caller decides whether to
     /// trigger a re-verify.
     var canEnableProtection: Bool {
-        let cachedValid = defaults.bool(forKey: cachedValidKey)
-        let lastVerified: Date? = {
-            let timestamp = defaults.double(forKey: lastVerifiedKey)
-            guard timestamp > 0 else { return nil }
-            return Date(timeIntervalSince1970: timestamp)
-        }()
+        Self.entitlement(from: defaults, now: Date())
+    }
 
-        return LicensePolicy.canEnableProtection(
-            cachedLicenseValid: cachedValid,
-            lastVerifiedAt: lastVerified,
-            now: Date(),
-            grandfatherDeadline: grandfatherDeadline
-        )
+    /// The same decision for code that runs before the main-actor
+    /// singleton exists, such as PingWardenMonitor restoring persisted
+    /// protection during its own initializer at launch.
+    nonisolated static var launchGateAllowsProtection: Bool {
+        entitlement(from: sharedDefaults(), now: Date())
+    }
+
+    /// Move the last-seen clock mark forward. Called at launch and on
+    /// each periodic tick, so a later clock rollback is detectable.
+    func recordClockObservation() {
+        guard sealedState != nil else { return }
+        updateSealedState { state in
+            let now = Date()
+            if let seen = state.lastSeenAt, seen > now { return }
+            state.lastSeenAt = now
+        }
     }
 
     /// Days remaining in an active grandfather window, for UI display.
@@ -87,9 +197,7 @@ final class LicenseManager: ObservableObject {
     }
 
     private var grandfatherDeadline: Date? {
-        let timestamp = defaults.double(forKey: grandfatherDeadlineKey)
-        guard timestamp > 0 else { return nil }
-        return Date(timeIntervalSince1970: timestamp)
+        sealedState?.grandfatherDeadline
     }
 
     /// True when this install is grandfathered (90-day transition
@@ -123,18 +231,30 @@ final class LicenseManager: ObservableObject {
 
     /// One-time grandfathering for the licensed build's first launch:
     /// installs that already had protection enabled get 90 days of
-    /// continued entitlement. Called once from application launch.
-    func establishGrandfatheringIfNeeded() {
-        guard !defaults.bool(forKey: grandfatherCheckedKey) else { return }
-        defaults.set(true, forKey: grandfatherCheckedKey)
+    /// continued entitlement. The grant needs two signs of a real prior
+    /// install, the persisted protection intent and an already-approved
+    /// helper, because a fresh install cannot have approved the helper
+    /// before its first launch. The one-shot marker lives in the
+    /// keychain so wiping the App Group defaults cannot re-arm it.
+    func establishGrandfatheringIfNeeded(helperEnabled: Bool) {
+        guard !keychainMarkerExists(account: grandfatherMarkerAccount) else { return }
+        setKeychainMarker(account: grandfatherMarkerAccount)
+        defaults.removeObject(forKey: legacyGrandfatherCheckedKey)
 
         guard defaults.bool(forKey: "AWDLMonitoringEnabled") else {
             licenseLog.info("No grandfathering: protection was not enabled before the licensed build")
             return
         }
+        guard helperEnabled else {
+            licenseLog.info("No grandfathering: the helper was never approved on this Mac")
+            return
+        }
 
         let deadline = Date().addingTimeInterval(LicensePolicy.grandfatherInterval)
-        defaults.set(deadline.timeIntervalSince1970, forKey: grandfatherDeadlineKey)
+        updateSealedState { state in
+            state.grandfatherDeadline = deadline
+            state.lastSeenAt = Date()
+        }
         licenseLog.info("Grandfathering existing install for 90 days")
     }
 
@@ -151,7 +271,9 @@ final class LicenseManager: ObservableObject {
             repeats: true
         ) { [weak self] _ in
             Task { @MainActor in
-                guard let self, self.storedLicenseKey != nil else { return }
+                guard let self else { return }
+                self.recordClockObservation()
+                guard self.storedLicenseKey != nil else { return }
                 await self.reverify()
                 self.onReverificationSettled?()
             }
@@ -159,6 +281,19 @@ final class LicenseManager: ObservableObject {
         timer.tolerance = 300
         RunLoop.main.add(timer, forMode: .common)
         periodicReverifyTimer = timer
+    }
+
+    /// Re-verify a stored key once at launch. Offline launches keep the
+    /// sealed cache inside its grace window; an online launch refreshes
+    /// the verification stamp and catches refunds the moment the app
+    /// starts.
+    func reverifyAtLaunchIfNeeded() {
+        recordClockObservation()
+        guard storedLicenseKey != nil else { return }
+        Task { @MainActor in
+            await reverify()
+            onReverificationSettled?()
+        }
     }
 
     // MARK: - Keychain
@@ -182,12 +317,33 @@ final class LicenseManager: ObservableObject {
     }
 
     private func storeLicenseKey(_ key: String) {
-        let data = Data(key.utf8)
+        storeKeychainValue(Data(key.utf8), account: keychainAccount)
+    }
 
+    private func deleteLicenseKey() {
+        deleteKeychainItem(account: keychainAccount)
+    }
+
+    private func keychainMarkerExists(account: String) -> Bool {
+        let query: [String: Any] = [
+            kSecClass as String: kSecClassGenericPassword,
+            kSecAttrService as String: keychainService,
+            kSecAttrAccount as String: account,
+            kSecReturnData as String: false,
+            kSecMatchLimit as String: kSecMatchLimitOne,
+        ]
+        return SecItemCopyMatching(query as CFDictionary, nil) == errSecSuccess
+    }
+
+    private func setKeychainMarker(account: String) {
+        storeKeychainValue(Data("1".utf8), account: account)
+    }
+
+    private func storeKeychainValue(_ data: Data, account: String) {
         let baseQuery: [String: Any] = [
             kSecClass as String: kSecClassGenericPassword,
             kSecAttrService as String: keychainService,
-            kSecAttrAccount as String: keychainAccount,
+            kSecAttrAccount as String: account,
         ]
 
         // Update if present, insert otherwise.
@@ -202,15 +358,15 @@ final class LicenseManager: ObservableObject {
         addQuery[kSecAttrAccessible as String] = kSecAttrAccessibleAfterFirstUnlock
         let addStatus = SecItemAdd(addQuery as CFDictionary, nil)
         if addStatus != errSecSuccess {
-            licenseLog.error("Could not store license key (OSStatus \(addStatus))")
+            licenseLog.error("Could not store keychain item \(account, privacy: .public) (OSStatus \(addStatus))")
         }
     }
 
-    private func deleteLicenseKey() {
+    private func deleteKeychainItem(account: String) {
         let query: [String: Any] = [
             kSecClass as String: kSecClassGenericPassword,
             kSecAttrService as String: keychainService,
-            kSecAttrAccount as String: keychainAccount,
+            kSecAttrAccount as String: account,
         ]
         SecItemDelete(query as CFDictionary)
     }
@@ -269,8 +425,11 @@ final class LicenseManager: ObservableObject {
             switch verification {
             case .valid:
                 storeLicenseKey(key)
-                defaults.set(true, forKey: cachedValidKey)
-                defaults.set(Date().timeIntervalSince1970, forKey: lastVerifiedKey)
+                updateSealedState { state in
+                    state.cachedLicenseValid = true
+                    state.lastVerifiedAt = Date()
+                    state.lastSeenAt = Date()
+                }
                 licenseLog.info("License verified")
                 return true
             case .revoked, .invalidKey, .unreachable:
@@ -288,7 +447,10 @@ final class LicenseManager: ObservableObject {
     }
 
     private func applyRevocation() {
-        defaults.set(false, forKey: cachedValidKey)
+        updateSealedState { state in
+            state.cachedLicenseValid = false
+            state.lastSeenAt = Date()
+        }
         // Keep the key and timestamp: a refund that is later reversed
         // (or a transient seller-side disable) should not require the
         // user to retype the key.
@@ -332,10 +494,17 @@ final class LicenseManager: ObservableObject {
     /// Remove every trace of licensing state. Called by uninstall.
     func resetForRemoval() {
         deleteLicenseKey()
-        defaults.removeObject(forKey: cachedValidKey)
-        defaults.removeObject(forKey: lastVerifiedKey)
-        defaults.removeObject(forKey: grandfatherDeadlineKey)
-        defaults.removeObject(forKey: grandfatherCheckedKey)
-        defaults.removeObject(forKey: transitionNoticeShownKey)
+        deleteKeychainItem(account: grandfatherMarkerAccount)
+        for key in [
+            Self.cachedValidKey,
+            Self.lastVerifiedKey,
+            Self.grandfatherDeadlineKey,
+            Self.lastSeenKey,
+            Self.sealKey,
+            legacyGrandfatherCheckedKey,
+            transitionNoticeShownKey,
+        ] {
+            defaults.removeObject(forKey: key)
+        }
     }
 }

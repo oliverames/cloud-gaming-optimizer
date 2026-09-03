@@ -137,14 +137,34 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSMenuDele
         let monitor = PingWardenMonitor.shared
 
         // Licensing: grandfather existing installs (protection already
-        // enabled) for 90 days, then enforce the license gate.
-        LicenseManager.shared.establishGrandfatheringIfNeeded()
+        // enabled and helper already approved) for 90 days, then enforce
+        // the license gate.
+        LicenseManager.shared.establishGrandfatheringIfNeeded(helperEnabled: monitor.isHelperRegistered)
         LicenseManager.shared.onReverificationSettled = { [weak self] in
             Task { @MainActor in
                 await self?.protectionExperience.handleLicenseReverification()
             }
         }
         LicenseManager.shared.startPeriodicReverification()
+        LicenseManager.shared.reverifyAtLaunchIfNeeded()
+
+        // The monitor only restores persisted protection when the gate
+        // already held before grandfathering ran. Settle the two cases
+        // that leaves: a freshly grandfathered install that still needs
+        // its restore, and a persisted intent whose entitlement is gone.
+        if PingWardenPreferences.shared.isMonitoringEnabled {
+            if LicenseManager.shared.canEnableProtection {
+                if !monitor.isMonitoringActive, !monitor.isMonitoringRequested,
+                   !protectionExperience.isPauseActive {
+                    Task { @MainActor in
+                        await self.protectionExperience.setPersistentProtection(true)
+                    }
+                }
+            } else {
+                log.info("Clearing persisted protection intent: license entitlement is gone")
+                protectionExperience.noteLaunchLicenseGate()
+            }
+        }
 
         // One-time notice for grandfathered installs so the move to a
         // paid model is explained, never a surprise.
@@ -2277,7 +2297,7 @@ struct LicenseSettingsContent: View {
                         .disabled(license.isVerifying || keyField.trimmingCharacters(in: .whitespaces).isEmpty)
 
                         Button("Buy a License...") {
-                            NSWorkspace.shared.open(URL(string: "https://olivera40.gumroad.com/l/pingwarden")!)
+                            NSWorkspace.shared.open(LicenseManager.purchaseURL)
                         }
                     }
 
@@ -2314,7 +2334,7 @@ struct LicenseSettingsContent: View {
                         .disabled(license.isVerifying || keyField.trimmingCharacters(in: .whitespaces).isEmpty)
 
                         Button("Buy a License...") {
-                            NSWorkspace.shared.open(URL(string: "https://olivera40.gumroad.com/l/pingwarden")!)
+                            NSWorkspace.shared.open(LicenseManager.purchaseURL)
                         }
                     }
 

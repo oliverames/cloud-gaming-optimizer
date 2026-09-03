@@ -18,7 +18,7 @@
 <p align="center">
   <a href="https://github.com/oliverames/ping-warden/releases/latest"><img src="https://img.shields.io/github/v/release/oliverames/ping-warden?style=flat-square&color=f5a542&label=Download" alt="Download"></a>
   <a href="LICENSE"><img src="https://img.shields.io/badge/license-MIT-f5a542?style=flat-square" alt="License"></a>
-  <a href="https://olivera40.gumroad.com/l/pingwarden"><img src="https://img.shields.io/badge/Gumroad-license-f5a542?style=flat-square" alt="Buy license on Gumroad"></a>
+  <a href="https://amesconsulting.gumroad.com/l/pingwarden"><img src="https://img.shields.io/badge/Gumroad-license-f5a542?style=flat-square" alt="Buy license on Gumroad"></a>
   <a href="https://www.buymeacoffee.com/oliverames"><img src="https://img.shields.io/badge/Buy_Me_a_Coffee-donate-f5a542?style=flat-square&logo=buy-me-a-coffee&logoColor=white" alt="Donate on Buy Me a Coffee"></a>
 </p>
 
@@ -55,21 +55,23 @@ Ping Warden uses a privileged helper that waits for kernel route and interface e
 
 ## Install, approve, and verify
 
-### 1. Install
+### 1. Get the app
 
-Download the latest DMG from [Releases](https://github.com/oliverames/ping-warden/releases/latest), open it, and drag Ping Warden to `/Applications`. Launch the copy in Applications.
+Buy the [Ping Warden License on Gumroad](https://amesconsulting.gumroad.com/l/pingwarden). The signed, notarized DMG is attached to the purchase, so it is in your receipt and your Gumroad library, and the license key arrives in the same email. Open the DMG, drag Ping Warden to `/Applications`, and launch the copy in Applications.
+
+Want to try the free features first? The same build is on [Releases](https://github.com/oliverames/ping-warden/releases/latest). Everything except enabling Ping Protection works without a key, and any official build accepts the key from a later purchase.
 
 ### 2. Approve the helper
 
 Click **Set Up and Turn On Protection**, then approve Ping Warden in System Settings when macOS asks. The helper needs this one-time approval because changing the AWDL interface requires elevated access.
 
-### 3. Turn on Ping Protection and verify it
+### 3. Activate your license
 
-Enable **Ping Protection** from the menu bar. Open the dashboard and confirm that protection is active. The dashboard will show live latency and count each time the helper blocks macOS from reactivating AWDL.
+Open **Settings → License** and enter the key from your receipt. The app verifies once with Gumroad and then works offline for up to 14 days. Existing users who had protection enabled before this release keep Ping Protection for a 90-day transition with no action needed. If you donated through Buy Me a Coffee before this release, email [oliver@ames.consulting](mailto:oliver@ames.consulting) with your receipt and it will be honored as a full license.
 
-### 4. Activate your license
+### 4. Turn on Ping Protection and verify it
 
-Ping Protection requires a one-time $15 license for the prebuilt app. Buy it at [Gumroad](https://olivera40.gumroad.com/l/pingwarden), then enter the key in **Settings → License**. The app verifies once and then works offline for up to 14 days without network. Existing users who had protection enabled before this release keep Ping Protection for a 90-day transition with no action needed. If you donated through Buy Me a Coffee before this release, email [oliver@ames.consulting](mailto:oliver@ames.consulting) with your receipt and it will be honored as a full license.
+Enable **Ping Protection** from the menu bar. Without a key (and outside the transition window) the app points you back to **Settings → License** instead of turning protection on. Open the dashboard and confirm that protection is active. The dashboard shows live latency and counts each time the helper blocks macOS from reactivating AWDL.
 
 The [Quick Start guide](PingWarden/QUICKSTART.md) covers first-run setup and the optional automation features.
 
@@ -95,7 +97,7 @@ Ping Warden stays open source under MIT. You can build from source, inspect it, 
 
 **Why a license:** After two years of free builds, donations cover only a fraction of the ongoing work — Developer ID signing, Apple notarization, testing across macOS releases, and release engineering. A one-time $15 license for the Ping Protection feature makes that work sustainable without subscriptions, ads, or analytics. The tradeoff that defines this app stays exactly the same, and the source stays auditable under MIT.
 
-Enabling Ping Protection in the prebuilt app requires that license at [Gumroad](https://olivera40.gumroad.com/l/pingwarden). One key works on the Macs you own. The app verifies once with Gumroad, then re-checks roughly every 6 hours while it runs and once at launch; verification is offline-friendly for up to 14 days.
+Enabling Ping Protection in the prebuilt app requires that license at [Gumroad](https://amesconsulting.gumroad.com/l/pingwarden). One key works on the Macs you own. The app verifies once with Gumroad, then re-checks roughly every 6 hours while it runs and once at launch; verification is offline-friendly for up to 14 days.
 
 **Transition for existing users:** If Ping Protection was enabled on this Mac before the licensed build first ran, it keeps working for a 90-day transition starting on that first launch. Check the time remaining in **Settings → License**. When the transition ends, enter a license key to keep protection available. The app shows a one-time notice on first launch of the licensed build to explain the change.
 
@@ -118,7 +120,7 @@ Diagnostics exports are written locally. Ping Warden never uploads them for you.
 
 The source stays MIT and you can build it yourself whether you buy anything or not. The prebuilt, signed, and notarized app is free to download and everything except enabling Ping Protection is free to use.
 
-If you supported Ping Warden on [Buy Me a Coffee](https://www.buymeacoffee.com/oliverames) before this release, email [oliver@ames.consulting](mailto:oliver@ames.consulting) with your receipt and I'll honor it as a full license. New licenses are a one-time $15 at [Gumroad](https://olivera40.gumroad.com/l/pingwarden) and cover the Macs you own. Donations made after this release still help with signing and testing, but they don't activate Ping Protection — for that, use the Gumroad license.
+If you supported Ping Warden on [Buy Me a Coffee](https://www.buymeacoffee.com/oliverames) before this release, email [oliver@ames.consulting](mailto:oliver@ames.consulting) with your receipt and I'll honor it as a full license. New licenses are a one-time $15 at [Gumroad](https://amesconsulting.gumroad.com/l/pingwarden) and cover the Macs you own. Donations made after this release still help with signing and testing, but they don't activate Ping Protection — for that, use the Gumroad license.
 
 ## Documentation
 
@@ -148,7 +150,7 @@ The app requires macOS 13 or newer. Configure signing for the app, helper, and w
 
 The source code is MIT, Copyright (c) 2025-2026 Oliver Ames — build it, inspect it, and modify it under MIT whether you buy a license or not. See [LICENSE](LICENSE) for the full terms.
 
-The prebuilt, signed, and notarized app is free to download. Everything except enabling Ping Protection is free to use. Enabling Ping Protection in the prebuilt app requires a one-time $15 license at [Gumroad](https://olivera40.gumroad.com/l/pingwarden). One key works on the Macs you own. The app verifies once with Gumroad, then works offline for up to 14 days.
+The prebuilt, signed, and notarized app is free to download. Everything except enabling Ping Protection is free to use. Enabling Ping Protection in the prebuilt app requires a one-time $15 license at [Gumroad](https://amesconsulting.gumroad.com/l/pingwarden). One key works on the Macs you own. The app verifies once with Gumroad, then works offline for up to 14 days.
 
 Existing installs that had Ping Protection enabled before this release keep protection for a 90-day transition starting on first launch of the licensed build. Check the time remaining in **Settings → License** and enter a license before it ends to keep protection available. If you donated before this release, email [oliver@ames.consulting](mailto:oliver@ames.consulting) with your receipt and it will be honored as a license.
 

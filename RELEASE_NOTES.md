@@ -1,14 +1,32 @@
+# Ping Warden 4.0.1 (unreleased)
+
+A licensing hardening release. Nothing changes for a paid license or for building from source.
+
+## Fixes
+
+- The in-app **Buy a License…** button and every document now point at the current storefront, `https://amesconsulting.gumroad.com/l/pingwarden`. The old `olivera40` address returns 404.
+- Persisted protection no longer turns AWDL off at launch unless the license gate still holds. An install whose 90-day transition ended, or whose key was refunded, now starts with protection off and a note in the menu pointing to **Settings → License**, instead of quietly restoring protection from the saved preference.
+- The cached license state in the shared App Group defaults is now sealed with an HMAC bound to the Mac's hardware UUID. A hand-written `defaults write`, or a preferences file copied from a licensed Mac, reads as unlicensed until the app verifies online again. The Control Center widget checks the same seal.
+- A clock rolled backwards past the last verification no longer stretches the 14-day offline window; the cache is ignored until the next online verification.
+- The 90-day transition is granted only when the helper was already approved on the Mac, which a fresh install cannot fake, and the one-shot marker now lives in the keychain so clearing the App Group defaults cannot re-arm it.
+- The stored key is re-verified once at launch, as the documentation already said, not only on the 6-hour timer.
+
+## Upgrade notes
+
+- Licensed 4.0.0 installs re-verify with Gumroad on first launch of 4.0.1 to seal their cached state. An offline first launch shows protection off until the Mac is online once; the key stays stored.
+- 3.x installs that upgrade directly still get the 90-day transition.
+
 # Ping Warden 4.0.0
 
 Ping Warden is moving to a license for the AWDL-blocking feature. The source stays MIT and everything except enabling Ping Protection is free.
 
-Starting with this release, enabling Ping Protection in the prebuilt, signed, and notarized app requires a one-time $15 license at [Gumroad](https://olivera40.gumroad.com/l/pingwarden). One key works on the Macs you own and covers all future updates. The app verifies once with Gumroad, then re-checks roughly every 6 hours while it runs and once at launch. Verification is offline-friendly for up to 14 days. Building from source under MIT remains free and unchanged.
+Starting with this release, enabling Ping Protection in the prebuilt, signed, and notarized app requires a one-time $15 license at [Gumroad](https://amesconsulting.gumroad.com/l/pingwarden). One key works on the Macs you own and covers all future updates. The app verifies once with Gumroad, then re-checks roughly every 6 hours while it runs and once at launch. Verification is offline-friendly for up to 14 days. Building from source under MIT remains free and unchanged.
 
 ## Pricing
 
 - Ping Protection now requires a license in the prebuilt app. All other features remain free.
 - The source code remains MIT. You can build from source, inspect it, and modify it whether you buy a license or not.
-- The license is a one-time $15 purchase at [Gumroad](https://olivera40.gumroad.com/l/pingwarden). No subscription, no ads, no analytics. Taxes are handled by Gumroad as merchant of record — the 10% + 50¢ direct fee (30% via Discover) covers processing.
+- The license is a one-time $15 purchase at [Gumroad](https://amesconsulting.gumroad.com/l/pingwarden). No subscription, no ads, no analytics. Taxes are handled by Gumroad as merchant of record — the 10% + 50¢ direct fee (30% via Discover) covers processing.
 
 ## Transition for existing users
 

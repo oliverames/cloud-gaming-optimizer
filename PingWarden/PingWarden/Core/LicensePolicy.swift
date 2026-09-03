@@ -62,6 +62,52 @@ enum LicensePolicy {
     /// after the last successful verification.
     static let offlineGraceInterval: TimeInterval = 14 * 24 * 3600
 
+    /// Cached state is only trusted when the wall clock has not moved
+    /// backwards past it. A verification stamped in the future, or a
+    /// last-seen mark more than a day ahead of now, means the clock was
+    /// rolled back to stretch the grace window, so the cache is ignored
+    /// until the next successful online verification.
+    static func clockIsPlausible(
+        now: Date,
+        lastVerifiedAt: Date?,
+        lastSeenAt: Date?
+    ) -> Bool {
+        if let lastVerifiedAt, lastVerifiedAt.timeIntervalSince(now) > 3600 {
+            return false
+        }
+        if let lastSeenAt, lastSeenAt.timeIntervalSince(now) > 24 * 3600 {
+            return false
+        }
+        return true
+    }
+
+    /// The canonical string the app and the widget seal with an HMAC so
+    /// the cached gate state in the shared App Group defaults cannot be
+    /// forged with `defaults write` or copied from another Mac. Both
+    /// targets must build the identical payload, so the format lives
+    /// here and nowhere else. Dates are whole seconds since 1970; a
+    /// missing date is 0.
+    static func sealPayload(
+        cachedLicenseValid: Bool,
+        lastVerifiedAt: Date?,
+        grandfatherDeadline: Date?,
+        lastSeenAt: Date?,
+        deviceIdentifier: String
+    ) -> String {
+        func stamp(_ date: Date?) -> String {
+            guard let date else { return "0" }
+            return String(Int(date.timeIntervalSince1970.rounded(.down)))
+        }
+        return [
+            "pwlic1",
+            "valid=\(cachedLicenseValid ? "1" : "0")",
+            "verified=\(stamp(lastVerifiedAt))",
+            "grandfather=\(stamp(grandfatherDeadline))",
+            "seen=\(stamp(lastSeenAt))",
+            "device=\(deviceIdentifier)",
+        ].joined(separator: "|")
+    }
+
     /// Grandfathered installs keep entitlement for 90 days from the
     /// first launch of the licensed build that observed protection
     /// already enabled.

@@ -175,9 +175,14 @@ class PingWardenMonitor: @unchecked Sendable {
             log.info("  Helper already enabled, connecting XPC...")
             connectXPC()
 
-            // Check if we should restore monitoring state
+            // Check if we should restore monitoring state. The persisted
+            // intent alone is not enough: the license gate must still
+            // hold, or an expired transition (or a hand-written
+            // preference) would put AWDL down at every launch.
             if PingWardenPreferences.shared.isMonitoringEnabled {
-                if let pausedUntil = PingWardenPreferences.shared.protectionPauseUntil,
+                if !LicenseManager.launchGateAllowsProtection {
+                    log.info("  Monitoring restore blocked: no valid license entitlement at launch")
+                } else if let pausedUntil = PingWardenPreferences.shared.protectionPauseUntil,
                    pausedUntil > Date() {
                     // A persisted pause outranks the stored protection intent
                     // until it expires; the coordinator's pause timer resumes

@@ -129,6 +129,19 @@ final class ProtectionExperienceCoordinator: ObservableObject {
         objectWillChange.send()
     }
 
+    /// Called at launch when the persisted protection intent survived
+    /// but the entitlement did not (transition ended, refund, forged
+    /// preference). The monitor already refused to restore AWDL-down;
+    /// this clears the stale intent so the menu does not claim
+    /// protection is on, and tells the user why.
+    func noteLaunchLicenseGate() {
+        preferences.isMonitoringEnabled = false
+        lastError = license.grandfatherWindowExpired
+            ? "The transition period has ended, so Ping Protection stayed off. Enter a license key in Settings → License to turn it back on. Donated before? Email \(LicenseManager.donationConversionEmail)."
+            : "Ping Protection stayed off because it requires a license. Enter your key in Settings → License. Donated before? Email \(LicenseManager.donationConversionEmail)."
+        objectWillChange.send()
+    }
+
     @discardableResult
     func setPersistentProtection(_ enabled: Bool) async -> Bool {
         // The license gate covers every path that would put AWDL down:
