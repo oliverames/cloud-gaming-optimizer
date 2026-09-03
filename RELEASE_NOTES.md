@@ -1,4 +1,4 @@
-# Ping Warden 4.0.1 (unreleased)
+# Ping Warden 4.0.1
 
 A licensing hardening release. Nothing changes for a paid license or for building from source.
 
