@@ -10,7 +10,9 @@
 
 **Left off at**: 4.0.0 is public on the stable channel and the storefront sells. Post-release fixes are committed to `main` for the next release rather than forcing a 4.0.1 prompt: removed a non-functional concurrency guard in `LicenseManager`, dropped the unused `verifiedAt` payload so `LicensePolicy` is a pure function of its inputs, and corrected Settings copy that still called the app free.
 
-**Open questions**: Branch protection was bypassed on both release pushes (`4 of 4 required status checks are expected`). `Build Verification` passed afterward, so nothing broke, but the pushes should have waited for checks. The widget's license gate still duplicates the 14-day constant because the Core file is not a member of the widget target; nothing catches divergence if the Core value changes.
+**Post-release audit (same day)**: Found that the published product had `is_licensed:false`, meaning Gumroad would have taken $15 and issued no license key, leaving the buyer gated out of the feature they just paid for. Caught at zero sales, so nobody was charged. Neither the public API nor the `gumroad` CLI can toggle license-key generation, so the product was unpublished again to take it out of sale until the dashboard checkbox is on. The audit also cleared the branch-protection question: the `Protect main` ruleset grants the owner `bypass_mode: always` by design, which is what lets `release.sh` push the appcast commit, so the bypass line on every direct push is expected rather than a violation. `Build Verification` passed on all three shipped commits (`e49ebf5`, `df99141`, `dadc4bf`), so the bypass never hid a broken build.
+
+**Open questions**: The widget's license gate still duplicates the 14-day constant because the Core file is not a member of the widget target; nothing catches divergence if the Core value changes. The purchase path is verified only as far as the checkout redirect, since a test purchase would put a synthetic sale record on the live store; the first real key remains the first end-to-end proof.
 
 ---
 
