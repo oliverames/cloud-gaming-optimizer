@@ -24,7 +24,7 @@ Starting with this release, enabling Ping Protection in the prebuilt, signed, an
 ## License management
 
 - New **Settings → License** pane shows status (Licensed, transition with days remaining, or Unlicensed), key entry with verification, and a direct link to the Gumroad product page. The transition pane explains why the change is happening and carries the donor-honoring note with a mailto button.
-- License keys are verified at `api.gumroad.com/v2/licenses/verify` with your product ID and key, then cached so the app works offline. A cached valid result stands in for 14 days when the API cannot be reached. Refunded, chargebacked, or disabled keys are treated as revoked and turn protection off immediately with a notice.
+- License keys are verified at `api.gumroad.com/v2/licenses/verify` with your product ID and key, then cached so the app works offline. A cached valid result stands in for 14 days when the API cannot be reached. Refunded, chargebacked, or disabled keys are treated as revoked and turn protection off with a notice at the next verification. An install still inside its 90-day transition keeps protection under that window, since the transition is granted for prior use rather than for a purchase.
 - The Control Center widget reads the same cached entitlement from the shared app group and refuses to enable protection without a valid license. Disabling is always allowed.
 - Uninstall clears all licensing state from the App Group defaults and the keychain.
 

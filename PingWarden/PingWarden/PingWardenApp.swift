@@ -2117,7 +2117,7 @@ struct GeneralSettingsContent: View {
                 } label: {
                     VStack(alignment: .leading, spacing: 2) {
                         Text("Support Development")
-                        Text("Ping Warden is free. Contributions help fund future releases. Donations made before the current release are honored as full licenses; email \(LicenseManager.donationConversionEmail) to claim yours.")
+                        Text("Ping Warden is open source, and everything except enabling Ping Protection is free. Donations made before the licensed release are honored as full licenses; email \(LicenseManager.donationConversionEmail) to claim yours.")
                             .font(.caption)
                             .foregroundStyle(.secondary)
                             .fixedSize(horizontal: false, vertical: true)

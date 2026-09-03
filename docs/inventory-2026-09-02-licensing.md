@@ -26,9 +26,13 @@
 
 - `PingWarden/PingWardenWidget/PingWardenWidgetLicenseGate.swift` + `PingWardenPreferences` + `PingWardenToggleIntent` — Widget reads same cached entitlement, throws `licenseRequired` when unlicensed.
 
-## What was deliberately left alone (no ship)
+## Shipping status
 
-- **No release cut. No push to `main` or `gh-pages`, no `appcast.xml` bump, no DMG/notarization run.** Per your 2026-09-02 instruction.
+> **Superseded 2026-09-03.** Everything below described the pre-release state. Ping Warden 4.0.0 shipped on 2026-09-03: GitHub release `v4.0.0`, notarized `PingWarden-4.0.0.dmg`, appcast published to `gh-pages` (`347bb4b`) and committed on `main` (`df99141`), Sentry release `com.amesvt.pingwarden@4.0.0`, and the Gumroad product published and purchasable. See the 2026-09-03 WORKLOG entry.
+
+## What was deliberately left alone at the time (pre-ship)
+
+- **No release cut, no push to `main` or `gh-pages`, no `appcast.xml` bump, no DMG/notarization run.** Per the 2026-09-02 instruction; all of this ran on 2026-09-03.
 
 - `LICENSE` — Stays MIT verbatim. The gate applies to the prebuilt binary only; source license does not change.
 

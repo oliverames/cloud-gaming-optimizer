@@ -45,7 +45,6 @@ final class LicenseManager: ObservableObject {
     var onReverificationSettled: (@MainActor () -> Void)?
 
     private let defaults: UserDefaults
-    private var inFlightVerify: Task<Void, Never>?
     private var periodicReverifyTimer: Timer?
 
     private init() {
@@ -245,8 +244,14 @@ final class LicenseManager: ObservableObject {
             return false
         }
 
-        // Coalesce concurrent verifies of the same key.
-        if isVerifying { await inFlightVerify?.value }
+        // A verify already in flight owns the outcome. Re-entering would
+        // duplicate the request and race two writes to the cached state,
+        // so the second caller reports the current result instead.
+        guard !isVerifying else {
+            licenseLog.debug("Verification already in flight - skipping duplicate")
+            if case .valid = lastVerificationResult { return true }
+            return false
+        }
         isVerifying = true
         defer { isVerifying = false }
 

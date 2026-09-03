@@ -19,9 +19,10 @@ enum LicensePolicy {
 
     /// How a Gumroad verify response maps to an entitlement decision.
     enum Verification: Equatable {
-        /// The key is valid and entitled. Carries the server timestamp
-        /// of the verification for offline-grace bookkeeping.
-        case valid(verifiedAt: Date)
+        /// The key is valid and entitled. The caller stamps its own
+        /// verification time, so this carries no clock and the whole
+        /// policy stays a pure function of its inputs.
+        case valid
         /// The key is real but no longer entitled (refund, chargeback,
         /// disabled, revoked subscription).
         case revoked
@@ -103,7 +104,7 @@ enum LicensePolicy {
             }
         }
 
-        return .valid(verifiedAt: Date())
+        return .valid
     }
 
     /// Normalize user input into a canonical license key shape.

@@ -1,6 +1,20 @@
 # Ping Warden Worklog
 
-## 2026-09-02 - License-gated Ping Protection, Gumroad product, and public-surface update (unshipped)
+## 2026-09-03 - Ship 4.0.0: license-gated Ping Protection goes public
+
+**What changed**: Cut and published 4.0.0, the first licensed build. Versions moved 3.1.0/30100 to 4.0.0/40000 across the four Xcode targets, the app, helper, and widget `Info.plist` files, and the helper's `HELPER_VERSION`. `release.sh 4.0.0` archived, re-signed with Developer ID `PV3W52NDZ3`, notarized and stapled both the app and `PingWarden-4.0.0.dmg` (5.5 MB), signed the Sparkle archive and appcast, published the GitHub release, uploaded six dSYMs to Sentry as `com.amesvt.pingwarden@4.0.0`, and pushed the `gh-pages` appcast as `347bb4b`. The main-side appcast copy is committed as `df99141`. The Gumroad product `Ping Warden License` (`FmGG0pxyEyzJqp_BG4itFQ==`, permalink `pingwarden`, $15) is published and purchasable.
+
+**Decisions made**: Shipped as 4.0.0 rather than 3.2.0 because gating a previously free feature is a breaking change for existing installs, and the 90-day transition needs a version boundary users can point at. Did not mark the appcast item `criticalUpdate`, so Sparkle offers 4.0.0 normally rather than forcing it. Left the published GitHub release body and the signed appcast description as-is after correcting a refund-scope sentence in `RELEASE_NOTES.md`, so the two published artifacts stay consistent with each other; the correction applies to future renders.
+
+**Verification**: `swift test` 101 of 101. Both Xcode schemes build clean in Release. GitHub `Build Verification` passed on the release commit `e49ebf5`. The app and DMG are Developer ID signed, notarized, stapled, and `spctl` accepts the mounted DMG as `Notarized Developer ID`. The live feed at `https://oliverames.github.io/ping-warden/appcast.xml` advertises 4.0.0 build 40000 with a macOS 13.0 minimum. The storefront returns `is_published:true`, `price_cents:1500`, `is_compliance_blocked:false`, and `?wanted=true` redirects into checkout. A live negative-path verify against the real product ID still returns HTTP 404 `success:false`, so the fail-closed path holds against production.
+
+**Left off at**: 4.0.0 is public on the stable channel and the storefront sells. Post-release fixes are committed to `main` for the next release rather than forcing a 4.0.1 prompt: removed a non-functional concurrency guard in `LicenseManager`, dropped the unused `verifiedAt` payload so `LicensePolicy` is a pure function of its inputs, and corrected Settings copy that still called the app free.
+
+**Open questions**: Branch protection was bypassed on both release pushes (`4 of 4 required status checks are expected`). `Build Verification` passed afterward, so nothing broke, but the pushes should have waited for checks. The widget's license gate still duplicates the 14-day constant because the Core file is not a member of the widget target; nothing catches divergence if the Core value changes.
+
+---
+
+## 2026-09-02 - License-gated Ping Protection, Gumroad product, and public-surface update
 
 **What changed**:
 
@@ -24,7 +38,7 @@
 
 - Mirrored the License pane in `PING_WARDEN_3_SPEC.md`. Replaced the `### Donations` section with `### License` (Gumroad verify, 14-day offline cache, 90-day grandfather starting on first licensed-build launch, hidden `DONOR-HONOR` 100% code, Settings License pane description, widget cached-entitlement gate, immediate disable on bad license with 6-hour re-verify). Removed the donation prompt bullet from `### Session recap`, updated the `Non-goals` paywall line to `No paywall beyond the Ping Protection license`, and updated the accessibility gate to mention license content.
 
-- Updated public README surfaces (still unshipped, no release cut):
+- Updated public README surfaces (unshipped at the time; released the following day as 4.0.0):
   - `README.md:36` intro: source stays MIT and everything except enabling Ping Protection is free; prebuilt now requires the $15 license and existing users keep protection for 90 days. Added Gumroad badge (`README.md:20`) and a `Pricing` nav link, new install step 4 (buy at Gumroad, enter in Settings → License, 14-day offline, 90-day transition, donor email), new `## Pricing` section with why-a-license rationale, transition and donor terms, rewritten `## Support Ping Warden` and `## License` sections with MIT distinction, 14-day and grandfather details, and the honor path.
   - `PingWarden/README.md:144` settings list + `204` pane docs, expanded `21. License and Pricing` with pricing, verification cadence, rationale, transition, and donor honor note.
   - `PingWarden/QUICKSTART.md:23` inserted `3. Activate your license (prebuilt app)` ahead of turn-on/verify and shifted the latter to 4–5.
@@ -42,9 +56,9 @@
 
 - Spec mirroring is additive, not a rewrite: the architecture, telemetry, sessions, widget/XPC, and update/release sections stay as they shipped for 3.0. Only the user-experience and non-goals sections now mention the License pane and the grandfather/verify behavior.
 
-**Verification**: `swift test` passed 101 of 101 (was 104 before the donation-sheet deletion: 25 new LicensePolicy tests included) on macOS and Linux via SwiftPM. `xcodebuild -project PingWarden/PingWarden.xcodeproj -scheme PingWarden -configuration Release -destination generic/platform=macOS CODE_SIGNING_ALLOWED=NO` and the `PingWardenWidget` scheme both report BUILD SUCCEEDED. Live `echo "BOGUS" | gumroad licenses verify --product FmGG0pxyEyzJqp_BG4itFQ== --no-increment` returns 404 `success:false` as the fail-closed path expects, and `gumroad offer-codes view T2OE2dj5tyIlBWtWAEi8RA== --product ...` confirms the hidden code. No tag, no `git push`, no appcast or DMG publish, and `gumroad products list` still shows the product as draft.
+**Verification**: `swift test` passed 101 of 101 (was 104 before the donation-sheet deletion: 25 new LicensePolicy tests included) on macOS and Linux via SwiftPM. `xcodebuild -project PingWarden/PingWarden.xcodeproj -scheme PingWarden -configuration Release -destination generic/platform=macOS CODE_SIGNING_ALLOWED=NO` and the `PingWardenWidget` scheme both report BUILD SUCCEEDED. Live `echo "BOGUS" | gumroad licenses verify --product FmGG0pxyEyzJqp_BG4itFQ== --no-increment` returns 404 `success:false` as the fail-closed path expects, and `gumroad offer-codes view T2OE2dj5tyIlBWtWAEi8RA== --product ...` confirms the hidden code. At the close of this entry there was no tag, no `git push`, no appcast or DMG publish, and `gumroad products list` still showed the product as a draft.
 
-**Left off at**: The licensed build is fully wired and the public docs match it, but nothing has been published. The working tree is dirty (`git status` shows the expected 9 modified + 2 deleted + 4 untracked licensing files plus the updated `README.md:36` family and `docs/inventory-2026-09-02-licensing.md`). `main` and `gh-pages` are clean. The Gumroad product remains a draft.
+**Left off at**: As of the end of 2026-09-02 the licensed build was fully wired and the public docs matched it, with nothing published: the working tree held the licensing files uncommitted, `main` and `gh-pages` were clean, and the Gumroad product was still a draft. All of that shipped the next day; see the 2026-09-03 entry above.
 
 **Open questions**: Whether the remaining Buy Me a Coffee buttons (menu → Support Ping Warden, Settings → Support → Donate..., About → Donate, Dashboard → Donate...) should be kept after the licensed model ships, or should be replaced by Gumroad license CTAs. Also whether the hidden offer code `DONOR-HONOR` should be capped (`--max-purchase-count`) or left unlimited for the manual honoring flow.
 

@@ -10,6 +10,7 @@ macOS menu bar app that monitors and blocks AWDL (Apple Wireless Direct Link) to
 | `PingWardenHelper` | Privileged SMAppService daemon, manages AWDL via `ifconfig` |
 | `PingWardenWidget` | macOS Control Center widget |
 | XPC | App↔helper communication |
+| Licensing | Gumroad-gated Ping Protection; `LicensePolicy` (Core, pure) + `LicenseManager` (app) + widget gate |
 
 **Bundle IDs:** `com.amesvt.pingwarden` (app), `com.amesvt.pingwarden.widget`, `com.amesvt.pingwarden.helper`
 **Team ID:** `PV3W52NDZ3`
@@ -20,7 +21,7 @@ macOS menu bar app that monitors and blocks AWDL (Apple Wireless Direct Link) to
 ```
 PingWarden/
 ├── PingWarden/               # Main app (Swift/SwiftUI)
-│   ├── Core/                 # PingStatistics, TCPProbe, XPCReconnectPolicy
+│   ├── Core/                 # PingStatistics, TCPProbe, XPCReconnectPolicy, LicensePolicy
 │   ├── PingWardenApp.swift   # Entry point, menu bar setup
 │   ├── PingWardenMonitor.swift  # AWDL blocking logic, stateLock
 │   ├── PingMonitor.swift     # Real-time TCP latency monitoring
@@ -30,12 +31,13 @@ PingWarden/
 │   ├── QuarantineHelper.swift     # macOS quarantine attribute handling
 │   ├── ControlCenterSupport.swift # Control Center widget integration
 │   ├── PingWardenPreferences.swift # UserDefaults wrapper
+│   ├── LicenseManager.swift  # Gumroad verify, keychain key, grandfather window
 │   ├── notarize.sh           # Notarization + stapling
 │   └── release.sh            # DMG creation, appcast signing, GitHub release
 ├── PingWardenHelper/         # Privileged daemon (Obj-C)
 │   ├── main.m                # Daemon entry point
 │   └── PingWardenMonitor.h/.m  # AF_ROUTE socket listener, ifconfig calls
-├── PingWardenWidget/         # macOS Control Center widget (toggle intent + preferences)
+├── PingWardenWidget/         # macOS Control Center widget (toggle intent, preferences, license gate)
 ├── Common/                   # Shared XPC protocol (HelperProtocol.h)
 ├── create-dmg.sh             # DMG packaging
 └── PingWarden.xcodeproj
@@ -67,7 +69,8 @@ even-count median, fair band, min/max, all-failures, single-sample jitter),
 `XPCReconnectPolicy.delayForAttempt` (backoff curve, 30 s cap, monotonicity),
 `TCPProbe` failure and success paths (invalid hostname, closed loopback port,
 open loopback port), `StateObserverRegistry` add/remove/snapshot lifecycle,
-`VersionPromptPolicy` and custom-target boundaries, and `HelperBundleValidator`
+`VersionPromptPolicy` and custom-target boundaries, `LicensePolicy` (offline
+grace, grandfather window, Gumroad response mapping), and `HelperBundleValidator`
 failure modes (missing binary, missing plist, non-executable binary, valid
 bundle).
 
@@ -130,3 +133,7 @@ Sparkle EdDSA key is in keychain account `"ed25519"`. Notarytool profile: `"nota
 - **`xcodebuild -exportArchive` is broken** in Xcode 26 — use the rsync workaround in the Release Process section above.
 - **SMAppService requires `/Applications`**: The daemon registration (`SMAppService.daemon(plistName:)`) refuses to register when the app runs from Xcode's DerivedData. To test the full helper registration flow, build in Release, copy to `/Applications`, and launch from there. Running from Xcode is fine for non-helper UI work.
 - **Appcast publishing is automated**: `release.sh` snapshots the signed appcast, publishes it to `gh-pages`, and restores the original branch. It leaves the signed appcast modified on `main`, so commit and push that main-side copy after the release succeeds.
+- **Ping Protection is license-gated** (4.0.0+): every app-side enable funnels through `ProtectionExperienceCoordinator.setPersistentProtection(true)` and `startSession`, which consult `LicenseManager.canEnableProtection`. The Control Center widget bypasses the coordinator entirely and applies its own gate in `PingWardenWidgetLicenseGate`. Add a gate to **both** when adding a new enable path.
+- **The widget duplicates the 14-day grace constant.** `Core/LicensePolicy.swift` is not a member of the widget target, so `PingWardenWidgetLicenseGate.swift` re-declares `offlineGraceInterval`. Nothing catches divergence; change both together.
+- **Gumroad product ID is a build constant.** `LicenseManager.gumroadProductID` is `FmGG0pxyEyzJqp_BG4itFQ==` (permalink `pingwarden`). Verification fails closed, so a wrong or placeholder ID blocks protection for everyone.
+- **Grandfathering is one-shot per install.** `establishGrandfatheringIfNeeded()` runs once, keyed on `AWDLMonitoringEnabled` at first launch of the licensed build, and must stay ahead of `handleMonitoringStateChange()` in `applicationDidFinishLaunching`. A refund does not revoke an active grandfather window; the window is granted for prior use, not for a purchase.
