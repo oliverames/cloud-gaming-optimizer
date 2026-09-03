@@ -1,5 +1,19 @@
 # Ping Warden Worklog
 
+## 2026-09-03 - Gumroad becomes the initial-install channel
+
+**What changed**: Split distribution into two lanes. Gumroad now delivers the first install (DMG attached to the product plus the license key) and Sparkle via GitHub releases remains the update path. `PingWarden-4.0.0.dmg` attached to product `pingwarden` via `gumroad products update qthvm --file ...` (file id `57U--GuBwUarVbaI3OxkLA==`). Product description and custom summary rewritten: download from the Gumroad receipt/library, GitHub builds accept the same key. New `landing.html` (repo root, committed) published as the custom landing page at `https://amesconsulting.gumroad.com/l/pingwarden` and verified live, including a new "Can I use the GitHub download with my license?" FAQ. `release.sh` gained Step 9 (fail-soft Gumroad DMG upload, skipped for `BETA_CHANNEL=1`, `SKIP_GUMROAD=1` opts out, `GUMROAD_PRODUCT_ID` overrides, default `qthvm`); header comment, release summary, `AGENTS.md`, and `GEMINI.md` updated to match. Committed as `5e109b1` and pushed to `main`.
+
+**Decisions made**: Kept Sparkle on GitHub releases rather than moving enclosures to R2 — the enclosure URL is public either way, so the host does not gate anything and the license key is the only enforcement point. Left the public GitHub DMG in place as a free funnel for the same reason. Chose fail-soft (Sentry precedent) over abort for the Gumroad upload since the GitHub release is already public by Step 9 and the upload is trivially retryable. Betas never touch the paid deliverable.
+
+**Verification**: `bash -n` passes on the edited `release.sh` (Step 9 not yet exercised by a real release run). Sanitizer preview clean (`warning: null`, only head `meta`/`title` stripped, buy elements plus all five data fields plus inline script survive). Publish returned `success: true`. Live embed fetch shows the rewritten description, the new FAQ, and all six buy buttons carrying `data-gumroad-action="buy"` with checkout hrefs. DMG verified Developer ID signed (`Authority=Developer ID Application: Oliver Ames (PV3W52NDZ3)`) with silent `spctl -a -t install` accept before attaching. No Swift changes, so `swift test` was not re-run.
+
+**Left off at**: Distribution split is live and committed. Still open: (1) the `is_licensed` (generate-a-key-per-sale) dashboard flag could not be confirmed — direct storefront fetches 404 outside a real browser, so if key generation is still off, buyers pay $15 and receive no key; check the product dashboard before the first sale. (2) `products update --file` appends, so each release adds one versioned DMG — prune superseded files in the dashboard periodically. (3) First real purchase remains the first end-to-end proof of key delivery, per the earlier open item.
+
+**Open questions**: Carried forward — widget duplicates the 14-day grace constant with nothing catching divergence.
+
+---
+
 ## 2026-09-03 - Ship 4.0.0: license-gated Ping Protection goes public
 
 **What changed**: Cut and published 4.0.0, the first licensed build. Versions moved 3.1.0/30100 to 4.0.0/40000 across the four Xcode targets, the app, helper, and widget `Info.plist` files, and the helper's `HELPER_VERSION`. `release.sh 4.0.0` archived, re-signed with Developer ID `PV3W52NDZ3`, notarized and stapled both the app and `PingWarden-4.0.0.dmg` (5.5 MB), signed the Sparkle archive and appcast, published the GitHub release, uploaded six dSYMs to Sentry as `com.amesvt.pingwarden@4.0.0`, and pushed the `gh-pages` appcast as `347bb4b`. The main-side appcast copy is committed as `df99141`. The Gumroad product `Ping Warden License` (`FmGG0pxyEyzJqp_BG4itFQ==`, permalink `pingwarden`, $15) is published and purchasable.
