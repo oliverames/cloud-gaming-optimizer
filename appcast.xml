@@ -6,6 +6,91 @@
     <description>Updates for Ping Warden - AWDL blocking for cloud gaming</description>
     <language>en</language>
     <item>
+      <title>Version 4.0.0</title>
+      <link>https://github.com/oliverames/ping-warden/releases/tag/v4.0.0</link>
+      <sparkle:version>40000</sparkle:version>
+      <sparkle:shortVersionString>4.0.0</sparkle:shortVersionString>
+      <description><![CDATA[
+<style>
+body {
+    font-family: -apple-system, BlinkMacSystemFont, "Helvetica Neue", Helvetica, Arial, sans-serif;
+    font-size: 13px;
+    line-height: 1.55;
+    color: #1d1d1f;
+    margin: 0;
+    padding: 0;
+}
+h1, h2, h3 { color: #000; font-weight: 600; }
+h1 { font-size: 18px; margin: 0 0 10px 0; }
+h2 {
+    font-size: 11px;
+    text-transform: uppercase;
+    letter-spacing: 0.6px;
+    color: #6e6e73;
+    margin: 18px 0 6px 0;
+}
+h3 { font-size: 13px; margin: 14px 0 6px 0; }
+p { margin: 0 0 10px 0; }
+ul, ol { padding-left: 20px; margin: 0 0 10px 0; }
+li { margin-bottom: 5px; }
+li > strong:first-child { color: #000; }
+code {
+    font-family: ui-monospace, "SF Mono", Menlo, monospace;
+    background: #f2f2f7;
+    padding: 1px 5px;
+    border-radius: 3px;
+    font-size: 12px;
+}
+a { color: #f5a542; text-decoration: none; }
+a:hover { text-decoration: underline; }
+hr { border: 0; border-top: 1px solid #e5e5ea; margin: 16px 0; }
+@media (prefers-color-scheme: dark) {
+    body { color: #f5f5f7; }
+    h1, h2, h3, li > strong:first-child { color: #fff; }
+    h2 { color: #98989d; }
+    code { background: #2c2c2e; }
+    hr { border-top-color: #38383a; }
+}
+</style>
+<p>Ping Warden is moving to a license for the AWDL-blocking feature. The source stays MIT and everything except enabling Ping Protection is free.</p>
+<p>Starting with this release, enabling Ping Protection in the prebuilt, signed, and notarized app requires a one-time $15 license at <a href="https://olivera40.gumroad.com/l/pingwarden" rel="nofollow">Gumroad</a>. One key works on the Macs you own and covers all future updates. The app verifies once with Gumroad, then re-checks roughly every 6 hours while it runs and once at launch. Verification is offline-friendly for up to 14 days. Building from source under MIT remains free and unchanged.</p>
+<h2>Pricing</h2>
+<ul>
+<li>Ping Protection now requires a license in the prebuilt app. All other features remain free.</li>
+<li>The source code remains MIT. You can build from source, inspect it, and modify it whether you buy a license or not.</li>
+<li>The license is a one-time $15 purchase at <a href="https://olivera40.gumroad.com/l/pingwarden" rel="nofollow">Gumroad</a>. No subscription, no ads, no analytics. Taxes are handled by Gumroad as merchant of record — the 10% + 50¢ direct fee (30% via Discover) covers processing.</li>
+</ul>
+<h2>Transition for existing users</h2>
+<ul>
+<li>If Ping Protection was enabled on this Mac before the licensed build first ran, it keeps working for a 90-day transition that starts on that first launch. No action is needed today.</li>
+<li>Check the time remaining in <strong>Settings → License</strong>. When the transition ends, enter a license key there to keep protection available.</li>
+<li>On first launch of the licensed build, existing users see a one-time notice that explains the change and points to <strong>Settings → License</strong>. The notice appears only once per install.</li>
+</ul>
+<h2>Donors</h2>
+<ul>
+<li>If you supported Ping Warden through <a href="https://www.buymeacoffee.com/oliverames" rel="nofollow">Buy Me a Coffee</a> before this release, email <a href="mailto:oliver@ames.consulting">oliver@ames.consulting</a> with your receipt and it will be honored as a full license via a hidden 100% off code (<code class="notranslate">DONOR-HONOR</code>). The License pane and the gate error both surface this offer, and the app now handles the conversion — no extra purchase needed.</li>
+<li>The in-app donation prompt that appeared after latency sessions has been removed. The menu, Settings → Support, About, and Dashboard still offer a Donate link, and the full documentation now describes the licensed model instead.</li>
+</ul>
+<h2>License management</h2>
+<ul>
+<li>New <strong>Settings → License</strong> pane shows status (Licensed, transition with days remaining, or Unlicensed), key entry with verification, and a direct link to the Gumroad product page. The transition pane explains why the change is happening and carries the donor-honoring note with a mailto button.</li>
+<li>License keys are verified at <code class="notranslate">api.gumroad.com/v2/licenses/verify</code> with your product ID and key, then cached so the app works offline. A cached valid result stands in for 14 days when the API cannot be reached. Refunded, chargebacked, or disabled keys are treated as revoked and turn protection off immediately with a notice.</li>
+<li>The Control Center widget reads the same cached entitlement from the shared app group and refuses to enable protection without a valid license. Disabling is always allowed.</li>
+<li>Uninstall clears all licensing state from the App Group defaults and the keychain.</li>
+</ul>
+      ]]></description>
+      <pubDate>Thu, 03 Sep 2026 13:01:36 +0000</pubDate>
+      <enclosure
+        url="https://github.com/oliverames/ping-warden/releases/download/v4.0.0/PingWarden-4.0.0.dmg"
+        sparkle:version="40000"
+        sparkle:shortVersionString="4.0.0"
+        length="5729570"
+        type="application/octet-stream"
+        sparkle:edSignature="lvF4Ol9EPJq/g0pfJa7n1h9RemxxulXDK1Ag8ibum09Cco48xOxB/dvbgAt8tb545f4YfbGB/lO3d5DmALjhDw=="
+      />
+      <sparkle:minimumSystemVersion>13.0</sparkle:minimumSystemVersion>
+    </item>
+    <item>
       <title>Version 3.1.0</title>
       <link>https://github.com/oliverames/ping-warden/releases/tag/v3.1.0</link>
       <sparkle:version>30100</sparkle:version>
@@ -918,6 +1003,6 @@ hr { border: 0; border-top: 1px solid #e5e5ea; margin: 16px 0; }
   </channel>
 </rss>
 <!-- sparkle-signatures:
-edSignature: i5mgd5lJ/cwCnlA83cODyaZPzY8h5HYL+AWB8FerOh9cWYuiIb+BYWLX6jenbIXrYZOCOxMwX5xXH7ErHIs6DA==
-length: 43269
+edSignature: 4cZ/QvQOxECe8cMruM+T8aCNHx0W1JaGeEXambqrc66yzL7hbSOj3GwpP81hGw24o8I3laGUGkyh0DWKTWNUCQ==
+length: 48816
 -->
