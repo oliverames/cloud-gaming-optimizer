@@ -6,6 +6,80 @@
     <description>Updates for Ping Warden - AWDL blocking for cloud gaming</description>
     <language>en</language>
     <item>
+      <title>Version 4.0.1</title>
+      <link>https://github.com/oliverames/ping-warden/releases/tag/v4.0.1</link>
+      <sparkle:version>40001</sparkle:version>
+      <sparkle:shortVersionString>4.0.1</sparkle:shortVersionString>
+      <description><![CDATA[
+<style>
+body {
+    font-family: -apple-system, BlinkMacSystemFont, "Helvetica Neue", Helvetica, Arial, sans-serif;
+    font-size: 13px;
+    line-height: 1.55;
+    color: #1d1d1f;
+    margin: 0;
+    padding: 0;
+}
+h1, h2, h3 { color: #000; font-weight: 600; }
+h1 { font-size: 18px; margin: 0 0 10px 0; }
+h2 {
+    font-size: 11px;
+    text-transform: uppercase;
+    letter-spacing: 0.6px;
+    color: #6e6e73;
+    margin: 18px 0 6px 0;
+}
+h3 { font-size: 13px; margin: 14px 0 6px 0; }
+p { margin: 0 0 10px 0; }
+ul, ol { padding-left: 20px; margin: 0 0 10px 0; }
+li { margin-bottom: 5px; }
+li > strong:first-child { color: #000; }
+code {
+    font-family: ui-monospace, "SF Mono", Menlo, monospace;
+    background: #f2f2f7;
+    padding: 1px 5px;
+    border-radius: 3px;
+    font-size: 12px;
+}
+a { color: #f5a542; text-decoration: none; }
+a:hover { text-decoration: underline; }
+hr { border: 0; border-top: 1px solid #e5e5ea; margin: 16px 0; }
+@media (prefers-color-scheme: dark) {
+    body { color: #f5f5f7; }
+    h1, h2, h3, li > strong:first-child { color: #fff; }
+    h2 { color: #98989d; }
+    code { background: #2c2c2e; }
+    hr { border-top-color: #38383a; }
+}
+</style>
+<p>A licensing hardening release. Nothing changes for a paid license or for building from source.</p>
+<h2>Fixes</h2>
+<ul>
+<li>The in-app <strong>Buy a License…</strong> button and every document now point at the current storefront, <code class="notranslate">https://amesconsulting.gumroad.com/l/pingwarden</code>. The old <code class="notranslate">olivera40</code> address returns 404.</li>
+<li>Persisted protection no longer turns AWDL off at launch unless the license gate still holds. An install whose 90-day transition ended, or whose key was refunded, now starts with protection off and a note in the menu pointing to <strong>Settings → License</strong>, instead of quietly restoring protection from the saved preference.</li>
+<li>The cached license state in the shared App Group defaults is now sealed with an HMAC bound to the Mac's hardware UUID. A hand-written <code class="notranslate">defaults write</code>, or a preferences file copied from a licensed Mac, reads as unlicensed until the app verifies online again. The Control Center widget checks the same seal.</li>
+<li>A clock rolled backwards past the last verification no longer stretches the 14-day offline window; the cache is ignored until the next online verification.</li>
+<li>The 90-day transition is granted only when the helper was already approved on the Mac, which a fresh install cannot fake, and the one-shot marker now lives in the keychain so clearing the App Group defaults cannot re-arm it.</li>
+<li>The stored key is re-verified once at launch, as the documentation already said, not only on the 6-hour timer.</li>
+</ul>
+<h2>Upgrade notes</h2>
+<ul>
+<li>Licensed 4.0.0 installs re-verify with Gumroad on first launch of 4.0.1 to seal their cached state. An offline first launch shows protection off until the Mac is online once; the key stays stored.</li>
+<li>3.x installs that upgrade directly still get the 90-day transition.</li>
+</ul>
+      ]]></description>
+      <pubDate>Thu, 03 Sep 2026 15:11:11 +0000</pubDate>
+      <enclosure
+        url="https://github.com/oliverames/ping-warden/releases/download/v4.0.1/PingWarden-4.0.1.dmg"
+        sparkle:version="40001"
+        sparkle:shortVersionString="4.0.1"
+        length="5759056"
+        type="application/octet-stream"
+        sparkle:edSignature="Nkid/vso7lt5OXWM854qQ4XzCHFaQDkO0lFgI1HoQtnaqqJnkXfpsfi9hqj58JTdn1b0NbwIyUo9rSaf/lkVBA=="
+      />
+      <sparkle:minimumSystemVersion>13.0</sparkle:minimumSystemVersion>
+    </item>
+    <item>
       <title>Version 4.0.0</title>
       <link>https://github.com/oliverames/ping-warden/releases/tag/v4.0.0</link>
       <sparkle:version>40000</sparkle:version>
@@ -1003,6 +1077,6 @@ hr { border: 0; border-top: 1px solid #e5e5ea; margin: 16px 0; }
   </channel>
 </rss>
 <!-- sparkle-signatures:
-edSignature: 4cZ/QvQOxECe8cMruM+T8aCNHx0W1JaGeEXambqrc66yzL7hbSOj3GwpP81hGw24o8I3laGUGkyh0DWKTWNUCQ==
-length: 48816
+edSignature: 1/xszJoCBUZVkLP/MginRmZP+axMvgLGDnKDmLRKMpAxNw9KoMWBhEbkHD5VcGK+Xh1PNm2tihQsgdEuwnwGCA==
+length: 52735
 -->
