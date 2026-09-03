@@ -1,0 +1,669 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<meta name="description" content="Ping Warden License — one-time $15 key that unlocks Ping Protection in the open-source macOS menu bar app for consistent cloud gaming latency." />
+<meta name="color-scheme" content="dark light" />
+<title>Ping Warden License — Unlock Ping Protection</title>
+<style>
+  :root {
+    --bg: #0b1020;
+    --bg-soft: #111832;
+    --card: #151d3d;
+    --line: #2a3563;
+    --ink: #f2f5ff;
+    --muted: #aab4d8;
+    --accent: #5eead4;
+    --accent-ink: #06281f;
+    --accent-soft: rgba(94, 234, 212, 0.12);
+    --warn: #fbbf24;
+    --danger: #fb7185;
+    --good: #4ade80;
+    --radius: 16px;
+    --shadow: 0 24px 60px rgba(2, 6, 23, 0.55);
+    --font: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Segoe UI", Inter, Roboto, Helvetica, Arial, sans-serif;
+    --mono: ui-monospace, "SF Mono", SFMono-Regular, Menlo, Consolas, monospace;
+  }
+  html[data-theme="light"] {
+    --bg: #f6f8ff;
+    --bg-soft: #ffffff;
+    --card: #ffffff;
+    --line: #dbe2f7;
+    --ink: #0d1530;
+    --muted: #4b587e;
+    --accent: #0d7a6a;
+    --accent-ink: #ffffff;
+    --accent-soft: rgba(13, 122, 106, 0.1);
+    --shadow: 0 18px 44px rgba(13, 21, 48, 0.12);
+  }
+  * { box-sizing: border-box; }
+  html { scroll-behavior: smooth; }
+  body {
+    margin: 0;
+    font-family: var(--font);
+    background: var(--bg);
+    color: var(--ink);
+    line-height: 1.6;
+    -webkit-font-smoothing: antialiased;
+  }
+  body::before {
+    content: "";
+    position: fixed;
+    inset: 0;
+    pointer-events: none;
+    background:
+      radial-gradient(640px 320px at 12% -4%, rgba(94, 234, 212, 0.14), transparent 60%),
+      radial-gradient(720px 360px at 88% 6%, rgba(129, 140, 248, 0.16), transparent 60%);
+  }
+  html[data-theme="light"] body::before {
+    background:
+      radial-gradient(640px 320px at 12% -4%, rgba(13, 122, 106, 0.1), transparent 60%),
+      radial-gradient(720px 360px at 88% 6%, rgba(99, 102, 241, 0.12), transparent 60%);
+  }
+  .skip-link {
+    position: absolute;
+    left: 1rem;
+    top: -4rem;
+    z-index: 100;
+    background: var(--accent);
+    color: var(--accent-ink);
+    padding: 0.6rem 1rem;
+    border-radius: 10px;
+    font-weight: 700;
+    text-decoration: none;
+    transition: top 0.2s ease;
+  }
+  .skip-link:focus { top: 1rem; }
+  a { color: var(--accent); }
+  :focus-visible {
+    outline: 3px solid var(--accent);
+    outline-offset: 3px;
+    border-radius: 6px;
+  }
+  .wrap { max-width: 72rem; margin: 0 auto; padding: 0 1.25rem; position: relative; }
+
+  /* Nav */
+  .nav {
+    position: sticky;
+    top: 0;
+    z-index: 50;
+    backdrop-filter: blur(14px);
+    -webkit-backdrop-filter: blur(14px);
+    background: color-mix(in srgb, var(--bg) 82%, transparent);
+    border-bottom: 1px solid var(--line);
+  }
+  .nav-inner {
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+    padding: 0.8rem 0;
+  }
+  .brand { display: flex; align-items: center; gap: 0.6rem; text-decoration: none; color: var(--ink); font-weight: 800; letter-spacing: 0.01em; }
+  .brand-mark {
+    width: 2rem; height: 2rem; border-radius: 10px; flex: none;
+    background: linear-gradient(135deg, var(--accent), #818cf8);
+    display: inline-flex; align-items: center; justify-content: center;
+    color: var(--accent-ink); font-weight: 900;
+  }
+  html[data-theme="light"] .brand-mark { color: #fff; }
+  .nav-links { display: flex; gap: 1.1rem; margin-left: auto; align-items: center; }
+  .nav-links a.nav-link { color: var(--muted); text-decoration: none; font-weight: 600; font-size: 0.95rem; }
+  .nav-links a.nav-link:hover { color: var(--ink); }
+  .theme-btn {
+    background: transparent; border: 1px solid var(--line); color: var(--ink);
+    border-radius: 999px; padding: 0.45rem 0.8rem; font: inherit; font-size: 0.85rem; font-weight: 700;
+    cursor: pointer;
+  }
+  .theme-btn:hover { border-color: var(--accent); }
+
+  /* Buttons */
+  .btn {
+    display: inline-flex; align-items: center; justify-content: center; gap: 0.5rem;
+    background: var(--accent); color: var(--accent-ink);
+    font: inherit; font-weight: 800; font-size: 1.05rem;
+    padding: 0.9rem 1.6rem; border: 0; border-radius: 999px;
+    text-decoration: none; cursor: pointer;
+    box-shadow: 0 12px 30px rgba(94, 234, 212, 0.28);
+    transition: transform 0.15s ease, box-shadow 0.2s ease;
+  }
+  .btn:hover { transform: translateY(-2px); box-shadow: 0 18px 38px rgba(94, 234, 212, 0.34); }
+  .btn:active { transform: translateY(0); }
+  .btn-ghost {
+    background: transparent; color: var(--ink);
+    border: 1px solid var(--line); box-shadow: none; font-size: 1rem;
+  }
+  .btn-ghost:hover { border-color: var(--accent); box-shadow: none; }
+  .btn-small { font-size: 0.92rem; padding: 0.6rem 1.1rem; }
+
+  /* Hero */
+  .hero { padding: 3.5rem 0 2.5rem; }
+  .hero-grid { display: grid; grid-template-columns: 1.05fr 0.95fr; gap: 2.5rem; align-items: center; }
+  .eyebrow {
+    display: inline-flex; align-items: center; gap: 0.5rem;
+    font-size: 0.82rem; font-weight: 800; letter-spacing: 0.12em; text-transform: uppercase;
+    color: var(--accent); background: var(--accent-soft);
+    border: 1px solid var(--line); border-radius: 999px; padding: 0.35rem 0.85rem;
+  }
+  .pulse-dot { width: 0.55rem; height: 0.55rem; border-radius: 50%; background: var(--good); box-shadow: 0 0 0 0 rgba(74, 222, 128, 0.6); animation: pulse 2s infinite; }
+  @keyframes pulse {
+    0% { box-shadow: 0 0 0 0 rgba(74, 222, 128, 0.55); }
+    70% { box-shadow: 0 0 0 10px rgba(74, 222, 128, 0); }
+    100% { box-shadow: 0 0 0 0 rgba(74, 222, 128, 0); }
+  }
+  h1 { font-size: clamp(2.2rem, 5vw, 3.4rem); line-height: 1.08; margin: 1.1rem 0 0.8rem; letter-spacing: -0.02em; }
+  .lede { font-size: 1.15rem; color: var(--muted); max-width: 36rem; margin: 0 0 1.4rem; }
+  .price-row { display: flex; align-items: baseline; gap: 0.7rem; margin: 0 0 1.4rem; flex-wrap: wrap; }
+  .price { font-size: 2.4rem; font-weight: 900; letter-spacing: -0.02em; }
+  .price-note { color: var(--muted); font-weight: 600; }
+  .cta-row { display: flex; gap: 0.8rem; flex-wrap: wrap; align-items: center; }
+  .micro-trust { display: flex; gap: 1rem; flex-wrap: wrap; margin: 1.1rem 0 0; padding: 0; list-style: none; color: var(--muted); font-size: 0.92rem; font-weight: 600; }
+  .micro-trust li::before { content: "✓ "; color: var(--good); font-weight: 900; }
+  .rating-line { margin-top: 1rem; color: var(--muted); font-size: 0.95rem; }
+
+  .hero-card {
+    background: var(--card); border: 1px solid var(--line); border-radius: var(--radius);
+    box-shadow: var(--shadow); overflow: hidden;
+  }
+  .hero-card img { display: block; width: 100%; height: auto; }
+  .hero-card figcaption {
+    padding: 0.9rem 1.2rem; font-size: 0.9rem; color: var(--muted);
+    border-top: 1px solid var(--line); display: flex; justify-content: space-between; gap: 0.6rem; flex-wrap: wrap;
+  }
+  .live-badge { color: var(--good); font-weight: 800; font-family: var(--mono); font-size: 0.82rem; }
+
+  /* Signal panel */
+  .signal {
+    margin-top: 1.2rem; background: var(--bg-soft); border: 1px solid var(--line);
+    border-radius: var(--radius); padding: 1.2rem 1.3rem;
+  }
+  .signal h2 { font-size: 0.95rem; margin: 0 0 0.8rem; letter-spacing: 0.06em; text-transform: uppercase; color: var(--muted); }
+  .bars { display: flex; align-items: flex-end; gap: 5px; height: 96px; margin: 0; padding: 0; list-style: none; }
+  .bars li { flex: 1; border-radius: 4px 4px 2px 2px; background: var(--good); min-height: 8px; opacity: 0.9; }
+  .bars li.spike { background: var(--danger); }
+  .bars.flat li { background: var(--good); animation: breathe 2.6s ease-in-out infinite; }
+  .bars.flat li:nth-child(2n) { animation-delay: 0.3s; }
+  .bars.flat li:nth-child(3n) { animation-delay: 0.6s; }
+  @keyframes breathe { 0%, 100% { transform: scaleY(1); } 50% { transform: scaleY(0.72); } }
+  .signal-legend { display: flex; justify-content: space-between; gap: 1rem; color: var(--muted); font-size: 0.85rem; margin-top: 0.7rem; flex-wrap: wrap; }
+  .signal-legend strong { font-family: var(--mono); }
+
+  /* Sections */
+  section.block { padding: 2.6rem 0; }
+  .kicker { color: var(--accent); font-weight: 800; letter-spacing: 0.12em; text-transform: uppercase; font-size: 0.8rem; margin: 0 0 0.5rem; }
+  h2.section-title { font-size: clamp(1.5rem, 3.2vw, 2.1rem); margin: 0 0 0.6rem; letter-spacing: -0.01em; }
+  .section-sub { color: var(--muted); max-width: 44rem; margin: 0 0 1.6rem; }
+  .grid-3 { display: grid; grid-template-columns: repeat(3, 1fr); gap: 1rem; }
+  .grid-2 { display: grid; grid-template-columns: repeat(2, 1fr); gap: 1rem; }
+  .card {
+    background: var(--card); border: 1px solid var(--line); border-radius: var(--radius);
+    padding: 1.4rem 1.3rem;
+  }
+  .card h3 { margin: 0.7rem 0 0.4rem; font-size: 1.08rem; }
+  .card p { margin: 0; color: var(--muted); }
+  .icon {
+    width: 2.4rem; height: 2.4rem; border-radius: 12px; display: inline-flex;
+    align-items: center; justify-content: center; font-size: 1.25rem;
+    background: var(--accent-soft); border: 1px solid var(--line);
+  }
+  .steps { counter-reset: step; display: grid; grid-template-columns: repeat(3, 1fr); gap: 1rem; margin: 0; padding: 0; list-style: none; }
+  .steps li { background: var(--card); border: 1px solid var(--line); border-radius: var(--radius); padding: 1.4rem 1.3rem; position: relative; }
+  .steps li::before {
+    counter-increment: step; content: counter(step);
+    display: inline-flex; align-items: center; justify-content: center;
+    width: 2rem; height: 2rem; border-radius: 50%;
+    background: var(--accent); color: var(--accent-ink); font-weight: 900; margin-bottom: 0.7rem;
+  }
+  .steps h3 { margin: 0 0 0.35rem; }
+  .steps p { margin: 0; color: var(--muted); }
+  .steps code, p code, li code { font-family: var(--mono); font-size: 0.88em; background: var(--accent-soft); border: 1px solid var(--line); border-radius: 6px; padding: 0.1em 0.4em; }
+
+  /* Pricing */
+  .pricing { display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; align-items: stretch; }
+  .price-card {
+    background: linear-gradient(180deg, var(--card), var(--bg-soft));
+    border: 2px solid var(--accent); border-radius: calc(var(--radius) + 4px);
+    padding: 2rem 1.8rem; box-shadow: var(--shadow); position: relative;
+  }
+  .price-card .flag {
+    position: absolute; top: -0.9rem; left: 1.5rem;
+    background: var(--accent); color: var(--accent-ink);
+    font-size: 0.78rem; font-weight: 900; letter-spacing: 0.08em; text-transform: uppercase;
+    padding: 0.25rem 0.8rem; border-radius: 999px;
+  }
+  .price-card ul { list-style: none; margin: 1.2rem 0 1.5rem; padding: 0; display: grid; gap: 0.6rem; }
+  .price-card li { padding-left: 1.7rem; position: relative; }
+  .price-card li::before { content: "✓"; position: absolute; left: 0; color: var(--good); font-weight: 900; }
+  .free-card { background: var(--card); border: 1px solid var(--line); border-radius: var(--radius); padding: 2rem 1.8rem; }
+  .free-card ul { list-style: none; margin: 1.2rem 0 0; padding: 0; display: grid; gap: 0.6rem; color: var(--muted); }
+  .free-card li { padding-left: 1.7rem; position: relative; }
+  .free-card li::before { content: "✓"; position: absolute; left: 0; color: var(--accent); font-weight: 900; }
+
+  /* FAQ */
+  details.faq {
+    background: var(--card); border: 1px solid var(--line); border-radius: 12px;
+    padding: 1rem 1.2rem; margin-bottom: 0.7rem;
+  }
+  details.faq summary { cursor: pointer; font-weight: 800; font-size: 1.02rem; }
+  details.faq summary::marker { color: var(--accent); }
+  details.faq p { color: var(--muted); margin: 0.6rem 0 0; }
+
+  /* Modal */
+  .modal-backdrop {
+    position: fixed; inset: 0; z-index: 80; display: none;
+    background: rgba(2, 6, 23, 0.66);
+    align-items: center; justify-content: center; padding: 1.25rem;
+  }
+  .modal-backdrop.open { display: flex; }
+  .modal {
+    background: var(--card); color: var(--ink); border: 1px solid var(--line);
+    border-radius: var(--radius); box-shadow: var(--shadow);
+    max-width: 34rem; width: 100%; padding: 1.8rem;
+  }
+  .modal h2 { margin: 0 0 0.6rem; font-size: 1.3rem; }
+  .modal p { color: var(--muted); }
+  .modal .cta-row { margin-top: 1.2rem; }
+
+  /* Final CTA + footer */
+  .final {
+    text-align: center; background: var(--card); border: 1px solid var(--line);
+    border-radius: calc(var(--radius) + 4px); padding: 3rem 1.5rem; box-shadow: var(--shadow);
+  }
+  .final p { color: var(--muted); max-width: 34rem; margin: 0.6rem auto 1.5rem; }
+  footer { border-top: 1px solid var(--line); margin-top: 2.5rem; padding: 1.6rem 0 6rem; color: var(--muted); font-size: 0.9rem; }
+  footer nav { display: flex; gap: 1.1rem; flex-wrap: wrap; margin-top: 0.6rem; }
+
+  /* Sticky mobile buy bar */
+  .sticky-buy {
+    position: fixed; left: 0; right: 0; bottom: 0; z-index: 60;
+    display: none; align-items: center; justify-content: space-between; gap: 0.8rem;
+    padding: 0.7rem 1rem calc(0.7rem + env(safe-area-inset-bottom));
+    background: color-mix(in srgb, var(--bg) 90%, transparent);
+    backdrop-filter: blur(14px); -webkit-backdrop-filter: blur(14px);
+    border-top: 1px solid var(--line);
+  }
+  .sticky-buy.visible { display: flex; }
+  .sticky-buy .sp { font-weight: 800; }
+
+  /* Reveal on scroll */
+  .reveal { opacity: 0; transform: translateY(18px); transition: opacity 0.55s ease, transform 0.55s ease; }
+  .reveal.in { opacity: 1; transform: none; }
+
+  @media (max-width: 920px) {
+    .hero-grid { grid-template-columns: 1fr; }
+    .grid-3, .steps { grid-template-columns: 1fr; }
+    .grid-2, .pricing { grid-template-columns: 1fr; }
+    .nav-links a.nav-link { display: none; }
+    footer { padding-bottom: 7rem; }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    html { scroll-behavior: auto; }
+    *, *::before, *::after { animation: none !important; transition: none !important; }
+    .reveal { opacity: 1; transform: none; }
+  }
+</style>
+</head>
+<body>
+<a class="skip-link" href="#main">Skip to content</a>
+
+<header class="nav" role="banner">
+  <div class="wrap nav-inner">
+    <a class="brand" href="#top" aria-label="Ping Warden — back to top">
+      <span class="brand-mark" aria-hidden="true">◉</span>
+      <span>Ping Warden</span>
+    </a>
+    <nav class="nav-links" aria-label="Page sections">
+      <a class="nav-link" href="#problem">The problem</a>
+      <a class="nav-link" href="#how">How it works</a>
+      <a class="nav-link" href="#pricing">Pricing</a>
+      <a class="nav-link" href="#faq">FAQ</a>
+      <button class="theme-btn" id="theme-toggle" type="button" aria-pressed="true">☾ Dark</button>
+      <a class="btn btn-small" data-gumroad-action="buy" href="#pricing">Get the license</a>
+    </nav>
+  </div>
+</header>
+
+<main id="main">
+  <!-- HERO -->
+  <div class="wrap hero" id="top">
+    <div class="hero-grid">
+      <div>
+        <span class="eyebrow"><span class="pulse-dot" aria-hidden="true"></span> Open-source macOS menu bar app</span>
+        <h1><span data-gumroad-field="name">Ping Warden License</span></h1>
+        <p class="lede">Stop mystery lag spikes while you play. One license unlocks <strong>Ping Protection</strong> — automatic AWDL blocking that keeps cloud gaming latency flat. Pay once, keep every future update.</p>
+        <div class="price-row" aria-label="Price">
+          <span class="price" data-gumroad-field="price">$15</span>
+          <span class="price-note">one-time · no subscription · Macs you own</span>
+        </div>
+        <div class="cta-row">
+          <a class="btn" data-gumroad-action="buy" href="#pricing">Unlock Ping Protection</a>
+          <a class="btn btn-ghost" href="#how">See how it works</a>
+        </div>
+        <ul class="micro-trust" aria-label="Purchase highlights">
+          <li>App + key by email in minutes</li>
+          <li>14-day offline grace</li>
+          <li>Free automatic updates</li>
+        </ul>
+        <p class="rating-line">
+          <span aria-hidden="true">★★★★★</span>
+          <span data-gumroad-field="rating">Be the first to review</span>
+          <span aria-hidden="true">·</span>
+          <span data-gumroad-field="review-count">Be the first to review</span>
+        </p>
+      </div>
+      <div>
+        <figure class="hero-card" style="margin:0">
+          <img src="https://public-files.gumroad.com/0hk4cpzhn6rcd1wct35gqhybvgvt" alt="Ping Warden app preview showing live ping protection" width="670" height="498" loading="eager" />
+          <figcaption>
+            <span>Signed &amp; notarized · macOS 13+</span>
+            <span class="live-badge" id="latency-badge">● LIVE · 18 ms</span>
+          </figcaption>
+        </figure>
+        <div class="signal" aria-label="Illustration of ping with and without Ping Protection">
+          <h2>What AWDL does to your ping</h2>
+          <ul class="bars" aria-hidden="true">
+            <li style="height:22%"></li><li style="height:30%"></li><li style="height:26%"></li>
+            <li class="spike" style="height:88%"></li><li style="height:34%"></li><li style="height:28%"></li>
+            <li class="spike" style="height:100%"></li><li style="height:30%"></li><li style="height:24%"></li>
+            <li class="spike" style="height:78%"></li><li style="height:32%"></li><li style="height:26%"></li>
+          </ul>
+          <ul class="bars flat" aria-hidden="true" style="margin-top:6px">
+            <li style="height:26%"></li><li style="height:30%"></li><li style="height:28%"></li>
+            <li style="height:32%"></li><li style="height:27%"></li><li style="height:30%"></li>
+            <li style="height:28%"></li><li style="height:31%"></li><li style="height:29%"></li>
+            <li style="height:27%"></li><li style="height:30%"></li><li style="height:28%"></li>
+          </ul>
+          <div class="signal-legend">
+            <span><strong style="color:var(--danger)">▲ spiky</strong> — AWDL on, background chatter</span>
+            <span><strong style="color:var(--good)">— flat</strong> — Ping Protection on</span>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- PROBLEM -->
+  <section class="block reveal" id="problem" aria-labelledby="problem-title">
+    <div class="wrap">
+      <p class="kicker">The problem</p>
+      <h2 class="section-title" id="problem-title">Your Wi-Fi stutters even on fast internet</h2>
+      <p class="section-sub">Apple Wireless Direct Link (AWDL) powers AirDrop and Handoff — and it periodically hijacks your Wi-Fi radio mid-game. The result is latency that looks fine for minutes, then spikes exactly when timing matters.</p>
+      <div class="grid-3">
+        <div class="card">
+          <span class="icon" aria-hidden="true">◍</span>
+          <h3>Invisible interference</h3>
+          <p>AWDL wakes up for nearby Apple devices without asking. Nothing in the menu bar tells you it is the reason your ping tripled.</p>
+        </div>
+        <div class="card">
+          <span class="icon" aria-hidden="true">◫</span>
+          <h3>Spikes, not slowness</h3>
+          <p>Speed tests pass. Downloads fly. But real-time games feel rubber-banded because a few packets arrive hundreds of milliseconds late.</p>
+        </div>
+        <div class="card">
+          <span class="icon" aria-hidden="true">⬢</span>
+          <h3>Manual fixes don't stick</h3>
+          <p>Terminal commands work until the next reboot or OS update. Ping Warden watches continuously and re-blocks AWDL the moment it returns.</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- HOW -->
+  <section class="block reveal" id="how" aria-labelledby="how-title">
+    <div class="wrap">
+      <p class="kicker">How it works</p>
+      <h2 class="section-title" id="how-title">From laggy to locked-in in three steps</h2>
+      <p class="section-sub">The app itself is free and open source. The license below activates the one paid feature — Ping Protection — in the prebuilt, signed app.</p>
+      <ol class="steps">
+        <li>
+          <h3>Download from Gumroad</h3>
+          <p>The signed app is attached to your purchase — grab it from your receipt or Gumroad library right after checkout. Open it and check the live dashboard to confirm AWDL is your culprit.</p>
+        </li>
+        <li>
+          <h3>Enter your key</h3>
+          <p>Buy on this page — the app download and your key arrive by email — then paste the key under <code>Settings → License</code>. One verification, then 14 days of offline grace.</p>
+        </li>
+        <li>
+          <h3>Flip on protection</h3>
+          <p>Toggle Ping Protection from the menu bar or Control Center. AWDL stays blocked while you play and restores cleanly after.</p>
+        </li>
+      </ol>
+    </div>
+  </section>
+
+  <!-- PRICING -->
+  <section class="block reveal" id="pricing" aria-labelledby="pricing-title">
+    <div class="wrap">
+      <p class="kicker">Pricing</p>
+      <h2 class="section-title" id="pricing-title">One price. Yours forever.</h2>
+      <p class="section-sub">The source stays MIT and everything except enabling Ping Protection is free. This license covers the signed, notarized build — including all future updates.</p>
+      <div class="pricing">
+        <div class="price-card" aria-label="Ping Warden License offer">
+          <span class="flag">One-time deal</span>
+          <h3 style="margin:0.4rem 0 0">Ping Warden License</h3>
+          <p style="margin:0.4rem 0 0;color:var(--muted)">Unlocks Ping Protection</p>
+          <p style="margin:0.8rem 0 0"><span class="price" data-gumroad-field="price">$15</span> <span class="price-note">once, not monthly</span></p>
+          <ul>
+            <li>The signed, notarized app — downloaded here on Gumroad</li>
+            <li>License key by email — works on the Macs you own</li>
+            <li>All future updates included, delivered via Sparkle</li>
+            <li>Offline-friendly: verify once, good for 14 days</li>
+            <li>Menu bar + Control Center control</li>
+            <li>Funds an MIT-licensed open-source project</li>
+          </ul>
+          <div class="cta-row">
+            <a class="btn" data-gumroad-action="buy" href="#pricing">I want this — <span data-gumroad-field="price">$15</span></a>
+          </div>
+          <p style="font-size:0.88rem;color:var(--muted);margin:1rem 0 0">Secure checkout via Gumroad. Covered by Gumroad's standard refund terms.</p>
+        </div>
+        <div class="free-card">
+          <h3 style="margin:0">Always free, no key needed</h3>
+          <p style="margin:0.4rem 0 0;color:var(--muted)">Everything around the paid feature costs nothing.</p>
+          <ul>
+            <li>Live ping dashboard and AWDL status</li>
+            <li>Full source code under the MIT license</li>
+            <li>Build it yourself and use every feature free</li>
+            <li>90-day transition for existing protection users <button class="theme-btn" id="grandfather-open" type="button" style="margin-left:0.3rem">What’s this?</button></li>
+          </ul>
+          <div data-gumroad-field="description" style="margin-top:1.2rem;color:var(--muted);font-size:0.95rem">
+            <p><strong style="color:var(--ink)">Ping Warden</strong> is an open-source macOS menu bar app that keeps cloud gaming latency consistent by blocking AWDL while you play. This license unlocks Ping Protection in the prebuilt, signed and notarized app.</p>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- REQUIREMENTS -->
+  <section class="block reveal" id="requirements" aria-labelledby="req-title">
+    <div class="wrap">
+      <p class="kicker">Compatibility</p>
+      <h2 class="section-title" id="req-title">Runs on the Mac you already have</h2>
+      <div class="grid-2">
+        <div class="card">
+          <span class="icon" aria-hidden="true">✓</span>
+          <h3>macOS 13 or later</h3>
+          <p>Intel and Apple silicon. Developer ID signed and notarized, so Gatekeeper waves it through. The Control Center widget needs macOS 26+.</p>
+        </div>
+        <div class="card">
+          <span class="icon" aria-hidden="true">✓</span>
+          <h3>Built for cloud gaming</h3>
+          <p>Tuned for GeForce NOW, Xbox Cloud, and Shadow sessions where a single 300 ms spike costs the round — on any Wi-Fi network.</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- FAQ -->
+  <section class="block reveal" id="faq" aria-labelledby="faq-title">
+    <div class="wrap">
+      <p class="kicker">FAQ</p>
+      <h2 class="section-title" id="faq-title">Asked before you ask</h2>
+      <p class="section-sub">Short answers. Longer ones live in the <a href="https://github.com/oliverames/ping-warden" target="_blank" rel="noopener">GitHub repo</a>.</p>
+      <details class="faq">
+        <summary>Is Ping Warden itself free?</summary>
+        <p>Yes. The app and its source are MIT-licensed and free forever. You only pay to enable Ping Protection inside the prebuilt, signed app — or you can build from source and use everything free.</p>
+      </details>
+      <details class="faq">
+        <summary>Where do I download the app?</summary>
+        <p>Right here on Gumroad. The signed, notarized build is attached to your purchase — download it from your receipt or your Gumroad library any time. No separate account or store needed.</p>
+      </details>
+      <details class="faq">
+        <summary>Can I use the GitHub download with my license?</summary>
+        <p>Yes. The app is free and open source, and any official build accepts the key from this purchase. Buying here bundles the download, the key, and Sparkle updates in one place — but the key itself works wherever you got the app.</p>
+      </details>
+      <details class="faq">
+        <summary>How many Macs does one key cover?</summary>
+        <p>Your key works on the Macs you own — desktop and laptop, no seat counting. Just sign in with the same key under Settings → License on each one.</p>
+      </details>
+      <details class="faq">
+        <summary>What if I’m offline when it needs to verify?</summary>
+        <p>Nothing breaks. After the first verification your license stays valid for 14 days without network access, then re-verifies silently the next time you’re online.</p>
+      </details>
+      <details class="faq">
+        <summary>Is this a subscription?</summary>
+        <p>No. $15 once, and every future update is included. There is no renewal, no tier, and no feature drip.</p>
+      </details>
+      <details class="faq">
+        <summary>I donated before licenses existed. Do I pay again?</summary>
+        <p>No. Email your Buy Me a Coffee receipt to <a href="mailto:oliver@ames.consulting">oliver@ames.consulting</a> and it will be honored as a full license.</p>
+      </details>
+      <details class="faq">
+        <summary>What if it doesn’t fix my lag?</summary>
+        <p>Then AWDL wasn’t your bottleneck — and you shouldn’t pay for a fix you don’t need. The purchase is covered by Gumroad’s standard refund terms, and the free dashboard will still show you what your ping is actually doing.</p>
+      </details>
+    </div>
+  </section>
+
+  <!-- FINAL CTA -->
+  <section class="block reveal" aria-labelledby="final-title">
+    <div class="wrap">
+      <div class="final">
+        <p class="kicker">Ready when you are</p>
+        <h2 class="section-title" id="final-title">Your next spike doesn’t have to happen</h2>
+        <p>Join the players who stopped blaming their ISP. Fifteen dollars, one key, flat ping — and the source stays open for everyone.</p>
+        <div class="cta-row" style="justify-content:center">
+          <a class="btn" data-gumroad-action="buy" href="#pricing">Get Ping Warden — <span data-gumroad-field="price">$15</span></a>
+        </div>
+        <p style="font-size:0.88rem;margin:1rem 0 0">App + key delivered by Gumroad · macOS 13+ · Intel &amp; Apple silicon</p>
+      </div>
+    </div>
+  </section>
+</main>
+
+<footer role="contentinfo">
+  <div class="wrap">
+    <div>Ping Warden is an open-source project. The license funds its maintenance.</div>
+    <nav aria-label="Footer">
+      <a href="https://github.com/oliverames/ping-warden" target="_blank" rel="noopener">Source on GitHub</a>
+      <a href="https://github.com/oliverames/ping-warden#pricing" target="_blank" rel="noopener">Pricing details</a>
+      <a href="mailto:oliver@ames.consulting">Support</a>
+      <a href="https://olivera40.gumroad.com/l/pingwarden">Share this page</a>
+    </nav>
+  </div>
+</footer>
+
+<!-- Sticky mobile buy bar -->
+<div class="sticky-buy" id="sticky-buy" role="region" aria-label="Quick purchase">
+  <span class="sp"><span data-gumroad-field="price">$15</span> · one-time</span>
+  <a class="btn btn-small" data-gumroad-action="buy" href="#pricing">Unlock now</a>
+</div>
+
+<!-- Grandfather modal -->
+<div class="modal-backdrop" id="modal-backdrop">
+  <div class="modal" role="dialog" aria-modal="true" aria-labelledby="modal-title">
+    <h2 id="modal-title">The 90-day transition</h2>
+    <p>If Ping Protection was already enabled on your Mac when you first launch the licensed build, it keeps working for a 90-day grace window — no key required on day one.</p>
+    <p>Open <strong>Settings → License</strong> any time to see your remaining days. Buy whenever you’re ready inside the window and activation is seamless.</p>
+    <div class="cta-row">
+      <a class="btn btn-small" data-gumroad-action="buy" href="#pricing">Get the license</a>
+      <button class="btn btn-ghost btn-small" id="modal-close" type="button">Close</button>
+    </div>
+  </div>
+</div>
+
+<script>
+(function () {
+  "use strict";
+
+  /* Theme: respect saved choice, else OS preference. Wrapped for sandbox safety. */
+  var root = document.documentElement;
+  var toggle = document.getElementById("theme-toggle");
+  function paint(btn, theme) {
+    btn.textContent = theme === "dark" ? "☾ Dark" : "☀ Light";
+    btn.setAttribute("aria-pressed", theme === "dark" ? "true" : "false");
+  }
+  function current() { return root.getAttribute("data-theme") === "light" ? "light" : "dark"; }
+  var initial = current();
+  try {
+    var saved = window.localStorage.getItem("pw-theme");
+    if (saved === "light" || saved === "dark") { initial = saved; }
+    else if (window.matchMedia && window.matchMedia("(prefers-color-scheme: light)").matches) { initial = "light"; }
+  } catch (e) {
+    if (window.matchMedia && window.matchMedia("(prefers-color-scheme: light)").matches) { initial = "light"; }
+  }
+  root.setAttribute("data-theme", initial);
+  paint(toggle, initial);
+  toggle.addEventListener("click", function () {
+    var next = current() === "dark" ? "light" : "dark";
+    root.setAttribute("data-theme", next);
+    paint(toggle, next);
+    try { window.localStorage.setItem("pw-theme", next); } catch (e) {}
+  });
+
+  /* Reveal on scroll (graceful when IntersectionObserver is unavailable). */
+  var items = document.querySelectorAll(".reveal");
+  if ("IntersectionObserver" in window) {
+    var io = new IntersectionObserver(function (entries) {
+      entries.forEach(function (en) {
+        if (en.isIntersecting) { en.target.classList.add("in"); io.unobserve(en.target); }
+      });
+    }, { threshold: 0.12 });
+    items.forEach(function (el) { io.observe(el); });
+  } else {
+    items.forEach(function (el) { el.classList.add("in"); });
+  }
+
+  /* Sticky buy bar: show after the hero CTA scrolls out of view. */
+  var sticky = document.getElementById("sticky-buy");
+  var hero = document.querySelector(".hero");
+  function onScroll() {
+    var past = window.scrollY > (hero ? hero.offsetHeight * 0.7 : 480);
+    sticky.classList.toggle("visible", past);
+  }
+  window.addEventListener("scroll", onScroll, { passive: true });
+  onScroll();
+
+  /* Modal with focus management. */
+  var backdrop = document.getElementById("modal-backdrop");
+  var openBtn = document.getElementById("grandfather-open");
+  var closeBtn = document.getElementById("modal-close");
+  var lastFocus = null;
+  function openModal() {
+    lastFocus = document.activeElement;
+    backdrop.classList.add("open");
+    closeBtn.focus();
+    document.addEventListener("keydown", onKey);
+  }
+  function closeModal() {
+    backdrop.classList.remove("open");
+    document.removeEventListener("keydown", onKey);
+    if (lastFocus && lastFocus.focus) { lastFocus.focus(); }
+  }
+  function onKey(e) { if (e.key === "Escape") { closeModal(); } }
+  openBtn.addEventListener("click", openModal);
+  closeBtn.addEventListener("click", closeModal);
+  backdrop.addEventListener("click", function (e) { if (e.target === backdrop) { closeModal(); } });
+
+  /* Playful live-latency badge: small honest jitter around a typical value. */
+  var badge = document.getElementById("latency-badge");
+  var reduce = window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+  if (badge && !reduce) {
+    window.setInterval(function () {
+      var ms = 16 + Math.round(Math.random() * 6);
+      badge.textContent = "● LIVE · " + ms + " ms";
+    }, 2400);
+  }
+})();
+</script>
+</body>
+</html>

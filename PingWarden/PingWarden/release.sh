@@ -1,7 +1,8 @@
 #!/bin/bash
 #
 #  release.sh
-#  Complete release automation: notarize + create DMG + update appcast + GitHub release
+#  Complete release automation: notarize + create DMG + update appcast +
+#  GitHub release + Sentry publish + appcast deploy + Gumroad deliverable
 #
 #  Usage: ./release.sh [version] [release-notes-file]
 #  Example: ./release.sh 2.1.1 release_notes_2.1.1.txt
@@ -44,6 +45,10 @@ SPARKLE_KEYCHAIN_ACCOUNT="${SPARKLE_KEYCHAIN_ACCOUNT:-ed25519}"
 KEYCHAIN_PROFILE="${KEYCHAIN_PROFILE:-notarytool-profile}"
 GITHUB_USER="oliverames"
 REPO_NAME="ping-warden"
+# Gumroad product that sells the license. The release DMG is attached as the
+# product's download deliverable (Step 9). qthvm is the product ID the
+# gumroad CLI resolves; override with GUMROAD_PRODUCT_ID=... if it changes.
+GUMROAD_PRODUCT_ID="${GUMROAD_PRODUCT_ID:-qthvm}"
 NOTARIZE_SCRIPT="$SCRIPT_DIR/notarize.sh"
 
 # Beta-channel branching: BETA_CHANNEL=1 writes to appcast-beta.xml and uses
@@ -629,6 +634,43 @@ else
 fi
 
 echo ""
+
+# Step 9: Attach the release DMG to the Gumroad product as its download
+# deliverable. Gumroad handles the first install; Sparkle (Step 5/8) handles
+# every update after that, so the two never conflict.
+#
+# Stable releases only: a beta DMG must never become the paid deliverable.
+# Fail-soft like Sentry: the GitHub release is already public by this point,
+# so a network blip here must not abort the script — the retry command is
+# printed and the upload can run standalone afterwards.
+# SKIP_GUMROAD=1 opts out (e.g. re-running for an already-attached DMG).
+echo -e "${GREEN}Step 9: Publishing DMG to Gumroad product...${NC}"
+
+if [ "${BETA_CHANNEL:-0}" = "1" ]; then
+    echo -e "${YELLOW}Beta channel; skipping Gumroad deliverable upload.${NC}"
+elif [ "${SKIP_GUMROAD:-0}" = "1" ]; then
+    echo -e "${YELLOW}SKIP_GUMROAD=1 set; skipping Gumroad upload.${NC}"
+elif ! command -v gumroad >/dev/null 2>&1; then
+    echo -e "${YELLOW}⚠ gumroad CLI not installed; skipping Gumroad upload.${NC}"
+    echo "  Install: brew install antiwork/cli/gumroad (then 'gumroad auth login')"
+    echo "  Retry later: gumroad products update $GUMROAD_PRODUCT_ID --file \"$DMG_PATH\" --file-name \"$DMG_BASENAME\" --no-input --non-interactive"
+else
+    # NOTE: --file appends without replacing existing product files, so each
+    # release adds one versioned DMG. Prune superseded DMGs from the product
+    # dashboard occasionally so buyers always grab the latest.
+    if gumroad products update "$GUMROAD_PRODUCT_ID" \
+        --file "$DMG_PATH" \
+        --file-name "$DMG_BASENAME" \
+        --file-description "Ping Warden $VERSION for macOS $MINIMUM_SYSTEM_VERSION and later, Developer ID signed and notarized" \
+        --no-input --non-interactive >/dev/null; then
+        echo -e "${GREEN}✓ Gumroad deliverable published: $DMG_BASENAME${NC}"
+    else
+        echo -e "${RED}⚠ Gumroad upload failed — release continues, retry with:${NC}"
+        echo "  gumroad products update $GUMROAD_PRODUCT_ID --file \"$DMG_PATH\" --file-name \"$DMG_BASENAME\" --no-input --non-interactive"
+    fi
+fi
+
+echo ""
 echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
 echo -e "${GREEN}Release Complete!${NC}"
 echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
@@ -649,6 +691,7 @@ echo "Release artifacts:"
 echo "  • $DMG_PATH"
 echo "  • GitHub release: https://github.com/$GITHUB_USER/$REPO_NAME/releases/tag/v$VERSION"
 echo "  • Appcast: $APPCAST_FILE (published to gh-pages)"
+echo "  • Gumroad deliverable: product '$GUMROAD_PRODUCT_ID' (stable releases; skipped for betas)"
 echo ""
 echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
 echo ""
