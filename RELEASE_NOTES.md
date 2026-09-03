@@ -1,3 +1,35 @@
+# Ping Warden 4.0.0
+
+Ping Warden is moving to a license for the AWDL-blocking feature. The source stays MIT and everything except enabling Ping Protection is free.
+
+Starting with this release, enabling Ping Protection in the prebuilt, signed, and notarized app requires a one-time $15 license at [Gumroad](https://olivera40.gumroad.com/l/pingwarden). One key works on the Macs you own and covers all future updates. The app verifies once with Gumroad, then re-checks roughly every 6 hours while it runs and once at launch. Verification is offline-friendly for up to 14 days. Building from source under MIT remains free and unchanged.
+
+## Pricing
+
+- Ping Protection now requires a license in the prebuilt app. All other features remain free.
+- The source code remains MIT. You can build from source, inspect it, and modify it whether you buy a license or not.
+- The license is a one-time $15 purchase at [Gumroad](https://olivera40.gumroad.com/l/pingwarden). No subscription, no ads, no analytics. Taxes are handled by Gumroad as merchant of record — the 10% + 50¢ direct fee (30% via Discover) covers processing.
+
+## Transition for existing users
+
+- If Ping Protection was enabled on this Mac before the licensed build first ran, it keeps working for a 90-day transition that starts on that first launch. No action is needed today.
+- Check the time remaining in **Settings → License**. When the transition ends, enter a license key there to keep protection available.
+- On first launch of the licensed build, existing users see a one-time notice that explains the change and points to **Settings → License**. The notice appears only once per install.
+
+## Donors
+
+- If you supported Ping Warden through [Buy Me a Coffee](https://www.buymeacoffee.com/oliverames) before this release, email [oliver@ames.consulting](mailto:oliver@ames.consulting) with your receipt and it will be honored as a full license via a hidden 100% off code (`DONOR-HONOR`). The License pane and the gate error both surface this offer, and the app now handles the conversion — no extra purchase needed.
+- The in-app donation prompt that appeared after latency sessions has been removed. The menu, Settings → Support, About, and Dashboard still offer a Donate link, and the full documentation now describes the licensed model instead.
+
+## License management
+
+- New **Settings → License** pane shows status (Licensed, transition with days remaining, or Unlicensed), key entry with verification, and a direct link to the Gumroad product page. The transition pane explains why the change is happening and carries the donor-honoring note with a mailto button.
+- License keys are verified at `api.gumroad.com/v2/licenses/verify` with your product ID and key, then cached so the app works offline. A cached valid result stands in for 14 days when the API cannot be reached. Refunded, chargebacked, or disabled keys are treated as revoked and turn protection off immediately with a notice.
+- The Control Center widget reads the same cached entitlement from the shared app group and refuses to enable protection without a valid license. Disabling is always allowed.
+- Uninstall clears all licensing state from the App Group defaults and the keychain.
+
+---
+
 # Ping Warden 3.1.0
 
 [Donate to Ping Warden on Buy Me a Coffee](https://buymeacoffee.com/oliverames)
