@@ -80,7 +80,7 @@
   /* ---- Reset + base ---- */
   *, *::before, *::after { box-sizing: border-box; }
   html { font-size: 100%; overflow-x: clip; }
-  /* No smooth scrolling on the root: inside Gumroad's sandboxed iframe it blanks the first paint until the first scroll. */
+  /* No smooth scrolling on the root; plain anchor jumps, like a fresh Gumroad page. */
   body, h1, h2, h3, p, ul, ol, figure, blockquote { margin: 0; }
   img, svg { display: block; max-width: 100%; }
   button, input { font: inherit; }
@@ -469,7 +469,7 @@
           <li>Build it yourself and use every feature free</li>
           <li>90-day transition for existing protection users. <button class="link-btn" id="grandfather-open" type="button">What is this?</button></li>
         </ul>
-        <div data-gumroad-field="description" class="fine">
+        <div class="fine">
           <p><strong>Ping Warden</strong> is an open-source macOS menu bar app that keeps cloud gaming latency consistent by blocking AWDL while you play. This license unlocks Ping Protection in the prebuilt, signed and notarized app.</p>
         </div>
       </div>
