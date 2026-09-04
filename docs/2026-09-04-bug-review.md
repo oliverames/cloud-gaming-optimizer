@@ -8,7 +8,8 @@ Author: Oliver Ames
 - Complete: Fix confirmed defects and add regression coverage.
 - Complete: Verify the app, storefront, landing page, and update behavior before publication.
 - Complete: Publish and verify 4.0.2.
-- In progress: Redesign welcome for a follow-up release after additional user feedback.
+- Complete: Redesign and publish the native welcome in 4.0.3.
+- Pending external result: GitHub macOS checks for c6ddfbc. Local Release/Debug builds and Linux CI passed.
 
 ## Confirmed findings
 
@@ -94,3 +95,11 @@ The welcome is a transient utility window, not a settings form. It uses the ship
 Reference: [Apple onboarding guidance](https://developer.apple.com/design/human-interface-guidelines/onboarding) calls for a brief, optional introduction. This design applies that guidance to the existing utility and keeps its setup behavior intact.
 
 The follow-up was visually verified in Release/light and Debug/dark appearances. The minimum-size accessibility layout, Escape dismissal, and license navigation were checked. All text fits on the first welcome screen without scrolling. The view is now in `WelcomeView.swift`; setup instructions include the Settings fallback. Version 4.0.3 / 40003 is prepared for publication.
+
+### 4.0.3 publication verification
+
+- Published September 4, 2026, at 21:09 UTC from `c6ddfbc`. All nine release steps completed, including Sentry and Gumroad.
+- Public DMG: 5,768,408 bytes, SHA-256 `5183f2477fffe14bd8e132153378b8928c9d7f1cfa3af13f8282c6ac0b51165a`. Downloaded bytes match the release artifact. Bundle validation, Gatekeeper, and the stapled ticket pass.
+- Both public feeds show 4.0.3 / 40003, minimumAutoupdateVersion 40000, and valid feed signatures. The installed 3.1.0 app fetched this version and displayed the price and transition notice before installation. No upgrade was installed on the user's Mac.
+- Gumroad's buyer document offers the 4.0.3 DMG and retains activation instructions and the license-key block. The uploaded bytes match. The corrected setup guide is published and visually verified.
+- Core coverage remains 112 passing tests; nine release-tool tests pass. Release and Debug app builds pass. Linux CI passed for c6ddfbc, while macOS runner jobs remained queued at this observation.
