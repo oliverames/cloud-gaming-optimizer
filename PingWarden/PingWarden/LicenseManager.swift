@@ -41,6 +41,7 @@ final class LicenseManager: ObservableObject {
     private let keychainService = "com.amesvt.pingwarden.license"
     private let keychainAccount = "gumroad-key"
     private let grandfatherMarkerAccount = "grandfather-checked"
+    private let legacyMigrationMarkerAccount = "legacy-transition-migrated"
     nonisolated private static let cachedValidKey = "LicenseCachedValid"
     nonisolated private static let lastVerifiedKey = "LicenseLastVerifiedAt"
     nonisolated private static let grandfatherDeadlineKey = "LicenseGrandfatherDeadline"
@@ -58,6 +59,9 @@ final class LicenseManager: ObservableObject {
 
     private let defaults: UserDefaults
     private var periodicReverifyTimer: Timer?
+    private var entitlementTimer: Timer?
+    private var verificationGeneration: UInt64 = 0
+    private var isRemoving = false
 
     private init() {
         defaults = Self.sharedDefaults()
@@ -204,7 +208,15 @@ final class LicenseManager: ObservableObject {
     /// window for existing users) and has not licensed yet.
     var isGrandfathered: Bool {
         guard let deadline = grandfatherDeadline else { return false }
-        return Date() < deadline && storedLicenseKey == nil
+        return Date() < deadline && !hasValidPaidLicense && canEnableProtection
+    }
+
+    var hasValidPaidLicense: Bool {
+        guard let state = sealedState else { return false }
+        let now = Date()
+        return LicensePolicy.clockIsPlausible(now: now, lastVerifiedAt: state.lastVerifiedAt, lastSeenAt: state.lastSeenAt)
+            && LicensePolicy.canEnableProtection(cachedLicenseValid: state.cachedLicenseValid,
+                lastVerifiedAt: state.lastVerifiedAt, now: now, grandfatherDeadline: nil)
     }
 
     /// True when this install had a grandfather window and it has
@@ -213,7 +225,7 @@ final class LicenseManager: ObservableObject {
     /// qualified.
     var grandfatherWindowExpired: Bool {
         guard let deadline = grandfatherDeadline else { return false }
-        return Date() >= deadline && storedLicenseKey == nil
+        return Date() >= deadline && !hasValidPaidLicense
     }
 
     /// Address donors should email to convert a pre-license donation
@@ -237,9 +249,30 @@ final class LicenseManager: ObservableObject {
     /// before its first launch. The one-shot marker lives in the
     /// keychain so wiping the App Group defaults cannot re-arm it.
     func establishGrandfatheringIfNeeded(helperEnabled: Bool) {
-        guard !keychainMarkerExists(account: grandfatherMarkerAccount) else { return }
+        let alreadyChecked = keychainMarkerExists(account: grandfatherMarkerAccount)
+        let legacyChecked = defaults.bool(forKey: legacyGrandfatherCheckedKey)
+        let migrationChecked = keychainMarkerExists(account: legacyMigrationMarkerAccount)
+        if !migrationChecked { setKeychainMarker(account: legacyMigrationMarkerAccount) }
+        // Only an absent legacy seal can migrate. An invalid existing seal
+        // means the cached state was modified, not that it needs repair.
+        if !migrationChecked, defaults.string(forKey: Self.sealKey) == nil,
+           let originalDeadline = LicensePolicy.legacyGrandfatherDeadline(
+            timestamp: defaults.double(forKey: Self.grandfatherDeadlineKey),
+            previouslyChecked: alreadyChecked || legacyChecked,
+            helperEnabled: helperEnabled,
+            now: Date()
+        ) {
+            updateSealedState { state in
+                state.grandfatherDeadline = originalDeadline
+                state.lastSeenAt = Date()
+            }
+        }
+        guard !alreadyChecked else { return }
         setKeychainMarker(account: grandfatherMarkerAccount)
         defaults.removeObject(forKey: legacyGrandfatherCheckedKey)
+
+        // A prior decision is final, even if protection is temporarily off.
+        guard !legacyChecked, grandfatherDeadline == nil else { return }
 
         guard defaults.bool(forKey: "AWDLMonitoringEnabled") else {
             licenseLog.info("No grandfathering: protection was not enabled before the licensed build")
@@ -265,16 +298,26 @@ final class LicenseManager: ObservableObject {
     /// rather than at next launch. Offline failures are harmless: the
     /// grace window keeps licensed users running.
     func startPeriodicReverification() {
-        guard periodicReverifyTimer == nil else { return }
+        guard periodicReverifyTimer == nil, !isRemoving else { return }
+        let entitlementTimer = Timer(timeInterval: 60, repeats: true) { [weak self] _ in
+            Task { @MainActor in
+                guard let self, !self.isRemoving else { return }
+                self.recordClockObservation()
+                self.objectWillChange.send()
+                self.onReverificationSettled?()
+            }
+        }
+        RunLoop.main.add(entitlementTimer, forMode: .common)
+        self.entitlementTimer = entitlementTimer
         let timer = Timer.scheduledTimer(
             withTimeInterval: 6 * 3600,
             repeats: true
         ) { [weak self] _ in
             Task { @MainActor in
-                guard let self else { return }
+                guard let self, !self.isRemoving else { return }
                 self.recordClockObservation()
-                guard self.storedLicenseKey != nil else { return }
-                await self.reverify()
+                if self.storedLicenseKey != nil { await self.reverify() }
+                guard !self.isRemoving else { return }
                 self.onReverificationSettled?()
             }
         }
@@ -292,6 +335,7 @@ final class LicenseManager: ObservableObject {
         guard storedLicenseKey != nil else { return }
         Task { @MainActor in
             await reverify()
+            guard !isRemoving else { return }
             onReverificationSettled?()
         }
     }
@@ -378,7 +422,7 @@ final class LicenseManager: ObservableObject {
     @discardableResult
     func verify(key rawKey: String) async -> Bool {
         let entitled = await performVerification(key: rawKey)
-        onReverificationSettled?()
+        if !isRemoving { onReverificationSettled?() }
         return entitled
     }
 
@@ -395,6 +439,7 @@ final class LicenseManager: ObservableObject {
     }
 
     private func performVerification(key rawKey: String) async -> Bool {
+        guard !isRemoving else { return false }
         guard let key = LicensePolicy.normalizeKey(rawKey) else {
             lastVerificationResult = .invalidKey
             return false
@@ -405,20 +450,20 @@ final class LicenseManager: ObservableObject {
         // so the second caller reports the current result instead.
         guard !isVerifying else {
             licenseLog.debug("Verification already in flight - skipping duplicate")
-            if case .valid = lastVerificationResult { return true }
             return false
         }
         isVerifying = true
         defer { isVerifying = false }
 
+        let generation = verificationGeneration
         let result = await Self.performVerifyRequest(key: key)
+        guard !isRemoving, generation == verificationGeneration else { return false }
 
         switch result {
         case .success(let data):
             guard let verification = LicensePolicy.verifyResponse(data) else {
                 licenseLog.error("Gumroad returned an unparsable response")
-                lastVerificationResult = .revoked
-                applyRevocation()
+                lastVerificationResult = .unreachable
                 return false
             }
             lastVerificationResult = verification
@@ -493,8 +538,16 @@ final class LicenseManager: ObservableObject {
 
     /// Remove every trace of licensing state. Called by uninstall.
     func resetForRemoval() {
+        isRemoving = true
+        verificationGeneration &+= 1
+        periodicReverifyTimer?.invalidate()
+        periodicReverifyTimer = nil
+        entitlementTimer?.invalidate()
+        entitlementTimer = nil
+        onReverificationSettled = nil
         deleteLicenseKey()
         deleteKeychainItem(account: grandfatherMarkerAccount)
+        deleteKeychainItem(account: legacyMigrationMarkerAccount)
         for key in [
             Self.cachedValidKey,
             Self.lastVerifiedKey,

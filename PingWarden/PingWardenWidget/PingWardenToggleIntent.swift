@@ -9,6 +9,7 @@
 //
 
 import AppIntents
+import AppKit
 import Foundation
 import os.log
 import WidgetKit
@@ -78,6 +79,15 @@ private enum PingProtectionIntentHandler {
             throw AWDLError.licenseRequired
         }
 
+        if desiredState {
+            // The helper restores AWDL when its final client disconnects.
+            // Keep the containing app alive as the durable connection owner.
+            try await openContainingApp()
+            guard PingWardenWidgetLicenseGate.canEnableProtection(preferences) else {
+                throw AWDLError.licenseRequired
+            }
+        }
+
         log.info("Applying authenticated monitoring state: \(desiredState)")
         try await PingWardenWidgetHelperClient.setProtectionEnabled(desiredState)
 
@@ -94,6 +104,25 @@ private enum PingProtectionIntentHandler {
         ControlCenter.shared.reloadControls(ofKind: PingWardenControlKind.pingProtection)
 
         log.info("Successfully set monitoring intent to \(desiredState)")
+    }
+
+    @MainActor
+    private static func openContainingApp() async throws {
+        let appURL = Bundle.main.bundleURL
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
+        guard Bundle(url: appURL)?.bundleIdentifier == "com.amesvt.pingwarden" else {
+            throw AWDLError.appLaunchFailed
+        }
+        if NSRunningApplication.runningApplications(withBundleIdentifier: "com.amesvt.pingwarden")
+            .contains(where: { !$0.isTerminated && $0.bundleURL?.standardizedFileURL == appURL.standardizedFileURL }) {
+            return
+        }
+        let configuration = NSWorkspace.OpenConfiguration()
+        configuration.activates = false
+        let app = try await NSWorkspace.shared.openApplication(at: appURL, configuration: configuration)
+        guard !app.isTerminated else { throw AWDLError.appLaunchFailed }
     }
 
     private static func postMonitoringStateNotifications() {

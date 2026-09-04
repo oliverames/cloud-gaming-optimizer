@@ -509,6 +509,11 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSMenuDele
             self.welcomeWindow?.close()
             self.welcomeWindow = nil
             self.updateDockIconVisibility()
+        } onOpenLicenseSettings: {
+            self.welcomeWindow?.close()
+            self.welcomeWindow = nil
+            self.settingsNavigation.selectedSection = .license
+            self.openSettings()
         }
 
 #if DEBUG
@@ -527,9 +532,9 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSMenuDele
 #if DEBUG
         let initialSize = ProcessInfo.processInfo.arguments.contains("--welcome-min-size")
             ? NSSize(width: 480, height: 560)
-            : NSSize(width: 500, height: 580)
+            : WelcomeView.defaultSize
 #else
-        let initialSize = NSSize(width: 500, height: 580)
+        let initialSize = WelcomeView.defaultSize
 #endif
         hostingController.view.frame = NSRect(origin: .zero, size: initialSize)
 
@@ -1361,6 +1366,8 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSMenuDele
 // MARK: - Welcome View
 
 struct WelcomeView: View {
+    static let defaultSize = NSSize(width: 560, height: 640)
+
     private enum SetupState: String, Equatable {
         case idle
         case waiting
@@ -1371,6 +1378,9 @@ struct WelcomeView: View {
     let onSetup: (@escaping @MainActor @Sendable (Bool) -> Void) -> Void
     let onOpenDashboard: () -> Void
     let onDismiss: () -> Void
+
+    var onOpenLicenseSettings: () -> Void = {}
+    @ObservedObject private var license = LicenseManager.shared
 
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @Environment(\.dynamicTypeSize) private var dynamicTypeSize
@@ -1411,7 +1421,8 @@ struct WelcomeView: View {
                 }
             }
         }
-        .frame(minWidth: 480, idealWidth: 500, minHeight: 560, idealHeight: 580)
+        .frame(minWidth: 480, idealWidth: Self.defaultSize.width,
+               minHeight: 560, idealHeight: Self.defaultSize.height)
         .background(.regularMaterial)
     }
 
@@ -1462,6 +1473,17 @@ struct WelcomeView: View {
                 )
             }
             .padding(.horizontal, 32)
+
+            if !license.canEnableProtection {
+                VStack(spacing: 8) {
+                    Text("Ping Protection requires a one-time $15 license. The dashboard, diagnostics, and updates stay free.")
+                        .font(.callout)
+                        .fixedSize(horizontal: false, vertical: true)
+                    Button("Enter or Buy a License...", action: onOpenLicenseSettings)
+                }
+                .padding(.horizontal, 32)
+                .padding(.top, 16)
+            }
 
             setupCallout
                 .padding()
@@ -1515,7 +1537,9 @@ struct WelcomeView: View {
             .frame(maxWidth: .infinity, alignment: .leading)
             .accessibilityElement(children: .combine)
         case .complete:
-            Label("Setup complete. Ping Protection is on.", systemImage: "checkmark.circle.fill")
+            Label(PingWardenMonitor.shared.isMonitoringActive
+                ? "Setup complete. Ping Protection is on."
+                : "Helper ready. Ping Protection is off.", systemImage: "checkmark.circle.fill")
                 .font(.headline)
                 .foregroundStyle(.green)
                 .fixedSize(horizontal: false, vertical: true)
@@ -1618,7 +1642,7 @@ struct WelcomeView: View {
                 }
             }
         } label: {
-            Text("Set Up and Turn On Protection")
+            Text(license.canEnableProtection ? "Set Up and Turn On Protection" : "Set Up Helper")
                 .multilineTextAlignment(.center)
                 .fixedSize(horizontal: false, vertical: true)
                 .frame(maxWidth: dynamicTypeSize.isAccessibilitySize ? .infinity : nil)
@@ -2193,7 +2217,8 @@ struct GeneralSettingsContent: View {
                 let enabled = await protectionExperience.setPersistentProtection(true)
                 isFinishingSetup = false
                 if !enabled {
-                    settingsErrorMessage = "The helper was approved, but Ping Protection could not turn on. Run the helper test in Advanced settings."
+                    settingsErrorMessage = protectionExperience.lastError
+                        ?? "The helper was approved, but Ping Protection could not turn on. Run the helper test in Advanced settings."
                 }
             }
         }
@@ -2226,7 +2251,7 @@ struct LicenseSettingsContent: View {
                         Image(systemName: license.canEnableProtection ? "checkmark.seal.fill" : "seal")
                             .foregroundStyle(license.canEnableProtection ? .green : .secondary)
                             .accessibilityHidden(true)
-                        Text(license.canEnableProtection ? "Licensed" : "Unlicensed")
+                        Text(license.hasValidPaidLicense ? "Licensed" : (license.isGrandfathered ? "Free Transition" : "Unlicensed"))
                             .font(.headline)
                     }
 

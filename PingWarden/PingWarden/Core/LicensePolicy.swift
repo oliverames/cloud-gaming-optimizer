@@ -14,6 +14,7 @@
 //
 
 import Foundation
+import CoreFoundation
 
 enum LicensePolicy {
 
@@ -113,6 +114,22 @@ enum LicensePolicy {
     /// already enabled.
     static let grandfatherInterval: TimeInterval = 90 * 24 * 3600
 
+    /// Preserve the original 4.0.0 transition, including an expired deadline.
+    /// The helper and one-shot marker establish prior use; a future deadline
+    /// beyond the original maximum window is not a plausible migration.
+    static func legacyGrandfatherDeadline(
+        timestamp: Double,
+        previouslyChecked: Bool,
+        helperEnabled: Bool,
+        now: Date
+    ) -> Date? {
+        guard previouslyChecked, helperEnabled, timestamp.isFinite, timestamp > 0,
+              timestamp <= now.addingTimeInterval(grandfatherInterval).timeIntervalSince1970 else {
+            return nil
+        }
+        return Date(timeIntervalSince1970: timestamp)
+    }
+
     /// Map a Gumroad `POST /v2/licenses/verify` payload to a
     /// Verification value. Accepts the response body as `Data`
     /// (already UTF-8) so the network layer stays swappable.
@@ -130,7 +147,11 @@ enum LicensePolicy {
             return nil
         }
 
-        guard json["success"] as? Bool == true else {
+        guard let success = json["success"] as? NSNumber,
+              CFGetTypeID(success) == CFBooleanGetTypeID() else {
+            return nil
+        }
+        guard success.boolValue else {
             // The API answered, so the key is not entitled. 404 bodies
             // and "license disabled" bodies both land here.
             return .revoked
@@ -170,8 +191,8 @@ enum LicensePolicy {
 
     /// The product ID lives in the app target (it is a build-time
     /// constant, not decision logic), but the request builder stays
-    /// here so the request shape is tested. `incrementUsesCount` is
-    /// omitted: the desktop client does not consume seat counts.
+    /// here so the request shape is tested. Gumroad defaults to incrementing
+    /// uses, so every verification explicitly opts out of seat counting.
     static func verifyRequest(
         licenseKey: String,
         productID: String
@@ -179,6 +200,7 @@ enum LicensePolicy {
         let fields: [String: String] = [
             "product_id": productID,
             "license_key": licenseKey,
+            "increment_uses_count": "false",
         ]
         return fields
             .map { "\($0.key)=\(percentEncode($0.value))" }

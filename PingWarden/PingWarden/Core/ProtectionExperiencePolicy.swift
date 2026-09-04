@@ -15,6 +15,7 @@ enum ProtectionExperiencePolicy {
         var sessionPhase: ProtectionSessionPhase
         var sessionTrigger: ProtectedSessionTrigger?
         var pauseUntil: Date?
+        var licenseAllowsProtection: Bool
 
         init(
             helperAvailable: Bool,
@@ -22,7 +23,8 @@ enum ProtectionExperiencePolicy {
             effectiveProtectionEnabled: Bool,
             sessionPhase: ProtectionSessionPhase,
             sessionTrigger: ProtectedSessionTrigger?,
-            pauseUntil: Date?
+            pauseUntil: Date?,
+            licenseAllowsProtection: Bool = true
         ) {
             self.helperAvailable = helperAvailable
             self.persistentProtectionEnabled = persistentProtectionEnabled
@@ -30,6 +32,7 @@ enum ProtectionExperiencePolicy {
             self.sessionPhase = sessionPhase
             self.sessionTrigger = sessionTrigger
             self.pauseUntil = pauseUntil
+            self.licenseAllowsProtection = licenseAllowsProtection
         }
     }
 
@@ -62,7 +65,7 @@ enum ProtectionExperiencePolicy {
     }
 
     static func shouldEnableProtection(for state: State, now: Date) -> Bool {
-        guard state.helperAvailable, !isPaused(state, now: now) else {
+        guard state.helperAvailable, state.licenseAllowsProtection, !isPaused(state, now: now) else {
             return false
         }
         return state.persistentProtectionEnabled || sessionRequiresProtection(state.sessionPhase)

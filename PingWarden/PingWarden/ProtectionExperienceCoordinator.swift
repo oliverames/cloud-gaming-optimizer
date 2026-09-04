@@ -51,7 +51,8 @@ final class ProtectionExperienceCoordinator: ObservableObject {
             effectiveProtectionEnabled: monitor.isMonitoringActive,
             sessionPhase: session.phase,
             sessionTrigger: session.activeTrigger,
-            pauseUntil: pauseUntil
+            pauseUntil: pauseUntil,
+            licenseAllowsProtection: license.canEnableProtection
         )
     }
 
@@ -104,12 +105,19 @@ final class ProtectionExperienceCoordinator: ObservableObject {
     func handleLicenseReverification() async {
         objectWillChange.send()
 
-        guard monitor.isMonitoringActive,
-              !license.canEnableProtection else {
+        if license.canEnableProtection {
+            if lastError?.localizedCaseInsensitiveContains("license") == true {
+                lastError = nil
+            }
             return
         }
 
+        // Also cancel an enable whose helper reply has not arrived yet.
+        guard monitor.isMonitoringActive || monitor.isMonitoringRequested || preferences.isMonitoringEnabled || isBusy else { return }
+
         actionGeneration += 1
+        let generation = actionGeneration
+        clearPause()
         if session.phase != .idle {
             requestedSessionTrigger = nil
             await session.stop(
@@ -117,12 +125,19 @@ final class ProtectionExperienceCoordinator: ObservableObject {
                 protectionWasInterrupted: true
             )
         }
+        guard generation == actionGeneration, !license.canEnableProtection else { return }
         transition = .disablingProtection
         let success = await monitor.setProtectionEnabled(
             false,
-            persistUserPreference: false
+            persistUserPreference: true
         )
+        guard generation == actionGeneration else { return }
         transition = .idle
+        guard !license.canEnableProtection else {
+            lastError = nil
+            objectWillChange.send()
+            return
+        }
         lastError = success
             ? "The license for Ping Protection is no longer valid, so protection turned off. Enter a valid license key in Settings → License."
             : "The license for Ping Protection is no longer valid, and it could not turn off cleanly. Quit Ping Warden to restore wireless sharing."

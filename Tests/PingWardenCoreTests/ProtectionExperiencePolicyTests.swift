@@ -5,6 +5,18 @@ import XCTest
 final class ProtectionExperiencePolicyTests: XCTestCase {
     private let now = Date(timeIntervalSince1970: 10_000)
 
+    func testExpiredLicenseBlocksEveryReconciliationPhase() {
+        for phase in ProtectionSessionPhase.allCases {
+            var state = makeState(persistentProtectionEnabled: true, sessionPhase: phase)
+            state.licenseAllowsProtection = false
+            XCTAssertFalse(ProtectionExperiencePolicy.shouldEnableProtection(for: state, now: now))
+            state.pauseUntil = now.addingTimeInterval(-1)
+            XCTAssertFalse(ProtectionExperiencePolicy.shouldEnableProtection(for: state, now: now))
+            state.persistentProtectionEnabled = false
+            XCTAssertFalse(ProtectionExperiencePolicy.shouldEnableProtection(for: state, now: now))
+        }
+    }
+
     func testSessionStartingOrActiveRequiresTemporaryProtection() {
         var state = makeState(sessionPhase: .starting, sessionTrigger: .manual)
         XCTAssertTrue(ProtectionExperiencePolicy.shouldEnableProtection(for: state, now: now))

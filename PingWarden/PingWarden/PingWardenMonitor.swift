@@ -88,6 +88,7 @@ class PingWardenMonitor: @unchecked Sendable {
     /// replies so delayed XPC callbacks cannot overwrite the user's latest
     /// choice after a rapid on/off transition or reconnect.
     private var _protectionOperationGeneration: UInt64 = 0
+    private var _desiredProtectionEnabled = false
 
     /// Thread-safe access to XPC connection
     private var xpcConnection: NSXPCConnection? {
@@ -246,6 +247,7 @@ class PingWardenMonitor: @unchecked Sendable {
         stateLock.lock()
         _protectionOperationGeneration &+= 1
         _isMonitoring = active
+        _desiredProtectionEnabled = active
         stateLock.unlock()
         notifyStateChange()
     }
@@ -362,7 +364,13 @@ class PingWardenMonitor: @unchecked Sendable {
         persistUserPreference: Bool = true,
         completion: (@Sendable (Bool) -> Void)? = nil
     ) {
-        let operationID = beginProtectionOperation()
+        guard Thread.isMainThread else {
+            DispatchQueue.main.async { [weak self] in
+                self?.startMonitoring(persistUserPreference: persistUserPreference, completion: completion)
+            }
+            return
+        }
+        let operationID = beginProtectionOperation(enabled: true)
         startMonitoring(
             operationID: operationID,
             persistUserPreference: persistUserPreference,
@@ -375,6 +383,10 @@ class PingWardenMonitor: @unchecked Sendable {
         persistUserPreference: Bool,
         completion: (@Sendable (Bool) -> Void)?
     ) {
+        guard isCurrentProtectionOperation(operationID), LicenseManager.launchGateAllowsProtection else {
+            completion?(false)
+            return
+        }
         log.info("┌─────────────────────────────────────────────────────┐")
         log.info("│ startMonitoring() called                            │")
         log.info("└─────────────────────────────────────────────────────┘")
@@ -505,7 +517,13 @@ class PingWardenMonitor: @unchecked Sendable {
         persistUserPreference: Bool = true,
         completion: (@Sendable (Bool) -> Void)? = nil
     ) {
-        let operationID = beginProtectionOperation()
+        guard Thread.isMainThread else {
+            DispatchQueue.main.async { [weak self] in
+                self?.stopMonitoring(persistUserPreference: persistUserPreference, completion: completion)
+            }
+            return
+        }
+        let operationID = beginProtectionOperation(enabled: false)
         log.info("┌─────────────────────────────────────────────────────┐")
         log.info("│ stopMonitoring() called                             │")
         log.info("└─────────────────────────────────────────────────────┘")
@@ -732,10 +750,11 @@ class PingWardenMonitor: @unchecked Sendable {
 
     // MARK: - XPC Connection Management
 
-    private func beginProtectionOperation() -> UInt64 {
+    private func beginProtectionOperation(enabled: Bool) -> UInt64 {
         stateLock.lock()
         defer { stateLock.unlock() }
         _protectionOperationGeneration &+= 1
+        _desiredProtectionEnabled = enabled
         return _protectionOperationGeneration
     }
 
@@ -800,10 +819,12 @@ class PingWardenMonitor: @unchecked Sendable {
         // daemon. Resetting after activate() would let a dead helper produce
         // an infinite reconnect loop that never trips the max-retry cap.
         validateXPCConnection { [weak self] isValid in
-            guard let self else { return }
-            if isValid {
-                self.xpcRetryCount = 0
-                self.reassertMonitoringStateIfNeeded()
+            let monitor = self
+            DispatchQueue.main.async {
+                guard let monitor, isValid,
+                      monitor.xpcConnection.map(ObjectIdentifier.init) == connectionID else { return }
+                monitor.xpcRetryCount = 0
+                monitor.reassertMonitoringStateIfNeeded()
             }
         }
     }
@@ -847,8 +868,11 @@ class PingWardenMonitor: @unchecked Sendable {
     }
 
     private func reassertMonitoringStateIfNeeded() {
-        let shouldReassert = isMonitoring
-        guard shouldReassert else {
+        // Runs on the same main queue as start/stop so a pending Off command
+        // cannot be followed by a reconnect's stale enable command.
+        dispatchPrecondition(condition: .onQueue(.main))
+        let (shouldReassert, operationID) = withProtectionOperationState()
+        guard shouldReassert, LicenseManager.launchGateAllowsProtection else {
             return
         }
 
@@ -863,7 +887,7 @@ class PingWardenMonitor: @unchecked Sendable {
             DispatchQueue.main.async {
                 // A stopMonitoring() may have raced the reassert; don't
                 // stamp "protection on" state over the user's fresh stop.
-                guard monitor.isMonitoring else {
+                guard monitor.isCurrentProtectionOperation(operationID), monitor.isMonitoring else {
                     log.info("Skipping reassert completion: monitoring was stopped meanwhile")
                     return
                 }
@@ -876,6 +900,12 @@ class PingWardenMonitor: @unchecked Sendable {
                 }
             }
         })
+    }
+
+    private func withProtectionOperationState() -> (Bool, UInt64) {
+        stateLock.lock()
+        defer { stateLock.unlock() }
+        return (_isMonitoring && _desiredProtectionEnabled, _protectionOperationGeneration)
     }
 
     /// Handle XPC interruption (temporary disconnect)

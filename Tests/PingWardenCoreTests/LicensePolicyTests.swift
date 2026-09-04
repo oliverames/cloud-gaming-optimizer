@@ -187,6 +187,41 @@ final class LicensePolicyTests: XCTestCase {
         XCTAssertNil(LicensePolicy.verifyResponse(Data("not json".utf8)))
     }
 
+    func testMalformedSuccessDoesNotRevokeAnOfflineLicense() {
+        for body in ["{}", "{\"success\":1}", "{\"success\":0}", "{\"success\":\"false\"}", "{\"success\":null}"] {
+            XCTAssertNil(LicensePolicy.verifyResponse(Data(body.utf8)), body)
+        }
+    }
+
+    func testImportedCustomerLicenseRemainsSupported() {
+        XCTAssertEqual(LicensePolicy.verifyResponse(gumroadBody([
+            "success": true, "imported_customer": ["id": "existing-customer"],
+        ])), .valid)
+    }
+
+    func testLegacyTransitionKeepsOriginalDeadline() {
+        let now = Date(timeIntervalSince1970: 1_800_000_000)
+        for days in [-1.0, 30.0, 90.0] {
+            let original = now.addingTimeInterval(days * 86400)
+            XCTAssertEqual(LicensePolicy.legacyGrandfatherDeadline(
+                timestamp: original.timeIntervalSince1970, previouslyChecked: true,
+                helperEnabled: true, now: now), original)
+        }
+    }
+
+    func testLegacyTransitionRejectsMissingEvidenceAndExtendedDates() {
+        let now = Date(timeIntervalSince1970: 1_800_000_000)
+        let deadline = now.addingTimeInterval(86400).timeIntervalSince1970
+        XCTAssertNil(LicensePolicy.legacyGrandfatherDeadline(timestamp: deadline,
+            previouslyChecked: false, helperEnabled: true, now: now))
+        XCTAssertNil(LicensePolicy.legacyGrandfatherDeadline(timestamp: deadline,
+            previouslyChecked: true, helperEnabled: false, now: now))
+        for stamp in [0, Double.infinity, Double.nan, now.addingTimeInterval(91 * 86400).timeIntervalSince1970] {
+            XCTAssertNil(LicensePolicy.legacyGrandfatherDeadline(timestamp: stamp,
+                previouslyChecked: true, helperEnabled: true, now: now))
+        }
+    }
+
     // MARK: - normalizeKey
 
     func testNormalizeKeyTrimsAndUppercases() {
@@ -215,6 +250,7 @@ final class LicensePolicyTests: XCTestCase {
         let body = String(data: data!, encoding: .utf8)!
         XCTAssertTrue(body.contains("license_key=ABC-123"))
         XCTAssertTrue(body.contains("product_id=9f8e7d6c"))
+        XCTAssertTrue(body.split(separator: "&").contains("increment_uses_count=false"))
         XCTAssertTrue(body.contains("&"))
     }
 
