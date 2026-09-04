@@ -1,3 +1,18 @@
+# Ping Warden 4.0.3
+
+The welcome screen now uses the app icon, native macOS controls, and a shorter introduction to protection, live latency, and wireless sharing.
+
+## Improvements
+
+- The first welcome screen fits without scrolling, with the price and license link visible before setup.
+- Light and dark appearances use system colors. Setup actions remain accessible when the layout needs to scroll for larger text.
+- Setup instructions explain how to continue from **Settings → General → Finish Setup** if the welcome window is closed.
+- Gumroad publication waits for uploaded file metadata before checking the download and updating buyer content.
+
+## Upgrading from a free version
+
+Ping Protection requires a [one-time $15 license](https://amesconsulting.gumroad.com/l/pingwarden). The dashboard, diagnostics, and updates stay free, and the source remains MIT. Existing users whose protection was enabled with an approved helper when they first launched version 4 keep their original 90-day transition. Check **Settings → License** for the time remaining. Previous donors can email [oliver@ames.consulting](mailto:oliver@ames.consulting) with their receipt for a license.
+
 # Ping Warden 4.0.2
 
 This update fixes protection controls, license verification, and the transition from free builds.

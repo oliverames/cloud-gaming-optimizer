@@ -16,7 +16,7 @@ Ping Protection in the prebuilt app requires a one-time $15 license. Buy it at [
 
 ### 3. Approve the helper
 
-1. Click **Set Up and Turn On Protection** in the welcome window.
+1. Click **Turn On Ping Protection** in the welcome window, or **Finish Setup** in **Settings → General** if you already closed it.
 2. Approve Ping Warden in System Settings when macOS asks.
 3. Return to Ping Warden after the approval is complete.
 

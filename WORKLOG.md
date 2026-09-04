@@ -1,5 +1,11 @@
 # Ping Warden Worklog
 
+## 2026-09-04 - 4.0.3 native welcome follow-up
+
+**What changed**: Rebuilt onboarding around the actual app icon, a centered introduction, three concise benefits, and native controls. Removed the settings-style cards and divider. Kept the price and license link visible, and retained the setup callbacks, keyboard shortcuts, and accessibility layout. Moved the view into `WelcomeView.swift`. Updated setup instructions to match the current labels and the Settings fallback. The tested Gumroad metadata wait from the 4.0.2 publication is included.
+
+**Verification**: Release and Debug builds pass. The first welcome screen was visually checked in light appearance, and the minimum-size accessibility layout was checked in dark appearance. Escape dismisses the welcome, and its license link opens License settings. The app, helper, and widget are prepared as 4.0.3 / 40003. Publication pending.
+
 ## 2026-09-04 - 4.0.2 review and release preparation
 
 **What changed**: Reviewed licensing, protection reconciliation, helper/widget lifetime, Gumroad delivery, Sparkle publication, and the landing page. Fixed license expiry bypasses, malformed-response handling, use-count increments, 4.0.0 transition migration, reconnect races, and misleading setup/license status. Refined the welcome window with a compact header, grouped license controls, and trailing footer actions. Its 560 by 600 point frame fits all ordinary text without scrolling. Hardened release preflights, independently verified feed signatures, added paid-upgrade boundaries, and restored stable releases to the beta feed. Gumroad publication now verifies DMG bytes and replaces old embeds while preserving license-key content. Restricted the exposed donor discount to zero redemptions and removed its value from current documents.

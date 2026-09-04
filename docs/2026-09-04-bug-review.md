@@ -77,3 +77,20 @@ Source reviews cover licensing, app/widget gates, helper lifecycle, XPC, session
 - [Sparkle paid upgrades and signed update publication](https://sparkle-project.org/documentation/publishing/)
 - [Gumroad license verification implementation](https://github.com/antiwork/gumroad/blob/main/app/controllers/api/v2/licenses_controller.rb)
 - [Ping Warden storefront](https://amesconsulting.gumroad.com/l/pingwarden)
+
+## Native welcome follow-up
+
+The welcome is a transient utility window, not a settings form. It uses the shipped app icon, system typography and colors, concise benefit rows, and standard buttons. The price remains visible before setup. Helper approval details appear next to setup actions.
+
+| Element | Behavior and accessibility |
+| --- | --- |
+| App icon and introduction | Decorative icon excluded from VoiceOver; text wraps at larger sizes. |
+| Benefit rows | Each icon/title/description reads as one accessible item. |
+| License link | Opens the existing License settings pane. No key or billing data is collected in onboarding. |
+| Primary setup action | Native button with Return as the default shortcut; uses the existing helper/setup callback. |
+| Not Now | Native secondary action; Escape closes the transient welcome. |
+| Large text | Content and actions scroll together when accessibility sizes need more space. |
+
+Reference: [Apple onboarding guidance](https://developer.apple.com/design/human-interface-guidelines/onboarding) calls for a brief, optional introduction. This design applies that guidance to the existing utility and keeps its setup behavior intact.
+
+The follow-up was visually verified in Release/light and Debug/dark appearances. The minimum-size accessibility layout, Escape dismissal, and license navigation were checked. All text fits on the first welcome screen without scrolling. The view is now in `WelcomeView.swift`; setup instructions include the Settings fallback. Version 4.0.3 / 40003 is prepared for publication.
