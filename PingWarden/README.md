@@ -205,7 +205,8 @@ Tools:
 
 - View status (Licensed, transition period with days remaining, or Unlicensed).
 - Enter a license key and verify with Gumroad, or open the Gumroad product page.
-- Transition messaging explains why Ping Protection is moving to a license and that existing installs keep protection for 90 days. If you donated before this release, the pane shows how to have it honored at [oliver@ames.consulting](mailto:oliver@ames.consulting).
+- The transition applies when protection was enabled with an approved helper at the first launch of version 4. It lasts 90 days from that launch, and updates preserve the deadline. For donations before version 4, the pane explains how to request a license at [oliver@ames.consulting](mailto:oliver@ames.consulting).
+- Activation and refresh send the license key and product ID to Gumroad over HTTPS. The key stays in the macOS Keychain between checks.
 
 ## 9. Menu Bar and App Menu Integration
 
@@ -226,7 +227,8 @@ App menu (frontmost app state):
 Update stack:
 
 - Framework: Sparkle 2.9.4.
-- Feed URL: `https://oliverames.github.io/ping-warden/appcast.xml`.
+- Stable feed: `https://oliverames.github.io/ping-warden/appcast.xml`.
+- Beta feed: `https://oliverames.github.io/ping-warden/appcast-beta.xml`, selected in **Settings → Advanced → Updates**. Stable releases also reach this feed.
 - Signature model: EdDSA (`SUPublicEDKey` in app plist).
 - Signed feeds and pre-extraction archive verification are required.
 
@@ -235,10 +237,12 @@ Operational details:
 - App clears stale user-default feed overrides at startup.
 - Updater delegate provides canonical feed URL.
 - Manual update checks available from both menu entry points.
+- The paid-upgrade boundary at build 40000 requires users of free versions to review the upgrade before installation.
 
 Release wiring:
 
-- `PingWarden/PingWarden/release.sh` signs artifacts and updates `appcast.xml`.
+- `PingWarden/PingWarden/release.sh` builds a fresh archive, signs and notarizes the app and DMG, and publishes signed update feeds.
+- Stable releases replace the Gumroad app download while preserving the license-key block and other buyer content.
 - GitHub release artifacts and appcast metadata must remain synchronized.
 
 ## 11. Security Model
@@ -390,4 +394,4 @@ The prebuilt, signed, and notarized app is free to download. Everything except e
 
 Why a license: After two years of free builds, donations cover only a fraction of the ongoing work — Developer ID signing, Apple notarization, testing across macOS releases, and release engineering. A one-time license for the Ping Protection feature makes that work sustainable without subscriptions, ads, or analytics. The source stays MIT and auditable.
 
-Existing installs that had Ping Protection enabled before this release keep protection for a 90-day transition starting on first launch of the licensed build. Check the time remaining in **Settings → License**. When the transition ends, enter a license key there to keep protection available. If you donated through [Buy Me a Coffee](https://www.buymeacoffee.com/oliverames) before this release, email [oliver@ames.consulting](mailto:oliver@ames.consulting) with your receipt and it will be honored as a full license.
+If protection was enabled with an approved helper when you first launched version 4, it remains available for 90 days from that launch. Updates preserve the original deadline. Check the time remaining in **Settings → License**. When the transition ends, enter a license key there to keep protection available. If you donated through [Buy Me a Coffee](https://www.buymeacoffee.com/oliverames) before version 4, email [oliver@ames.consulting](mailto:oliver@ames.consulting) with your receipt and it will be honored as a full license.

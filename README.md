@@ -33,7 +33,7 @@
 
 ---
 
-Ping Warden is an open source (MIT) macOS menu bar app for latency-sensitive games, calls, and cloud streaming. The source stays MIT and everything except enabling Ping Protection is free. Ping Protection watches Apple Wireless Direct Link (AWDL), the interface used by AirDrop, AirPlay, Handoff, and other nearby-device features, and keeps that interface down while it is active. The prebuilt app requires a one-time $15 license to enable Ping Protection; existing users who had protection enabled keep it for a 90-day transition.
+Ping Warden is an open source (MIT) macOS menu bar app for latency-sensitive games, calls, and cloud streaming. The source stays MIT and everything except enabling Ping Protection is free. Ping Protection watches Apple Wireless Direct Link (AWDL), the interface used by AirDrop, AirPlay, Handoff, and other nearby-device features, and keeps that interface down while it is active. The prebuilt app requires a one-time $15 license to enable Ping Protection. Eligible existing users receive the [90-day transition described below](#pricing).
 
 <p align="center">
   <img src="docs/images/ping-warden-3-dashboard.png" width="920" alt="Ping Warden 3 dashboard showing a Latency Session, live latency, jitter, probe failures, and ping history">
@@ -63,7 +63,7 @@ Want to try the free features first? The same build is on [Releases](https://git
 
 ### 2. Activate your license
 
-Open **Settings → License** and enter the key from your receipt. The app verifies once with Gumroad and then works offline for up to 14 days. Existing users who had protection enabled before this release keep Ping Protection for a 90-day transition with no action needed. If you donated through Buy Me a Coffee before this release, email [oliver@ames.consulting](mailto:oliver@ames.consulting) with your receipt and it will be honored as a full license.
+Open **Settings → License** and enter the key from your receipt. The app verifies once with Gumroad and then works offline for up to 14 days. If you have an active transition, protection remains available until the deadline shown in that pane. If you donated through Buy Me a Coffee before version 4, email [oliver@ames.consulting](mailto:oliver@ames.consulting) with your receipt and it will be honored as a full license.
 
 ### 3. Approve the helper
 
@@ -99,9 +99,9 @@ Ping Warden stays open source under MIT. You can build from source, inspect it, 
 
 Enabling Ping Protection in the prebuilt app requires that license at [Gumroad](https://amesconsulting.gumroad.com/l/pingwarden). One key works on the Macs you own. The app verifies once with Gumroad, then re-checks roughly every 6 hours while it runs and once at launch; verification is offline-friendly for up to 14 days.
 
-**Transition for existing users:** If Ping Protection was enabled on this Mac before the licensed build first ran, it keeps working for a 90-day transition starting on that first launch. Check the time remaining in **Settings → License**. When the transition ends, enter a license key to keep protection available. The app shows a one-time notice on first launch of the licensed build to explain the change.
+**Transition for existing users:** If protection was enabled with an approved helper when you first launched version 4, it remains available for 90 days from that launch. Updates preserve the original deadline. Check the time remaining in **Settings → License**. When the transition ends, enter a license key to keep protection available. The app shows a one-time notice when it grants the transition.
 
-**Donors:** If you supported Ping Warden through [Buy Me a Coffee](https://www.buymeacoffee.com/oliverames) before this release, email [oliver@ames.consulting](mailto:oliver@ames.consulting) with your receipt and it will be honored as a full license.
+**Donors:** If you supported Ping Warden through [Buy Me a Coffee](https://www.buymeacoffee.com/oliverames) before version 4, email [oliver@ames.consulting](mailto:oliver@ames.consulting) with your receipt and it will be honored as a full license.
 
 ## Privacy
 
@@ -110,6 +110,7 @@ Latency history, protection state, settings, and intervention counts stay on you
 The app makes a few narrow outbound requests:
 
 - Sparkle checks the public appcast for updates.
+- License activation and refresh send your license key and the product ID to Gumroad over HTTPS. Your key stays in the macOS Keychain between checks.
 - The dashboard checks `status.geforcenow.com` to discover GeForce NOW target hostnames.
 - Anonymous crash reporting is off by default. If you opt in under **Settings > Advanced > Privacy**, reports exclude IP addresses, ping targets, network breadcrumbs, performance traces, and app-lifecycle tracking.
 - TCP latency probes connect only to the target you select or ask Ping Warden to choose.
@@ -120,7 +121,7 @@ Diagnostics exports are written locally. Ping Warden never uploads them for you.
 
 The source stays MIT and you can build it yourself whether you buy anything or not. The prebuilt, signed, and notarized app is free to download and everything except enabling Ping Protection is free to use.
 
-If you supported Ping Warden on [Buy Me a Coffee](https://www.buymeacoffee.com/oliverames) before this release, email [oliver@ames.consulting](mailto:oliver@ames.consulting) with your receipt and I'll honor it as a full license. New licenses are a one-time $15 at [Gumroad](https://amesconsulting.gumroad.com/l/pingwarden) and cover the Macs you own. Donations made after this release still help with signing and testing, but they don't activate Ping Protection — for that, use the Gumroad license.
+If you supported Ping Warden on [Buy Me a Coffee](https://www.buymeacoffee.com/oliverames) before version 4, email [oliver@ames.consulting](mailto:oliver@ames.consulting) with your receipt and I'll honor it as a full license. New licenses are a one-time $15 at [Gumroad](https://amesconsulting.gumroad.com/l/pingwarden) and cover the Macs you own. Donations since version 4 still help with signing and testing. To activate Ping Protection, purchase the Gumroad license.
 
 ## Documentation
 
@@ -152,7 +153,7 @@ The source code is MIT, Copyright (c) 2025-2026 Oliver Ames — build it, inspec
 
 The prebuilt, signed, and notarized app is free to download. Everything except enabling Ping Protection is free to use. Enabling Ping Protection in the prebuilt app requires a one-time $15 license at [Gumroad](https://amesconsulting.gumroad.com/l/pingwarden). One key works on the Macs you own. The app verifies once with Gumroad, then works offline for up to 14 days.
 
-Existing installs that had Ping Protection enabled before this release keep protection for a 90-day transition starting on first launch of the licensed build. Check the time remaining in **Settings → License** and enter a license before it ends to keep protection available. If you donated before this release, email [oliver@ames.consulting](mailto:oliver@ames.consulting) with your receipt and it will be honored as a license.
+If protection was enabled with an approved helper when you first launched version 4, it remains available for 90 days from that launch. Updates preserve the original deadline. Check the time remaining in **Settings → License** and enter a license before it ends to keep protection available. If you donated before version 4, email [oliver@ames.consulting](mailto:oliver@ames.consulting) with your receipt and it will be honored as a license.
 
 ---
 

@@ -12,7 +12,9 @@ Ping Protection keeps Apple's AWDL network interface offline. While it is active
 
 ### 2. Activate your license (prebuilt app)
 
-Ping Protection in the prebuilt app requires a one-time $15 license. Buy it at [Gumroad](https://amesconsulting.gumroad.com/l/pingwarden), then open **Settings → License** and enter the key. The app verifies once and then works offline for up to 14 days. Existing users who had protection enabled before this release keep protection for a 90-day transition starting on first launch of the licensed build; check the time remaining in **Settings → License**. If you donated through [Buy Me a Coffee](https://www.buymeacoffee.com/oliverames) before this release, email [oliver@ames.consulting](mailto:oliver@ames.consulting) with your receipt and it will be honored as a full license.
+Ping Protection in the prebuilt app requires a one-time $15 license. Buy it at [Gumroad](https://amesconsulting.gumroad.com/l/pingwarden), then open **Settings → License** and enter the key. The app verifies once and then works offline for up to 14 days.
+
+If protection was enabled with an approved helper when you first launched version 4, it remains available for 90 days from that launch. Updates preserve the original deadline. Check the time remaining in **Settings → License**. If you donated through [Buy Me a Coffee](https://www.buymeacoffee.com/oliverames) before version 4, email [oliver@ames.consulting](mailto:oliver@ames.consulting) with your receipt and it will be honored as a full license.
 
 ### 3. Approve the helper
 

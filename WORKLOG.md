@@ -1,5 +1,9 @@
 # Ping Warden Worklog
 
+## 2026-09-04 - Documentation verification after 4.0.3
+
+Clarified the version 4 donor cutoff and the original 90-day deadline in both READMEs and Quick Start. Added the approved-helper eligibility condition and disclosed the Gumroad verification request in the privacy and License sections. Updated the detailed Sparkle guide for stable and beta feeds, paid-upgrade review, and current release publication. Reread the changed text against the release implementation, checked relative links, and passed `git diff --check`. This follow-up changes documentation only.
+
 ## 2026-09-04 - 4.0.3 native welcome follow-up
 
 **What changed**: Rebuilt onboarding around the actual app icon, a centered introduction, three concise benefits, and native controls. Removed the settings-style cards and divider. Kept the price and license link visible, and retained the setup callbacks, keyboard shortcuts, and accessibility layout. Moved the view into `WelcomeView.swift`. Updated setup instructions to match the current labels and the Settings fallback. The tested Gumroad metadata wait from the 4.0.2 publication is included.

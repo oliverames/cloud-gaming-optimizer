@@ -45,7 +45,7 @@ Source reviews cover licensing, app/widget gates, helper lifecycle, XPC, session
 - The helper reconnect path respects a newer Off command. The widget starts the app in the background before enabling protection, so the helper retains a durable app connection.
 - Verification cannot recreate licensing state after removal. Expiry enforcement checks for a newer successful activation before stopping protection or showing an error.
 - A separate one-shot marker protects migration of the unsealed 4.0.0 transition. An invalid existing seal never gets resealed as a legacy grant.
-- First-run setup reports the actual protection state and links directly to License settings. The welcome window opens at 560 by 600 points so ordinary text fits without scrolling.
+- First-run setup reports the actual protection state and links directly to License settings. The 4.0.2 welcome used a 560 by 600 point window. The final 4.0.3 redesign uses 540 by 640 points and fits ordinary text without scrolling.
 - Releases require a fresh archive, an unused version, a newer build, authenticated GitHub access, valid license-key buyer content, and matching Sparkle signing keys.
 - Both complete feeds are signed and independently verified with the app's public key. Publishing uses an isolated gh-pages checkout and keeps the source checkout on main.
 - Release notes must exist before the build. Gumroad publication verifies the uploaded bytes, replaces only Ping Warden DMG embeds, and retains all other buyer content.
@@ -94,7 +94,7 @@ The welcome is a transient utility window, not a settings form. It uses the ship
 
 Reference: [Apple onboarding guidance](https://developer.apple.com/design/human-interface-guidelines/onboarding) calls for a brief, optional introduction. This design applies that guidance to the existing utility and keeps its setup behavior intact.
 
-The follow-up was visually verified in Release/light and Debug/dark appearances. The minimum-size accessibility layout, Escape dismissal, and license navigation were checked. All text fits on the first welcome screen without scrolling. The view is now in `WelcomeView.swift`; setup instructions include the Settings fallback. Version 4.0.3 / 40003 is prepared for publication.
+The follow-up was visually verified in Release/light and Debug/dark appearances. The minimum-size accessibility layout, Escape dismissal, and license navigation were checked. All text fits on the first welcome screen without scrolling. The view is now in `WelcomeView.swift`; setup instructions include the Settings fallback. Version 4.0.3 / 40003 was subsequently published and verified below.
 
 ### 4.0.3 publication verification
 
@@ -103,3 +103,9 @@ The follow-up was visually verified in Release/light and Debug/dark appearances.
 - Both public feeds show 4.0.3 / 40003, minimumAutoupdateVersion 40000, and valid feed signatures. The installed 3.1.0 app fetched this version and displayed the price and transition notice before installation. No upgrade was installed on the user's Mac.
 - Gumroad's buyer document offers the 4.0.3 DMG and retains activation instructions and the license-key block. The uploaded bytes match. The corrected setup guide is published and visually verified.
 - Core coverage remains 112 passing tests; nine release-tool tests pass. Release and Debug app builds pass. Linux CI passed for c6ddfbc, while macOS runner jobs remained queued at this observation.
+
+### Documentation follow-up
+
+Both READMEs and Quick Start now identify the donor cutoff as version 4 and describe the approved-helper requirement and original transition deadline. The root privacy section and detailed License section disclose that activation and refresh send the key and product ID to Gumroad over HTTPS. The detailed guide also describes both update feeds, the paid-upgrade boundary, and replacement of the Gumroad download. These descriptions were checked against the release code, and all relative links in the three guides resolve.
+
+At 21:28 UTC on September 4, 2026, the release's Linux tests and shell lint had passed. Its macOS build and security analysis were running. An obsolete dependency analysis was cancelled after confirming that its commit had been superseded.
