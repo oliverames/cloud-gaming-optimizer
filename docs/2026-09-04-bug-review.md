@@ -7,7 +7,8 @@ Author: Oliver Ames
 - Complete: Review source, live Gumroad configuration, update feeds, and landing page.
 - Complete: Fix confirmed defects and add regression coverage.
 - Complete: Verify the app, storefront, landing page, and update behavior before publication.
-- In progress: Commit, publish the next release, and verify public artifacts.
+- Complete: Publish and verify 4.0.2.
+- In progress: Redesign welcome for a follow-up release after additional user feedback.
 
 ## Confirmed findings
 
@@ -52,7 +53,7 @@ Source reviews cover licensing, app/widget gates, helper lifecycle, XPC, session
 ### Verification completed before publication
 
 - All 112 core tests passed, including malformed Gumroad responses, explicit non-incrementing verification, legacy transition boundaries, and protection reconciliation without a license.
-- Six isolated release-tool tests passed. These cover paid-upgrade boundaries, stable-to-beta synchronization, donor-code removal, build ordering, and preservation of buyer content and license-key blocks.
+- Nine isolated release-tool tests passed. These cover paid-upgrade boundaries, stable-to-beta synchronization, donor-code removal, build ordering, and preservation of buyer content and license-key blocks.
 - Release app and widget built successfully. All shell scripts passed syntax checks and ShellCheck's error-level checks.
 - Both prepared feeds passed independent Ed25519 verification. A deliberately altered temporary feed was rejected.
 - Gumroad's live product is published at $15 USD with the app's product ID and a licenseKey content block. The exposed unlimited donor code was capped at zero redemptions, with zero prior uses.
@@ -63,8 +64,13 @@ Source reviews cover licensing, app/widget gates, helper lifecycle, XPC, session
 ### Limits and remaining publication checks
 
 - Automatic approval review rejected a proposed customer-key verification test. No customer key was submitted. Successful activation and refund handling are covered by isolated response fixtures, not a real paid-key end-to-end test.
-- A real privileged-helper registration and a complete installed-app Sparkle upgrade have not been exercised in this review. Static gate checks, app/widget builds, and live artifact checks do not replace those end-to-end flows.
-- Pending: public 4.0.2 DMG, notarization, stable and beta feeds, current Gumroad buyer download, published landing page, and GitHub checks.
+- A real privileged-helper registration and a complete installed-app Sparkle installation have not been exercised in this review. The installed 3.1.0 app did fetch 4.0.2 and render the paid-upgrade disclosure before installation. Its already-downloaded 4.0.1 offer retained old cached notes until that obsolete version was skipped; new feed metadata cannot replace an already-cached offer.
+- 4.0.2 was published on September 4, 2026, at 20:52 UTC from commit 2675048. The public DMG is 5,778,500 bytes and matches SHA-256 `a9231ee131d0806dcce36132413c8ac34615a6ee351c088c910fe1b3f7543a40`.
+- The downloaded app passed bundle/signature validation and Gatekeeper accepted its Notarized Developer ID. The downloaded DMG's stapled ticket validated.
+- Both live feeds advertise 4.0.2 / 40002 with paid boundary 40000 and pass signature verification. GitHub Build Verification passed for the release commit (run 33918212513).
+- Sentry received all six app/helper/widget debug companions for both architectures, and its release was finalized.
+- Gumroad offers exactly one embedded versioned app download, 4.0.2, with activation text and its license-key block preserved. The uploaded bytes match the local release. Initial upload metadata was temporarily incomplete, so publication stopped before replacing content, then succeeded on retry. The publisher now waits a bounded period for metadata, with regression tests for delayed metadata, timeout, and same-size stale bytes.
+- The corrected landing page and description are published. Older 4.0.0 public release notes no longer expose the donor code.
 
 ## References
 

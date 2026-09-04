@@ -6,6 +6,77 @@
     <description>Updates for Ping Warden - AWDL blocking for cloud gaming</description>
     <language>en</language>
     <item>
+      <title>Version 4.0.2</title>
+      <link>https://github.com/oliverames/ping-warden/releases/tag/v4.0.2</link>
+      <sparkle:version>40002</sparkle:version>
+      <sparkle:shortVersionString>4.0.2</sparkle:shortVersionString>
+      <description>&lt;p&gt;&lt;strong&gt;Upgrading from Ping Warden 3 or earlier?&lt;/strong&gt; Ping Protection in the signed app now requires a one-time $15 license. Existing users whose protection was enabled with an approved helper keep a 90-day transition from their first launch of version 4. Check Settings → License for the remaining time. The dashboard and updates stay free, and the source remains MIT. Previous donors can email &lt;a href="mailto:oliver@ames.consulting"&gt;oliver@ames.consulting&lt;/a&gt; with their receipt for a license. &lt;a href="https://amesconsulting.gumroad.com/l/pingwarden"&gt;License details&lt;/a&gt;.&lt;/p&gt;
+&lt;style&gt;
+body {
+    font-family: -apple-system, BlinkMacSystemFont, "Helvetica Neue", Helvetica, Arial, sans-serif;
+    font-size: 13px;
+    line-height: 1.55;
+    color: #1d1d1f;
+    margin: 0;
+    padding: 0;
+}
+h1, h2, h3 { color: #000; font-weight: 600; }
+h1 { font-size: 18px; margin: 0 0 10px 0; }
+h2 {
+    font-size: 11px;
+    text-transform: uppercase;
+    letter-spacing: 0.6px;
+    color: #6e6e73;
+    margin: 18px 0 6px 0;
+}
+h3 { font-size: 13px; margin: 14px 0 6px 0; }
+p { margin: 0 0 10px 0; }
+ul, ol { padding-left: 20px; margin: 0 0 10px 0; }
+li { margin-bottom: 5px; }
+li &gt; strong:first-child { color: #000; }
+code {
+    font-family: ui-monospace, "SF Mono", Menlo, monospace;
+    background: #f2f2f7;
+    padding: 1px 5px;
+    border-radius: 3px;
+    font-size: 12px;
+}
+a { color: #f5a542; text-decoration: none; }
+a:hover { text-decoration: underline; }
+hr { border: 0; border-top: 1px solid #e5e5ea; margin: 16px 0; }
+@media (prefers-color-scheme: dark) {
+    body { color: #f5f5f7; }
+    h1, h2, h3, li &gt; strong:first-child { color: #fff; }
+    h2 { color: #98989d; }
+    code { background: #2c2c2e; }
+    hr { border-top-color: #38383a; }
+}
+&lt;/style&gt;
+&lt;p&gt;This update fixes protection controls, license verification, and the transition from free builds.&lt;/p&gt;
+&lt;h2&gt;Upgrading from version 3 or earlier&lt;/h2&gt;
+&lt;p&gt;Ping Protection in the signed app requires a &lt;a href="https://amesconsulting.gumroad.com/l/pingwarden" rel="nofollow"&gt;one-time $15 license&lt;/a&gt;, which covers the Macs you own and future updates. If protection was enabled with an approved helper when you first launched version 4, you have a 90-day transition from that launch. Check &lt;strong&gt;Settings → License&lt;/strong&gt; for the time remaining. The dashboard, diagnostics, and updates stay free, and the source remains MIT.&lt;/p&gt;
+&lt;p&gt;If you donated before version 4, email &lt;a href="mailto:oliver@ames.consulting"&gt;oliver@ames.consulting&lt;/a&gt; with your receipt and I'll honor that support as a license. You can review or skip the paid upgrade in Sparkle before installation.&lt;/p&gt;
+&lt;h2&gt;Fixes&lt;/h2&gt;
+&lt;ul&gt;
+&lt;li&gt;Existing 4.0.0 transition deadlines survive the update, including when protection was temporarily off. Updating does not start a new 90-day window.&lt;/li&gt;
+&lt;li&gt;Settings distinguishes &lt;strong&gt;Free Transition&lt;/strong&gt; from &lt;strong&gt;Licensed&lt;/strong&gt;, and shows the transition even when a refunded key remains stored.&lt;/li&gt;
+&lt;li&gt;Temporary verification failures preserve the 14-day offline allowance. Routine verification no longer increases Gumroad's license-use count.&lt;/li&gt;
+&lt;li&gt;Pause expiry, Game Mode, and reconnects respect the current license. Expired protection turns off while the app runs.&lt;/li&gt;
+&lt;li&gt;Reconnecting to the helper cannot override a newer Off command.&lt;/li&gt;
+&lt;li&gt;Control Center opens Ping Warden in the background when needed, so protection continues after the widget finishes.&lt;/li&gt;
+&lt;li&gt;The welcome window opens larger so its introduction and setup explanation fit without scrolling.&lt;/li&gt;
+&lt;li&gt;Setup explains the license requirement and reports whether protection actually turned on. Successful activation clears obsolete license errors.&lt;/li&gt;
+&lt;li&gt;Uninstall prevents a pending verification response from restoring removed license data.&lt;/li&gt;
+&lt;li&gt;Users opted into beta updates also receive stable releases. Both feeds require older free builds to show the paid-upgrade notice before installation.&lt;/li&gt;
+&lt;li&gt;Gumroad offers the current app download with the license key, and the landing page explains activation order and which controls require protection access.&lt;/li&gt;
+&lt;/ul&gt;
+      </description>
+      <pubDate>Fri, 04 Sep 2026 20:52:21 +0000</pubDate>
+      <enclosure url="https://github.com/oliverames/ping-warden/releases/download/v4.0.2/PingWarden-4.0.2.dmg" sparkle:version="40002" sparkle:shortVersionString="4.0.2" length="5778500" type="application/octet-stream" sparkle:edSignature="phs4zILMbvd/IdvrywPLMHQuQFDryoN6rhNqG7PZA6U8fqRHKg29t7FvZCBq2W4F2yXrTL/+Z1M6b0SHmBUgDQ==" />
+      <sparkle:minimumSystemVersion>13.0</sparkle:minimumSystemVersion>
+      <sparkle:minimumAutoupdateVersion>40000</sparkle:minimumAutoupdateVersion>
+    </item>
+    <item>
       <title>Version 4.0.1</title>
       <link>https://github.com/oliverames/ping-warden/releases/tag/v4.0.1</link>
       <sparkle:version>40001</sparkle:version>
@@ -940,6 +1011,6 @@ hr { border: 0; border-top: 1px solid #e5e5ea; margin: 16px 0; }
   </channel>
 </rss>
 <!-- sparkle-signatures:
-edSignature: 0BhofQ/RFh9ZBCghMeYE3Z9mbgT8vMDT/0NKXKHmIxbaDL9pMpg1PhzXszpVymB7KgvdmVBBC3QmG8yQWZJsDA==
-length: 55944
+edSignature: JnOyn69wG62Z8SIJrUZxt0wLnbZ+gXF5PBD1+ivHjMsSudxGN+ijEu49cGQ+FJZ2LGn0p7cVvCqMV2rAkIZWBA==
+length: 61245
 -->

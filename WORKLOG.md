@@ -6,7 +6,9 @@
 
 **Verification**: 112 core tests and six isolated release-tool tests pass. Release app and widget build successfully. Onboarding and License settings were visually inspected. The landing page passes sanitizer preview and desktop/phone layout checks. A customer-key activation probe was rejected by automatic approval review, so no customer key was submitted. Actual helper registration and a full Sparkle installation remain outside the completed checks. See `docs/2026-09-04-bug-review.md` for evidence and limits.
 
-**Release status**: 4.0.2 publication pending. No customer email was sent.
+**Release status**: 4.0.2 published from 2675048 at 20:52 UTC. GitHub, both signed Sparkle feeds, and Gumroad's buyer download were verified. The public DMG matches SHA-256 `a9231ee131d0806dcce36132413c8ac34615a6ee351c088c910fe1b3f7543a40`; Gatekeeper and the stapled notarization ticket pass. Sentry symbols and release were published. Build Verification passed (33918212513). Gumroad initially returned incomplete size metadata; the safe stop left buyer content intact, and a retry completed delivery. Added a bounded wait and three regression tests, bringing release-tool coverage to nine tests. No customer email was sent.
+
+**Follow-up**: Oliver requested a more deliberate Apple-style welcome after 4.0.2 became public. That redesign will ship in a new release.
 
 ## 2026-09-03 - 4.0.1 released
 

@@ -9,6 +9,7 @@ from pathlib import Path
 import re
 import subprocess
 import tempfile
+import time
 import urllib.request
 
 PRODUCT_ID = "FmGG0pxyEyzJqp_BG4itFQ=="
@@ -73,6 +74,20 @@ def verify_download(file, path):
         raise ValueError("Gumroad DMG bytes do not match the release artifact")
 
 
+def wait_for_upload(product_id, filename, expected_size, attempts=12, delay=5):
+    # Gumroad can return the uploaded file before its size/URL metadata settles.
+    for attempt in range(attempts):
+        product = gumroad("products", "view", product_id)["product"]
+        matches = [f for f in product.get("files", []) if f.get("name") == filename]
+        if len(matches) > 1:
+            raise ValueError("More than one uploaded file has this release name")
+        if len(matches) == 1 and matches[0].get("size") == expected_size and matches[0].get("url"):
+            return product
+        if attempt + 1 < attempts:
+            time.sleep(delay)
+    raise ValueError("Gumroad upload metadata did not become ready; buyer content was not replaced")
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("product")
@@ -89,7 +104,7 @@ def main():
         parser.error("A release DMG is required")
     if not any(f.get("name") == args.dmg.name for f in product.get("files", [])):
         gumroad("products", "update", args.product, "--file", str(args.dmg), "--file-name", args.dmg.name)
-    product = gumroad("products", "view", args.product)["product"]
+    product = wait_for_upload(args.product, args.dmg.name, args.dmg.stat().st_size)
     pages = gumroad("products", "content", "get", args.product)
     validate(product, pages)
     updated, latest_id = replace_download(pages, product["files"], args.dmg.name)

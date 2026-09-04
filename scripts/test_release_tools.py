@@ -1,9 +1,11 @@
 #!/usr/bin/env python3
 """Regression tests using isolated feeds and buyer-content fixtures."""
 import copy
+import io
 from pathlib import Path
 import tempfile
 import unittest
+from unittest.mock import patch
 import xml.etree.ElementTree as ET
 
 import publish_gumroad as gumroad
@@ -57,6 +59,28 @@ class AppcastTests(unittest.TestCase):
 
 
 class GumroadContentTests(unittest.TestCase):
+    def test_upload_waits_for_metadata_to_settle(self):
+        pending = {"product": {"files": [{"name": "release.dmg", "size": 0}]}}
+        ready = {"product": {"files": [{"name": "release.dmg", "size": 123, "url": "https://example.invalid/release"}]}}
+        with patch.object(gumroad, "gumroad", side_effect=[pending, ready]) as api:
+            self.assertEqual(gumroad.wait_for_upload("product", "release.dmg", 123, attempts=2, delay=0), ready["product"])
+            self.assertEqual(api.call_count, 2)
+
+    def test_incomplete_upload_times_out_without_content_write(self):
+        with patch.object(gumroad, "gumroad", return_value={"product": {"files": []}}) as api:
+            with self.assertRaisesRegex(ValueError, "did not become ready"):
+                gumroad.wait_for_upload("product", "release.dmg", 123, attempts=2, delay=0)
+            self.assertEqual(api.call_count, 2)
+            self.assertTrue(all(call.args == ("products", "view", "product") for call in api.call_args_list))
+
+    def test_same_size_wrong_download_is_rejected(self):
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / "release.dmg"
+            path.write_bytes(b"actual")
+            with patch.object(gumroad.urllib.request, "urlopen", return_value=io.BytesIO(b"stale!")):
+                with self.assertRaisesRegex(ValueError, "bytes do not match"):
+                    gumroad.verify_download({"size": 6, "url": "https://example.invalid/release"}, path)
+
     def test_only_versioned_dmgs_are_replaced_and_license_content_survives(self):
         embed = lambda identifier: {"type": "fileEmbed", "attrs": {"id": identifier}}
         pages = [{"id": "first", "description": {"type": "doc", "content": [embed("old"), {"type": "licenseKey"}, {"type": "paragraph", "content": [{"text": "Activation instructions"}]}]}},
