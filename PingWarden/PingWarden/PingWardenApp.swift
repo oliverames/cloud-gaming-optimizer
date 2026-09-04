@@ -1366,7 +1366,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSMenuDele
 // MARK: - Welcome View
 
 struct WelcomeView: View {
-    static let defaultSize = NSSize(width: 560, height: 640)
+    static let defaultSize = NSSize(width: 560, height: 600)
 
     private enum SetupState: String, Equatable {
         case idle
@@ -1384,7 +1384,7 @@ struct WelcomeView: View {
 
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @Environment(\.dynamicTypeSize) private var dynamicTypeSize
-    @ScaledMetric(relativeTo: .largeTitle) private var heroIconSize: CGFloat = 56
+    @ScaledMetric(relativeTo: .largeTitle) private var heroIconSize: CGFloat = 48
     @State private var setupState: SetupState = {
 #if DEBUG
         let prefix = "--welcome-state="
@@ -1428,7 +1428,7 @@ struct WelcomeView: View {
 
     private var welcomeContent: some View {
         VStack(spacing: 0) {
-            VStack(spacing: 16) {
+            HStack(spacing: 20) {
                 Group {
                     if #available(macOS 14.0, *), !reduceMotion {
                         Image(systemName: "antenna.radiowaves.left.and.right.slash")
@@ -1443,15 +1443,21 @@ struct WelcomeView: View {
                 }
                 .accessibilityHidden(true)
 
-                Text("Welcome to Ping Warden")
-                    .font(.largeTitle)
-                    .fontWeight(.bold)
-                    .multilineTextAlignment(.center)
-                    .fixedSize(horizontal: false, vertical: true)
-                    .padding(.horizontal, 32)
+                VStack(alignment: .leading, spacing: 2) {
+                    Text("Welcome to")
+                        .font(.title3)
+                        .foregroundStyle(.secondary)
+                    Text("Ping Warden")
+                        .font(.largeTitle)
+                        .fontWeight(.bold)
+                }
+                .fixedSize(horizontal: false, vertical: true)
+
+                Spacer(minLength: 0)
             }
-            .padding(.top, dynamicTypeSize.isAccessibilitySize ? 24 : 40)
-            .padding(.bottom, dynamicTypeSize.isAccessibilitySize ? 24 : 32)
+            .padding(.horizontal, 32)
+            .padding(.top, 36)
+            .padding(.bottom, 24)
 
             VStack(alignment: .leading, spacing: dynamicTypeSize.isAccessibilitySize ? 16 : 20) {
                 FeatureRow(
@@ -1475,12 +1481,16 @@ struct WelcomeView: View {
             .padding(.horizontal, 32)
 
             if !license.canEnableProtection {
-                VStack(spacing: 8) {
+                VStack(alignment: .leading, spacing: 10) {
                     Text("Ping Protection requires a one-time $15 license. The dashboard, diagnostics, and updates stay free.")
                         .font(.callout)
                         .fixedSize(horizontal: false, vertical: true)
                     Button("Enter or Buy a License...", action: onOpenLicenseSettings)
+                        .buttonStyle(.bordered)
                 }
+                .padding(16)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .modifier(InnerCalloutBackground(cornerRadius: 8, fallbackOpacity: 0.5))
                 .padding(.horizontal, 32)
                 .padding(.top, 16)
             }
@@ -1488,19 +1498,20 @@ struct WelcomeView: View {
             setupCallout
                 .padding()
                 .frame(maxWidth: .infinity)
-                .modifier(InnerCalloutBackground(cornerRadius: 8, fallbackOpacity: 0.5))
-                .padding(.top, dynamicTypeSize.isAccessibilitySize ? 16 : 20)
+                .padding(.top, 8)
                 .padding(.horizontal, 32)
         }
         .frame(maxWidth: .infinity)
     }
 
     private var setupFooter: some View {
-        setupButtons
-            .padding(.top, dynamicTypeSize.isAccessibilitySize ? 16 : 20)
-            .padding(.horizontal, 32)
-            .padding(.bottom, 32)
-            .frame(maxWidth: .infinity)
+        VStack(spacing: 0) {
+            Divider()
+            setupButtons
+                .frame(maxWidth: .infinity, alignment: dynamicTypeSize.isAccessibilitySize ? .center : .trailing)
+                .padding(.horizontal, 32)
+                .padding(.vertical, 20)
+        }
     }
 
     @ViewBuilder

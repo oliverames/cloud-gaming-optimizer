@@ -43,7 +43,7 @@ Source reviews cover licensing, app/widget gates, helper lifecycle, XPC, session
 - The helper reconnect path respects a newer Off command. The widget starts the app in the background before enabling protection, so the helper retains a durable app connection.
 - Verification cannot recreate licensing state after removal. Expiry enforcement checks for a newer successful activation before stopping protection or showing an error.
 - A separate one-shot marker protects migration of the unsealed 4.0.0 transition. An invalid existing seal never gets resealed as a legacy grant.
-- First-run setup reports the actual protection state and links directly to License settings. The welcome window opens at 560 by 640 points so ordinary text fits without scrolling.
+- First-run setup reports the actual protection state and links directly to License settings. The welcome window opens at 560 by 600 points so ordinary text fits without scrolling.
 - Releases require a fresh archive, an unused version, a newer build, authenticated GitHub access, valid license-key buyer content, and matching Sparkle signing keys.
 - Both complete feeds are signed and independently verified with the app's public key. Publishing uses an isolated gh-pages checkout and keeps the source checkout on main.
 - Release notes must exist before the build. Gumroad publication verifies the uploaded bytes, replaces only Ping Warden DMG embeds, and retains all other buyer content.
@@ -58,7 +58,7 @@ Source reviews cover licensing, app/widget gates, helper lifecycle, XPC, session
 - Gumroad's live product is published at $15 USD with the app's product ID and a licenseKey content block. The exposed unlimited donor code was capped at zero redemptions, with zero prior uses.
 - The corrected landing page passed Gumroad's sanitizer preview. Desktop (1440 pixels) and phone (390 pixels) layouts rendered with no horizontal overflow. Transition details opened correctly on the phone layout.
 - The live storefront's purchase button reached Gumroad checkout showing Ping Warden License at US$15. No purchase was submitted.
-- The Release app's welcome and License windows were launched and visually inspected. The welcome button opened License settings correctly. After enlarging the welcome window, a fresh build and relaunch confirmed all content fits with no scroll bar or scroll action.
+- The Release app's welcome and License windows were launched and visually inspected. The welcome button opened License settings correctly. After refining the welcome layout with a compact header, grouped license controls, and trailing footer actions, a fresh build and relaunch confirmed all content fits with no scroll bar or scroll action.
 
 ### Limits and remaining publication checks
 
