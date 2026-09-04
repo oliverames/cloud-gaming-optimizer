@@ -33,7 +33,7 @@ fi
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
-RELEASE_NOTES_FILE="$REPO_ROOT/RELEASE_NOTES.md"
+RELEASE_NOTES_FILE="${3:-$REPO_ROOT/RELEASE_NOTES.md}"
 
 if [ ! -f "$RELEASE_NOTES_FILE" ]; then
     echo "Error: $RELEASE_NOTES_FILE not found" >&2

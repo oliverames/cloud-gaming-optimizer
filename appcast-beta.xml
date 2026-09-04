@@ -1,9 +1,9 @@
 <?xml version='1.0' encoding='utf-8'?>
 <rss xmlns:sparkle="http://www.andymatuschak.org/xml-namespaces/sparkle" version="2.0">
   <channel>
-    <title>Ping Warden Updates</title>
-    <link>https://oliverames.github.io/ping-warden/appcast.xml</link>
-    <description>Updates for Ping Warden - AWDL blocking for cloud gaming</description>
+    <title>Ping Warden Beta Updates</title>
+    <link>https://oliverames.github.io/ping-warden/appcast-beta.xml</link>
+    <description>Pre-release updates for Ping Warden</description>
     <language>en</language>
     <item>
       <title>Version 4.0.1</title>
@@ -940,6 +940,6 @@ hr { border: 0; border-top: 1px solid #e5e5ea; margin: 16px 0; }
   </channel>
 </rss>
 <!-- sparkle-signatures:
-edSignature: 0BhofQ/RFh9ZBCghMeYE3Z9mbgT8vMDT/0NKXKHmIxbaDL9pMpg1PhzXszpVymB7KgvdmVBBC3QmG8yQWZJsDA==
-length: 55944
+edSignature: A8QDEw/po0JKyDoOIX6+W0mucyuq7SoMm7ndZliIWToYrLugjCG7O1MEVW8oWmGiL0gQoSzWtuDHXJ0T0t38AA==
+length: 55933
 -->

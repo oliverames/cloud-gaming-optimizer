@@ -50,6 +50,12 @@ REPO_NAME="ping-warden"
 # gumroad CLI resolves; override with GUMROAD_PRODUCT_ID=... if it changes.
 GUMROAD_PRODUCT_ID="${GUMROAD_PRODUCT_ID:-qthvm}"
 NOTARIZE_SCRIPT="$SCRIPT_DIR/notarize.sh"
+PYTHON_BIN="${PYTHON_BIN:-/opt/homebrew/bin/python3}"
+STABLE_APPCAST="$REPO_ROOT/appcast.xml"
+BETA_APPCAST="$REPO_ROOT/appcast-beta.xml"
+APPCAST_UPDATER="$REPO_ROOT/scripts/update_appcast.py"
+GUMROAD_PUBLISHER="$REPO_ROOT/scripts/publish_gumroad.py"
+
 
 # Beta-channel branching: BETA_CHANNEL=1 writes to appcast-beta.xml and uses
 # distinct channel metadata in the appcast skeleton. The DMG/GitHub release
@@ -83,6 +89,25 @@ if [[ "$VERSION" != *-* ]] && [ "${BETA_CHANNEL:-0}" = "1" ]; then
     exit 1
 fi
 
+# Fail before building if a required publication surface is unavailable.
+command -v gh >/dev/null || { echo "Error: gh is required to publish release downloads" >&2; exit 1; }
+gh auth status >/dev/null 2>&1 || { echo "Error: GitHub authentication is required" >&2; exit 1; }
+REMOTE_TAG=$(git -C "$REPO_ROOT" ls-remote --tags origin "refs/tags/v$VERSION")
+if [ -n "$REMOTE_TAG" ]; then
+    echo "Error: v$VERSION already exists; a full release requires a new version and tag." >&2
+    exit 1
+fi
+if [ "${SKIP_NOTARIZE:-0}" = "1" ]; then
+    echo "Error: full releases must notarize their fresh archive; reusing a same-version DMG can publish stale code." >&2
+    exit 1
+fi
+if [ "${BETA_CHANNEL:-0}" != "1" ] && [ "${SKIP_GUMROAD:-0}" != "1" ]; then
+    "$PYTHON_BIN" "$GUMROAD_PUBLISHER" "$GUMROAD_PRODUCT_ID" --check
+fi
+BUILD_CHECK_ARGS=(--stable "$STABLE_APPCAST" --beta "$BETA_APPCAST" --check-build "$(plist_value "$SCRIPT_DIR/Info.plist" CFBundleVersion)")
+if [ "${BETA_CHANNEL:-0}" = "1" ]; then BUILD_CHECK_ARGS+=(--beta-release); fi
+"$PYTHON_BIN" "$APPCAST_UPDATER" "${BUILD_CHECK_ARGS[@]}"
+
 if [ -n "${NOTARYTOOL_KEY:-}" ] && [ -n "${NOTARYTOOL_KEY_ID:-}" ] && [ -n "${NOTARYTOOL_ISSUER_ID:-}" ]; then
     NOTARYTOOL_ARGS=(--key "$NOTARYTOOL_KEY" --key-id "$NOTARYTOOL_KEY_ID" --issuer "$NOTARYTOOL_ISSUER_ID")
 else
@@ -92,13 +117,11 @@ fi
 # Pre-flight credential checks. Both blocks fail fast so we don't go through
 # 5+ minutes of build/sign/notarize only to discover at the end that an
 # enrichment step (dSYM upload) was going to silently no-op the whole time.
-# SKIP_NOTARIZE=1 / SKIP_SENTRY=1 are explicit opt-outs for cases like
-# re-running against an already-notarized DMG.
+# SKIP_SENTRY=1 is an explicit opt-out for crash-symbol publication.
 if [ "${SKIP_NOTARIZE:-0}" != "1" ]; then
     if ! xcrun notarytool history "${NOTARYTOOL_ARGS[@]}" >/dev/null 2>&1; then
         echo "Error: notarytool credentials are not configured or not readable." >&2
         echo "Provide either keychain profile '$KEYCHAIN_PROFILE' or NOTARYTOOL_KEY, NOTARYTOOL_KEY_ID, and NOTARYTOOL_ISSUER_ID." >&2
-        echo "Or set SKIP_NOTARIZE=1 to skip (not recommended for production releases)." >&2
         exit 1
     fi
 fi
@@ -138,6 +161,8 @@ fi
 
 if [[ "$RELEASE_NOTES" = /* ]]; then
     RELEASE_NOTES_PATH="$RELEASE_NOTES"
+elif [ -f "$RELEASE_NOTES" ]; then
+    RELEASE_NOTES_PATH="$(cd "$(dirname "$RELEASE_NOTES")" && pwd)/$(basename "$RELEASE_NOTES")"
 else
     if [ -f "$PROJECT_ROOT/$RELEASE_NOTES" ]; then
         RELEASE_NOTES_PATH="$PROJECT_ROOT/$RELEASE_NOTES"
@@ -145,6 +170,12 @@ else
         RELEASE_NOTES_PATH="$REPO_ROOT/$RELEASE_NOTES"
     fi
 fi
+if [ ! -f "$RELEASE_NOTES_PATH" ]; then
+    echo "Error: release notes not found: $RELEASE_NOTES_PATH" >&2
+    exit 1
+fi
+RENDER_SCRIPT="$REPO_ROOT/scripts/render_release_notes.sh"
+RELEASE_NOTES_HTML=$("$RENDER_SCRIPT" "$VERSION" --html "$RELEASE_NOTES_PATH")
 
 # Colors
 GREEN='\033[0;32m'
@@ -232,7 +263,7 @@ fi
 echo -e "${GREEN}✓ DMG found: $(basename "$DMG_PATH")${NC}"
 echo ""
 
-# Always validate the mounted DMG, including SKIP_NOTARIZE reuse. Never sign
+# Always validate the mounted DMG. Never sign
 # update metadata for an unnotarized, stale, or incorrectly versioned payload.
 echo -e "${GREEN}Validating release artifact...${NC}"
 if ! validate_dmg_artifact "$DMG_PATH" "$VERSION" 1; then
@@ -282,7 +313,13 @@ if [ -z "$SIGNATURE" ]; then
     exit 1
 fi
 
-if ! "$SIGN_TOOL" --verify "$DMG_PATH" "$SIGNATURE" >/dev/null; then
+PUBLIC_KEY=$(plist_value "$BUILD_DIR/$APP_NAME.app/Contents/Info.plist" SUPublicEDKey)
+SIGNING_PUBLIC_KEY=$("$(dirname "$SIGN_TOOL")/generate_keys" --account "$SPARKLE_KEYCHAIN_ACCOUNT" -p)
+if [ "$PUBLIC_KEY" != "$SIGNING_PUBLIC_KEY" ]; then
+    echo "Error: Sparkle signing key does not match the app's embedded public key" >&2
+    exit 1
+fi
+if ! "$SIGN_TOOL" --account "$SPARKLE_KEYCHAIN_ACCOUNT" --verify "$DMG_PATH" "$SIGNATURE" >/dev/null; then
     echo -e "${RED}Error: Sparkle archive signature did not verify${NC}" >&2
     exit 1
 fi
@@ -323,16 +360,9 @@ if [ ! -f "$APPCAST_FILE" ]; then
 EOF
 fi
 
-# Render release notes from RELEASE_NOTES.md to styled HTML for the Sparkle
-# update window. If the section is missing or rendering fails, fall back to
-# the legacy stub so the release doesn't abort over cosmetic content.
-RENDER_SCRIPT="$REPO_ROOT/scripts/render_release_notes.sh"
-if [ -x "$RENDER_SCRIPT" ] && RELEASE_NOTES_HTML=$("$RENDER_SCRIPT" "$VERSION" 2>/dev/null) && [ -n "$RELEASE_NOTES_HTML" ]; then
-    echo "  ✓ rendered release notes from RELEASE_NOTES.md ($(printf '%s' "$RELEASE_NOTES_HTML" | wc -c | tr -d ' ') bytes)"
-else
-    echo -e "${YELLOW}  ⚠ release-notes render unavailable; using stub${NC}"
-    RELEASE_NOTES_HTML="<h2>What's New in $VERSION</h2><p>See release notes on GitHub</p>"
-fi
+# Paid-upgrade disclosures must be present in the update window, so rendering
+# failure is a release blocker rather than a reason to publish a generic stub.
+[ -n "$RELEASE_NOTES_HTML" ] || { echo "Error: release notes are empty" >&2; exit 1; }
 
 # Critical update marker. Adds <sparkle:criticalUpdate/> to the appcast item
 # so Sparkle treats this version as required for all users on prior
@@ -349,7 +379,7 @@ else
 fi
 
 # Create new item entry
-NEW_ITEM="    <item>
+NEW_ITEM="    <item xmlns:sparkle=\"http://www.andymatuschak.org/xml-namespaces/sparkle\">
       <title>Version $VERSION</title>
       <link>https://github.com/$GITHUB_USER/$REPO_NAME/releases/tag/v$VERSION</link>
       <sparkle:version>$ARTIFACT_BUILD_VERSION</sparkle:version>
@@ -369,60 +399,21 @@ $RELEASE_NOTES_HTML
       <sparkle:minimumSystemVersion>$MINIMUM_SYSTEM_VERSION</sparkle:minimumSystemVersion>
     </item>"
 
-# Insert new item after <language>en</language> line (idempotent)
-if grep -q "<sparkle:shortVersionString>$VERSION</sparkle:shortVersionString>" "$APPCAST_FILE"; then
-    echo "Version $VERSION already exists in appcast.xml; skipping insert."
-else
-    INSERT_FILE=$(mktemp /tmp/pingwarden-appcast-item.XXXXXX)
-    printf "%s\n" "$NEW_ITEM" > "$INSERT_FILE"
-    awk -v insert_file="$INSERT_FILE" '
-        /<language>en<\/language>/ {
-            print
-            while ((getline line < insert_file) > 0) {
-                print line
-            }
-            close(insert_file)
-            next
-        }
-        { print }
-    ' "$APPCAST_FILE" > "$APPCAST_FILE.tmp"
-    mv "$APPCAST_FILE.tmp" "$APPCAST_FILE"
-    rm -f "$INSERT_FILE"
-fi
-
-echo -e "${GREEN}✓ Appcast updated${NC}"
-echo ""
-
-# Validate appcast is well-formed and latest version matches requested release.
-# Feed signing happens only after every XML mutation is complete.
-if ! xmllint --noout "$APPCAST_FILE" 2>/dev/null; then
-    echo -e "${RED}Error: appcast.xml is not valid XML${NC}"
-    exit 1
-fi
-
-# Use xmllint XPath instead of grep|sed: namespace-safe via local-name(),
-# and unaffected by formatting (whitespace, multi-line tags, attribute order).
-LATEST_APPCAST_VERSION=$(xmllint --xpath \
-    'string(//*[local-name()="item"][1]/*[local-name()="shortVersionString"])' \
-    "$APPCAST_FILE" 2>/dev/null || true)
-if [ "$LATEST_APPCAST_VERSION" != "$VERSION" ]; then
-    echo -e "${RED}Error: appcast latest version is '$LATEST_APPCAST_VERSION', expected '$VERSION'${NC}"
-    exit 1
-fi
-
-if ! "$SIGN_TOOL" "$APPCAST_FILE" --account "$SPARKLE_KEYCHAIN_ACCOUNT" --disable-signing-warning; then
-    echo -e "${RED}Error: failed to sign $APPCAST_BASENAME${NC}" >&2
-    exit 1
-fi
-if ! "$SIGN_TOOL" --verify "$APPCAST_FILE" >/dev/null; then
-    echo -e "${RED}Error: signed appcast verification failed${NC}" >&2
-    exit 1
-fi
-if ! xmllint --noout "$APPCAST_FILE" 2>/dev/null; then
-    echo -e "${RED}Error: signed appcast is not valid XML${NC}" >&2
-    exit 1
-fi
-echo -e "${GREEN}✓ Signed appcast verified${NC}"
+# Replace by version and normalize every paid entry before final signing.
+# Stable entries also reach the beta endpoint, including its existing users.
+INSERT_FILE=$(mktemp -t pingwarden-appcast-item)
+printf "%s\n" "$NEW_ITEM" > "$INSERT_FILE"
+APPCAST_ARGS=(--stable "$STABLE_APPCAST" --beta "$BETA_APPCAST" --item "$INSERT_FILE")
+if [ "${BETA_CHANNEL:-0}" = "1" ]; then APPCAST_ARGS+=(--beta-release); fi
+"$PYTHON_BIN" "$APPCAST_UPDATER" "${APPCAST_ARGS[@]}"
+rm -f "$INSERT_FILE"
+for FEED in "$STABLE_APPCAST" "$BETA_APPCAST"; do
+    xmllint --noout "$FEED"
+    "$SIGN_TOOL" "$FEED" --account "$SPARKLE_KEYCHAIN_ACCOUNT" --disable-signing-warning
+    "$SIGN_TOOL" --account "$SPARKLE_KEYCHAIN_ACCOUNT" --verify "$FEED" >/dev/null
+    swift "$REPO_ROOT/scripts/verify_sparkle.swift" "$FEED" "$PUBLIC_KEY"
+done
+echo -e "${GREEN}✓ Stable and beta appcasts signed and verified${NC}"
 
 # Step 6: Create GitHub release
 echo -e "${GREEN}Step 6: Creating GitHub release...${NC}"
@@ -444,15 +435,9 @@ else
     # Prefer just this version's section from RELEASE_NOTES.md; the file
     # passed as $2 is the full multi-version history, and using it verbatim
     # put every release's notes on every release page.
-    GH_NOTES_ARGS=()
-    if VERSION_NOTES=$("$RENDER_SCRIPT" "$VERSION" --markdown 2>/dev/null) && [ -n "$VERSION_NOTES" ]; then
-        GH_NOTES_ARGS=(--notes "$VERSION_NOTES")
-    elif [ -f "$RELEASE_NOTES_PATH" ]; then
-        echo -e "${YELLOW}  ⚠ could not extract v$VERSION section; using $RELEASE_NOTES_PATH verbatim${NC}"
-        GH_NOTES_ARGS=(--notes-file "$RELEASE_NOTES_PATH")
-    else
-        GH_NOTES_ARGS=(--notes "See CHANGELOG for details")
-    fi
+    VERSION_NOTES_FILE=$(mktemp -t pingwarden-release-notes)
+    "$RENDER_SCRIPT" "$VERSION" --markdown "$RELEASE_NOTES_PATH" > "$VERSION_NOTES_FILE"
+    GH_NOTES_ARGS=(--notes-file "$VERSION_NOTES_FILE")
 
     # Build one non-empty argument array. macOS still ships Bash 3.2, where
     # expanding an empty array under `set -u` fails with "unbound variable".
@@ -547,90 +532,28 @@ fi
 
 echo ""
 
-# Step 8: Push appcast to gh-pages
-#
-# Sparkle reads the appcast from the gh-pages branch (Github Pages), so this
-# branch must be updated alongside the GitHub release. Doing this manually is
-# the easiest step in the release process to forget. We snapshot the new
-# appcast to a temp file, switch branches with git stash for any in-progress
-# work, copy it in, commit, push, and switch back. A trap restores the
-# original branch on any failure.
-echo -e "${GREEN}Step 8: Publishing appcast to gh-pages...${NC}"
-
+# Step 8: Publish from an isolated checkout; never switch or stash the source.
+echo -e "${GREEN}Step 8: Publishing appcasts to gh-pages...${NC}"
 if [ "${SKIP_GH_PAGES:-0}" = "1" ]; then
     echo -e "${YELLOW}SKIP_GH_PAGES=1 set; skipping gh-pages publish.${NC}"
 else
-    # Capture original branch so we can restore on failure.
-    ORIGINAL_BRANCH=$(git -C "$REPO_ROOT" rev-parse --abbrev-ref HEAD)
-    if [ -z "$ORIGINAL_BRANCH" ] || [ "$ORIGINAL_BRANCH" = "HEAD" ]; then
-        echo -e "${RED}Error: could not determine current branch in $REPO_ROOT${NC}"
-        exit 1
-    fi
-
-    # Snapshot the just-updated appcast BEFORE any stash. The previous order
-    # (stash → snapshot) silently reverted the snapshot to the committed
-    # version of appcast.xml, leaving gh-pages stuck on the prior release.
-    #
-    # macOS mktemp requires the X-placeholder to be at the very END of the
-    # template. The previous form `XXXXXX.xml` produced a *literal* filename
-    # with X's that persisted across release runs and caused "File exists"
-    # on subsequent invocations.
-    APPCAST_SNAPSHOT=$(mktemp -t pingwarden-appcast)
-    cp "$APPCAST_FILE" "$APPCAST_SNAPSHOT"
-
-    # Stash any in-progress changes so the branch switch is clean.
-    STASHED=0
-    if ! git -C "$REPO_ROOT" diff --quiet || ! git -C "$REPO_ROOT" diff --cached --quiet; then
-        git -C "$REPO_ROOT" stash push --include-untracked -m "release.sh v$VERSION pre-gh-pages" >/dev/null
-        STASHED=1
-    fi
-
-    restore_branch() {
-        local rc=$?
-        # Best-effort, but LOUD on failure: silently continuing here can pop
-        # the stash onto the wrong branch or strand it entirely.
-        if ! git -C "$REPO_ROOT" checkout --quiet "$ORIGINAL_BRANCH" 2>/dev/null; then
-            echo -e "${RED}⚠ Could not return to branch '$ORIGINAL_BRANCH' — repo left on $(git -C "$REPO_ROOT" rev-parse --abbrev-ref HEAD).${NC}" >&2
-            if [ "$STASHED" = "1" ]; then
-                echo -e "${RED}⚠ Your pre-release changes are stashed (git stash list) — NOT popping onto the wrong branch.${NC}" >&2
-            fi
-            return $rc
-        fi
-        if [ "$STASHED" = "1" ]; then
-            if ! git -C "$REPO_ROOT" stash pop --quiet 2>/dev/null; then
-                echo -e "${RED}⚠ git stash pop failed (conflict?). Your changes remain in the stash — resolve with 'git stash pop' manually.${NC}" >&2
-            fi
-        fi
-        return $rc
-    }
-    trap restore_branch EXIT
-
     git -C "$REPO_ROOT" fetch --quiet origin gh-pages
-    git -C "$REPO_ROOT" checkout --quiet gh-pages
-    git -C "$REPO_ROOT" pull --quiet --ff-only origin gh-pages || true
-
-    cp "$APPCAST_SNAPSHOT" "$REPO_ROOT/$APPCAST_BASENAME"
-    rm -f "$APPCAST_SNAPSHOT"
-
-    # status --porcelain (not diff --quiet): a first-ever beta appcast is an
-    # UNTRACKED file on gh-pages, which `git diff --quiet` reports as
-    # unchanged — silently skipping the push and 404ing the beta feed.
-    if [ -z "$(git -C "$REPO_ROOT" status --porcelain -- "$APPCAST_BASENAME")" ]; then
-        echo -e "${YELLOW}gh-pages $APPCAST_BASENAME already matches v$VERSION; nothing to push.${NC}"
-    else
-        git -C "$REPO_ROOT" add "$APPCAST_BASENAME"
-        # Release automation runs non-interactively; avoid SSH signing helpers
-        # blocking the gh-pages appcast publish step.
-        if [ "${BETA_CHANNEL:-0}" = "1" ]; then
-            git -C "$REPO_ROOT" -c commit.gpgsign=false commit -m "Update $APPCAST_BASENAME for v$VERSION (beta)"
-        else
-            git -C "$REPO_ROOT" -c commit.gpgsign=false commit -m "Update appcast for v$VERSION"
-        fi
-        git -C "$REPO_ROOT" push origin gh-pages
-        echo -e "${GREEN}✓ gh-pages $APPCAST_BASENAME pushed${NC}"
+    PUBLISH_DIR=$(mktemp -d -t pingwarden-publish)
+    git -C "$REPO_ROOT" worktree add --quiet --detach "$PUBLISH_DIR" origin/gh-pages
+    cleanup_publish() {
+        git -C "$REPO_ROOT" worktree remove "$PUBLISH_DIR" || true
+    }
+    trap cleanup_publish EXIT
+    cp "$STABLE_APPCAST" "$PUBLISH_DIR/appcast.xml"
+    cp "$BETA_APPCAST" "$PUBLISH_DIR/appcast-beta.xml"
+    git -C "$PUBLISH_DIR" add appcast.xml appcast-beta.xml
+    if ! git -C "$PUBLISH_DIR" diff --cached --quiet; then
+        git -C "$PUBLISH_DIR" commit -m "Update stable and beta appcasts for v$VERSION"
+        git -C "$PUBLISH_DIR" push origin HEAD:gh-pages
     fi
-
-    # Trap fires on EXIT to restore branch + stash.
+    cleanup_publish
+    trap - EXIT
+    echo -e "${GREEN}✓ Both appcasts published${NC}"
 fi
 
 echo ""
@@ -640,9 +563,8 @@ echo ""
 # every update after that, so the two never conflict.
 #
 # Stable releases only: a beta DMG must never become the paid deliverable.
-# Fail-soft like Sentry: the GitHub release is already public by this point,
-# so a network blip here must not abort the script — the retry command is
-# printed and the upload can run standalone afterwards.
+# Publication is incomplete until buyer content is verified. On failure,
+# rerun scripts/publish_gumroad.py with the product and release DMG.
 # SKIP_GUMROAD=1 opts out (e.g. re-running for an already-attached DMG).
 echo -e "${GREEN}Step 9: Publishing DMG to Gumroad product...${NC}"
 
@@ -650,24 +572,8 @@ if [ "${BETA_CHANNEL:-0}" = "1" ]; then
     echo -e "${YELLOW}Beta channel; skipping Gumroad deliverable upload.${NC}"
 elif [ "${SKIP_GUMROAD:-0}" = "1" ]; then
     echo -e "${YELLOW}SKIP_GUMROAD=1 set; skipping Gumroad upload.${NC}"
-elif ! command -v gumroad >/dev/null 2>&1; then
-    echo -e "${YELLOW}⚠ gumroad CLI not installed; skipping Gumroad upload.${NC}"
-    echo "  Install: brew install antiwork/cli/gumroad (then 'gumroad auth login')"
-    echo "  Retry later: gumroad products update $GUMROAD_PRODUCT_ID --file \"$DMG_PATH\" --file-name \"$DMG_BASENAME\" --no-input --non-interactive"
 else
-    # NOTE: --file appends without replacing existing product files, so each
-    # release adds one versioned DMG. Prune superseded DMGs from the product
-    # dashboard occasionally so buyers always grab the latest.
-    if gumroad products update "$GUMROAD_PRODUCT_ID" \
-        --file "$DMG_PATH" \
-        --file-name "$DMG_BASENAME" \
-        --file-description "Ping Warden $VERSION for macOS $MINIMUM_SYSTEM_VERSION and later, Developer ID signed and notarized" \
-        --no-input --non-interactive >/dev/null; then
-        echo -e "${GREEN}✓ Gumroad deliverable published: $DMG_BASENAME${NC}"
-    else
-        echo -e "${RED}⚠ Gumroad upload failed — release continues, retry with:${NC}"
-        echo "  gumroad products update $GUMROAD_PRODUCT_ID --file \"$DMG_PATH\" --file-name \"$DMG_BASENAME\" --no-input --non-interactive"
-    fi
+    "$PYTHON_BIN" "$GUMROAD_PUBLISHER" "$GUMROAD_PRODUCT_ID" "$DMG_PATH"
 fi
 
 echo ""

@@ -55,6 +55,15 @@ jobs:
     - name: Run core logic tests
       run: swift test
 
+    - name: Test release metadata and buyer content
+      run: python3 scripts/test_release_tools.py
+
+    - name: Verify update feeds against the app public key
+      run: |
+        PUBLIC_KEY=$(/usr/libexec/PlistBuddy -c 'Print :SUPublicEDKey' PingWarden/PingWarden/Info.plist)
+        swift scripts/verify_sparkle.swift appcast.xml "$PUBLIC_KEY"
+        swift scripts/verify_sparkle.swift appcast-beta.xml "$PUBLIC_KEY"
+
     - name: Build complete app
       run: |
         xcodebuild build \
