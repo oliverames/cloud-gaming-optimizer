@@ -61,13 +61,13 @@ Buy the [Ping Warden License on Gumroad](https://amesconsulting.gumroad.com/l/pi
 
 Want to try the free features first? The same build is on [Releases](https://github.com/oliverames/ping-warden/releases/latest). Everything except enabling Ping Protection works without a key, and any official build accepts the key from a later purchase.
 
-### 2. Approve the helper
-
-Click **Set Up and Turn On Protection**, then approve Ping Warden in System Settings when macOS asks. The helper needs this one-time approval because changing the AWDL interface requires elevated access.
-
-### 3. Activate your license
+### 2. Activate your license
 
 Open **Settings → License** and enter the key from your receipt. The app verifies once with Gumroad and then works offline for up to 14 days. Existing users who had protection enabled before this release keep Ping Protection for a 90-day transition with no action needed. If you donated through Buy Me a Coffee before this release, email [oliver@ames.consulting](mailto:oliver@ames.consulting) with your receipt and it will be honored as a full license.
+
+### 3. Approve the helper
+
+Click **Set Up and Turn On Protection**, then approve Ping Warden in System Settings when macOS asks. The helper needs this one-time approval because changing the AWDL interface requires elevated access.
 
 ### 4. Turn on Ping Protection and verify it
 

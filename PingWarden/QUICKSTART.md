@@ -10,17 +10,17 @@ Ping Protection keeps Apple's AWDL network interface offline. While it is active
 2. Open the DMG and drag Ping Warden to Applications.
 3. Launch Ping Warden from Applications or Spotlight.
 
-### 2. Approve the helper
+### 2. Activate your license (prebuilt app)
+
+Ping Protection in the prebuilt app requires a one-time $15 license. Buy it at [Gumroad](https://amesconsulting.gumroad.com/l/pingwarden), then open **Settings → License** and enter the key. The app verifies once and then works offline for up to 14 days. Existing users who had protection enabled before this release keep protection for a 90-day transition starting on first launch of the licensed build; check the time remaining in **Settings → License**. If you donated through [Buy Me a Coffee](https://www.buymeacoffee.com/oliverames) before this release, email [oliver@ames.consulting](mailto:oliver@ames.consulting) with your receipt and it will be honored as a full license.
+
+### 3. Approve the helper
 
 1. Click **Set Up and Turn On Protection** in the welcome window.
 2. Approve Ping Warden in System Settings when macOS asks.
 3. Return to Ping Warden after the approval is complete.
 
 The helper needs one-time approval because changing the AWDL interface requires elevated access.
-
-### 3. Activate your license (prebuilt app)
-
-Ping Protection in the prebuilt app requires a one-time $15 license. Buy it at [Gumroad](https://amesconsulting.gumroad.com/l/pingwarden), then open **Settings → License** and enter the key. The app verifies once and then works offline for up to 14 days. Existing users who had protection enabled before this release keep protection for a 90-day transition starting on first launch of the licensed build; check the time remaining in **Settings → License**. If you donated through [Buy Me a Coffee](https://www.buymeacoffee.com/oliverames) before this release, email [oliver@ames.consulting](mailto:oliver@ames.consulting) with your receipt and it will be honored as a full license.
 
 ### 4. Turn on Ping Protection
 

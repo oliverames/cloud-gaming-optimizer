@@ -53,7 +53,7 @@ a specific latency spike.
 - Ping Warden requires a Gumroad license to enable Ping Protection. All other features remain free, and the source stays MIT.
 - Verify the key at `api.gumroad.com/v2/licenses/verify` with the product ID and license key. Cache a successful verification so it survives offline for 14 days. Fail closed on a placeholder product ID.
 - Existing installs that had protection enabled keep entitlement for a 90-day grandfather window starting on first launch of the licensed build. The transition notice explains why and appears only once per install.
-- A 100% off hidden offer code (`DONOR-HONOR`) honors pre-release Buy Me a Coffee donations. Email `oliver@ames.consulting` to claim it.
+- Pre-release Buy Me a Coffee donations are honored as licenses after receipt verification. Email `oliver@ames.consulting` with the receipt. Never publish donor offer codes.
 - Settings provides a dedicated License pane. It shows status (Licensed, transition with days remaining, or Unlicensed), key entry with verification, the Gumroad purchase link, and the donor-honoring note with a mailto button. The enable-protection gate surfaces donor wording when it blocks.
 - The Control Center widget reads a cached entitlement from the shared app group and refuses to enable without a valid license. Disabling is always allowed.
 - When a license goes bad while protection is enabled, turn protection off immediately and show the revocation notice. Periodic re-verification runs roughly every six hours while the app is running.

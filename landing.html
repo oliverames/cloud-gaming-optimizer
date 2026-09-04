@@ -325,12 +325,7 @@
         <a class="btn btn--primary" data-gumroad-action="buy" href="#pricing">Get the license, <span data-gumroad-field="price">$15</span></a>
         <a class="btn btn--ghost" href="#what-it-does">See what it does →</a>
       </div>
-      <p class="software-hero__rating">
-        <span class="stars" aria-hidden="true">★★★★★</span>
-        <span data-gumroad-field="rating">Be the first to review</span>
-        <span aria-hidden="true">·</span>
-        <span data-gumroad-field="review-count">Be the first to review</span>
-      </p>
+      <p class="software-hero__rating"><span data-gumroad-field="review-count">Be the first to review</span></p>
     </div>
     <figure class="software-visual software-visual--screen" style="margin:0">
       <div class="software-window-bar" aria-hidden="true"><span></span><span></span><span></span><b>Ping Warden</b></div>
@@ -366,13 +361,13 @@
     <div class="section-heading">
       <h2 id="features-title">What you get</h2>
       <p class="section-heading__statement">One paid feature, and everything around it is free.</p>
-      <p class="section-heading__sub"><strong>The license unlocks Ping Protection in the prebuilt app.</strong> The dashboard, the automation, the widget, and the source cost nothing, with or without a key.</p>
+      <p class="section-heading__sub"><strong>The license unlocks Ping Protection in the prebuilt app.</strong> The dashboard, diagnostics, updates, and source cost nothing. Game Mode and the widget need a license or an active transition to turn protection on.</p>
     </div>
     <ul class="practice-grid">
       <li><article class="practice-card practice-card--primary">
         <span class="practice-card__num" aria-hidden="true">01</span>
         <h3>Ping Protection</h3>
-        <p>Keeps <code>awdl0</code> down with an event-driven privileged helper, so the interface never gets a chance to switch your Wi-Fi radio away mid-round.</p>
+        <p>Keeps <code>awdl0</code> down with an event-driven privileged helper, to reduce the latency spikes associated with that traffic.</p>
         <span class="practice-cta">Unlocked by the license</span>
       </article></li>
       <li><article class="practice-card">
@@ -384,7 +379,7 @@
       <li><article class="practice-card">
         <span class="practice-card__num" aria-hidden="true">03</span>
         <h3>Game Mode auto-detect</h3>
-        <p>Turns protection on for recognized fullscreen games once you grant Screen Recording access, and turns it back off when you quit.</p>
+        <p>With a license or an active transition, turns protection on for recognized fullscreen games once you grant Screen Recording access, and off when you quit.</p>
         <span class="practice-cta">Free</span>
       </article></li>
       <li><article class="practice-card">
@@ -396,7 +391,7 @@
       <li><article class="practice-card">
         <span class="practice-card__num" aria-hidden="true">05</span>
         <h3>Control Center widget</h3>
-        <p>A system toggle in Control Center on macOS 26 or newer, so protection is one click away without opening the app.</p>
+        <p>A system toggle in Control Center on macOS 26 or newer. Turning protection on requires a license or an active transition and opens Ping Warden in the background.</p>
         <span class="practice-cta">Free · macOS 26+</span>
       </article></li>
       <li><article class="practice-card">
@@ -412,7 +407,7 @@
   <section class="band reveal" id="setup" aria-labelledby="setup-title">
     <div class="section-heading">
       <h2 id="setup-title">Setup</h2>
-      <p class="section-heading__statement">From checkout to flat ping in four steps.</p>
+      <p class="section-heading__statement">Set up Ping Protection in four steps.</p>
       <p class="section-heading__sub"><strong>The app and your key arrive together.</strong> Gumroad emails the receipt, the download, and the license key the moment the purchase clears.</p>
     </div>
     <ol class="steps">
@@ -421,16 +416,16 @@
         <p>The signed DMG is attached to your purchase. Open it from your receipt or your Gumroad library and drag Ping Warden to Applications.</p>
       </li>
       <li>
-        <h3>Approve the helper</h3>
-        <p>Click <strong>Set Up and Turn On Protection</strong>, then approve Ping Warden in System Settings. Changing the AWDL interface needs this one-time elevated access.</p>
+        <h3>Enter your key</h3>
+        <p>Open <strong>Settings → License</strong>, paste the key from your receipt, and click Verify. Activate before you turn on protection.</p>
       </li>
       <li>
-        <h3>Enter your key</h3>
-        <p>Paste the key from your receipt under <code>Settings → License</code>. It verifies once with Gumroad, then stays good for 14 days without a network.</p>
+        <h3>Approve the helper</h3>
+        <p>Click <strong>Set Up and Turn On Protection</strong>, then approve Ping Warden in System Settings if prompted. The helper needs this permission to control AWDL.</p>
       </li>
       <li>
         <h3>Turn on protection</h3>
-        <p>Flip Ping Protection on from the menu bar or Control Center. Watch the intervention counter climb while your ping stays flat.</p>
+        <p>Flip Ping Protection on from the menu bar or Control Center. Use the dashboard to see whether protection improves latency on your network.</p>
       </li>
     </ol>
   </section>
@@ -457,17 +452,17 @@
         <div class="software-actions">
           <a class="btn btn--primary" data-gumroad-action="buy" href="#pricing">I want this, <span data-gumroad-field="price">$15</span></a>
         </div>
-        <p class="fine">Secure checkout through Gumroad, which handles tax as merchant of record. Covered by Gumroad's standard refund terms.</p>
+        <p class="fine">Secure checkout through Gumroad, which handles tax as merchant of record. For refund questions, email <a href="mailto:oliver@ames.consulting">oliver@ames.consulting</a>.</p>
       </div>
       <div class="price-card price-card--plain">
         <p class="eyebrow">Always free</p>
         <h3>Everything else, no key needed.</h3>
         <ul class="checks">
           <li>Live ping dashboard, AWDL status, and intervention history</li>
-          <li>Game Mode auto-detect, quick pause, and the Control Center widget</li>
+          <li>Diagnostics, updates, and controls for wireless sharing</li>
           <li>Full source code under the MIT license</li>
-          <li>Build it yourself and use every feature free</li>
-          <li>90-day transition for existing protection users. <button class="link-btn" id="grandfather-open" type="button">What is this?</button></li>
+          <li>Build and modify the app under MIT, including its license policy</li>
+          <li><details class="faq"><summary>How the 90-day transition works</summary><p>If protection was enabled with an approved helper when you first launched version 4, it stays available for 90 days from that launch. Check Settings → License for the remaining time. Updating again keeps the original deadline. After it ends, enter a license key to continue using protection.</p></details></li>
         </ul>
         <div class="fine">
           <p><strong>Ping Warden</strong> is an open-source macOS menu bar app that keeps cloud gaming latency consistent by blocking AWDL while you play. This license unlocks Ping Protection in the prebuilt, signed and notarized app.</p>
@@ -490,7 +485,7 @@
     <div class="faq-list">
       <details class="faq">
         <summary>Is Ping Warden itself free?</summary>
-        <p>Yes. The app and its source are MIT-licensed. You only pay to enable Ping Protection inside the prebuilt, signed app. Build from source and you can use everything free.</p>
+        <p>Yes. The app and its source are MIT-licensed. You only pay to enable Ping Protection inside the prebuilt, signed app. The source is free to build and modify under MIT. An unchanged build includes the same license policy.</p>
       </details>
       <details class="faq">
         <summary>Where do I download the app?</summary>
@@ -506,7 +501,7 @@
       </details>
       <details class="faq">
         <summary>What happens if I am offline?</summary>
-        <p>Nothing breaks. After the first verification your license stays valid for 14 days without network access. While the app runs it re-checks quietly about every 6 hours, and once at launch.</p>
+        <p>After a successful verification, Ping Protection works offline for up to 14 days. Connect to the internet to verify again before that window ends. The app re-checks about every 6 hours and at launch, and the dashboard stays available if protection expires.</p>
       </details>
       <details class="faq">
         <summary>What does Ping Protection turn off?</summary>
@@ -518,7 +513,7 @@
       </details>
       <details class="faq">
         <summary>What if it does not fix my lag?</summary>
-        <p>Then AWDL was not your bottleneck, and you should not pay for a fix you do not need. The purchase is covered by Gumroad's standard refund terms, and the free dashboard will still show you what your ping is actually doing.</p>
+        <p>Then AWDL was not your bottleneck, and you should not pay for a fix you do not need. Email <a href="mailto:oliver@ames.consulting">oliver@ames.consulting</a> for help or a refund request. The free dashboard remains available.</p>
       </details>
       <details class="faq">
         <summary>What does the app send anywhere?</summary>
@@ -574,19 +569,6 @@
 
 <a class="fab" data-gumroad-action="buy" href="#pricing">Get the license · <span data-gumroad-field="price">$15</span></a>
 
-<!-- Grandfather modal -->
-<div class="modal-backdrop" id="modal-backdrop">
-  <div class="modal" role="dialog" aria-modal="true" aria-labelledby="modal-title">
-    <h2 id="modal-title">The 90-day transition</h2>
-    <p>If Ping Protection was already enabled on your Mac when you first launched the licensed build, it keeps working for a 90-day window. No key required on day one.</p>
-    <p>Open <strong>Settings → License</strong> any time to see your remaining days. Buy whenever you are ready inside the window and the key takes over without a gap.</p>
-    <div class="software-actions">
-      <a class="btn btn--primary" data-gumroad-action="buy" href="#pricing">Get the license</a>
-      <button class="btn btn--ghost" id="modal-close" type="button">Close</button>
-    </div>
-  </div>
-</div>
-
 <script>
 (function () {
   "use strict";
@@ -615,17 +597,6 @@
     showAll();
   }
 
-  /* Modal with focus management. */
-  var backdrop = document.getElementById("modal-backdrop");
-  var openBtn = document.getElementById("grandfather-open");
-  var closeBtn = document.getElementById("modal-close");
-  var lastFocus = null;
-  function onKey(e) { if (e.key === "Escape") { closeModal(); } }
-  function openModal() { lastFocus = document.activeElement; backdrop.classList.add("open"); closeBtn.focus(); document.addEventListener("keydown", onKey); }
-  function closeModal() { backdrop.classList.remove("open"); document.removeEventListener("keydown", onKey); if (lastFocus && lastFocus.focus) { lastFocus.focus(); } }
-  openBtn.addEventListener("click", openModal);
-  closeBtn.addEventListener("click", closeModal);
-  backdrop.addEventListener("click", function (e) { if (e.target === backdrop) { closeModal(); } });
 })();
 </script>
 </body>

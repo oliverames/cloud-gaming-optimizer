@@ -1,3 +1,27 @@
+# Ping Warden 4.0.2
+
+This update fixes protection controls, license verification, and the transition from free builds.
+
+## Upgrading from version 3 or earlier
+
+Ping Protection in the signed app requires a [one-time $15 license](https://amesconsulting.gumroad.com/l/pingwarden), which covers the Macs you own and future updates. If protection was enabled with an approved helper when you first launched version 4, you have a 90-day transition from that launch. Check **Settings → License** for the time remaining. The dashboard, diagnostics, and updates stay free, and the source remains MIT.
+
+If you donated before version 4, email [oliver@ames.consulting](mailto:oliver@ames.consulting) with your receipt and I'll honor that support as a license. You can review or skip the paid upgrade in Sparkle before installation.
+
+## Fixes
+
+- Existing 4.0.0 transition deadlines survive the update, including when protection was temporarily off. Updating does not start a new 90-day window.
+- Settings distinguishes **Free Transition** from **Licensed**, and shows the transition even when a refunded key remains stored.
+- Temporary verification failures preserve the 14-day offline allowance. Routine verification no longer increases Gumroad's license-use count.
+- Pause expiry, Game Mode, and reconnects respect the current license. Expired protection turns off while the app runs.
+- Reconnecting to the helper cannot override a newer Off command.
+- Control Center opens Ping Warden in the background when needed, so protection continues after the widget finishes.
+- The welcome window opens larger so its introduction and setup explanation fit without scrolling.
+- Setup explains the license requirement and reports whether protection actually turned on. Successful activation clears obsolete license errors.
+- Uninstall prevents a pending verification response from restoring removed license data.
+- Users opted into beta updates also receive stable releases. Both feeds require older free builds to show the paid-upgrade notice before installation.
+- Gumroad offers the current app download with the license key, and the landing page explains activation order and which controls require protection access.
+
 # Ping Warden 4.0.1
 
 A licensing hardening release. Nothing changes for a paid license or for building from source.
@@ -36,7 +60,7 @@ Starting with this release, enabling Ping Protection in the prebuilt, signed, an
 
 ## Donors
 
-- If you supported Ping Warden through [Buy Me a Coffee](https://www.buymeacoffee.com/oliverames) before this release, email [oliver@ames.consulting](mailto:oliver@ames.consulting) with your receipt and it will be honored as a full license via a hidden 100% off code (`DONOR-HONOR`). The License pane and the gate error both surface this offer, and the app now handles the conversion — no extra purchase needed.
+- If you supported Ping Warden through [Buy Me a Coffee](https://www.buymeacoffee.com/oliverames) before this release, email [oliver@ames.consulting](mailto:oliver@ames.consulting) with your receipt and it will be honored as a full license after receipt verification. The License pane and the gate error both surface this offer, and the developer handles the conversion after reviewing the receipt.
 - The in-app donation prompt that appeared after latency sessions has been removed. The menu, Settings → Support, About, and Dashboard still offer a Donate link, and the full documentation now describes the licensed model instead.
 
 ## License management

@@ -15,9 +15,9 @@
 	<key>CFBundlePackageType</key>
 	<string>BNDL</string>
 	<key>CFBundleShortVersionString</key>
-	<string>4.0.1</string>
+	<string>4.0.2</string>
 	<key>CFBundleVersion</key>
-	<string>40001</string>
+	<string>40002</string>
 	<key>LSMinimumSystemVersion</key>
 	<string>13.0</string>
 	<key>NSHumanReadableCopyright</key>
