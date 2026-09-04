@@ -1,13 +1,1016 @@
-<?xml version="1.0" encoding="utf-8"?>
-<rss version="2.0" xmlns:sparkle="http://www.andymatuschak.org/xml-namespaces/sparkle" xmlns:dc="http://purl.org/dc/elements/1.1/">
+<?xml version='1.0' encoding='utf-8'?>
+<rss xmlns:sparkle="http://www.andymatuschak.org/xml-namespaces/sparkle" version="2.0">
   <channel>
     <title>Ping Warden Beta Updates</title>
     <link>https://oliverames.github.io/ping-warden/appcast-beta.xml</link>
     <description>Pre-release updates for Ping Warden</description>
     <language>en</language>
+    <item>
+      <title>Version 4.0.2</title>
+      <link>https://github.com/oliverames/ping-warden/releases/tag/v4.0.2</link>
+      <sparkle:version>40002</sparkle:version>
+      <sparkle:shortVersionString>4.0.2</sparkle:shortVersionString>
+      <description>&lt;p&gt;&lt;strong&gt;Upgrading from Ping Warden 3 or earlier?&lt;/strong&gt; Ping Protection in the signed app now requires a one-time $15 license. Existing users whose protection was enabled with an approved helper keep a 90-day transition from their first launch of version 4. Check Settings → License for the remaining time. The dashboard and updates stay free, and the source remains MIT. Previous donors can email &lt;a href="mailto:oliver@ames.consulting"&gt;oliver@ames.consulting&lt;/a&gt; with their receipt for a license. &lt;a href="https://amesconsulting.gumroad.com/l/pingwarden"&gt;License details&lt;/a&gt;.&lt;/p&gt;
+&lt;style&gt;
+body {
+    font-family: -apple-system, BlinkMacSystemFont, "Helvetica Neue", Helvetica, Arial, sans-serif;
+    font-size: 13px;
+    line-height: 1.55;
+    color: #1d1d1f;
+    margin: 0;
+    padding: 0;
+}
+h1, h2, h3 { color: #000; font-weight: 600; }
+h1 { font-size: 18px; margin: 0 0 10px 0; }
+h2 {
+    font-size: 11px;
+    text-transform: uppercase;
+    letter-spacing: 0.6px;
+    color: #6e6e73;
+    margin: 18px 0 6px 0;
+}
+h3 { font-size: 13px; margin: 14px 0 6px 0; }
+p { margin: 0 0 10px 0; }
+ul, ol { padding-left: 20px; margin: 0 0 10px 0; }
+li { margin-bottom: 5px; }
+li &gt; strong:first-child { color: #000; }
+code {
+    font-family: ui-monospace, "SF Mono", Menlo, monospace;
+    background: #f2f2f7;
+    padding: 1px 5px;
+    border-radius: 3px;
+    font-size: 12px;
+}
+a { color: #f5a542; text-decoration: none; }
+a:hover { text-decoration: underline; }
+hr { border: 0; border-top: 1px solid #e5e5ea; margin: 16px 0; }
+@media (prefers-color-scheme: dark) {
+    body { color: #f5f5f7; }
+    h1, h2, h3, li &gt; strong:first-child { color: #fff; }
+    h2 { color: #98989d; }
+    code { background: #2c2c2e; }
+    hr { border-top-color: #38383a; }
+}
+&lt;/style&gt;
+&lt;p&gt;This update fixes protection controls, license verification, and the transition from free builds.&lt;/p&gt;
+&lt;h2&gt;Upgrading from version 3 or earlier&lt;/h2&gt;
+&lt;p&gt;Ping Protection in the signed app requires a &lt;a href="https://amesconsulting.gumroad.com/l/pingwarden" rel="nofollow"&gt;one-time $15 license&lt;/a&gt;, which covers the Macs you own and future updates. If protection was enabled with an approved helper when you first launched version 4, you have a 90-day transition from that launch. Check &lt;strong&gt;Settings → License&lt;/strong&gt; for the time remaining. The dashboard, diagnostics, and updates stay free, and the source remains MIT.&lt;/p&gt;
+&lt;p&gt;If you donated before version 4, email &lt;a href="mailto:oliver@ames.consulting"&gt;oliver@ames.consulting&lt;/a&gt; with your receipt and I'll honor that support as a license. You can review or skip the paid upgrade in Sparkle before installation.&lt;/p&gt;
+&lt;h2&gt;Fixes&lt;/h2&gt;
+&lt;ul&gt;
+&lt;li&gt;Existing 4.0.0 transition deadlines survive the update, including when protection was temporarily off. Updating does not start a new 90-day window.&lt;/li&gt;
+&lt;li&gt;Settings distinguishes &lt;strong&gt;Free Transition&lt;/strong&gt; from &lt;strong&gt;Licensed&lt;/strong&gt;, and shows the transition even when a refunded key remains stored.&lt;/li&gt;
+&lt;li&gt;Temporary verification failures preserve the 14-day offline allowance. Routine verification no longer increases Gumroad's license-use count.&lt;/li&gt;
+&lt;li&gt;Pause expiry, Game Mode, and reconnects respect the current license. Expired protection turns off while the app runs.&lt;/li&gt;
+&lt;li&gt;Reconnecting to the helper cannot override a newer Off command.&lt;/li&gt;
+&lt;li&gt;Control Center opens Ping Warden in the background when needed, so protection continues after the widget finishes.&lt;/li&gt;
+&lt;li&gt;The welcome window opens larger so its introduction and setup explanation fit without scrolling.&lt;/li&gt;
+&lt;li&gt;Setup explains the license requirement and reports whether protection actually turned on. Successful activation clears obsolete license errors.&lt;/li&gt;
+&lt;li&gt;Uninstall prevents a pending verification response from restoring removed license data.&lt;/li&gt;
+&lt;li&gt;Users opted into beta updates also receive stable releases. Both feeds require older free builds to show the paid-upgrade notice before installation.&lt;/li&gt;
+&lt;li&gt;Gumroad offers the current app download with the license key, and the landing page explains activation order and which controls require protection access.&lt;/li&gt;
+&lt;/ul&gt;
+      </description>
+      <pubDate>Fri, 04 Sep 2026 20:52:21 +0000</pubDate>
+      <enclosure url="https://github.com/oliverames/ping-warden/releases/download/v4.0.2/PingWarden-4.0.2.dmg" sparkle:version="40002" sparkle:shortVersionString="4.0.2" length="5778500" type="application/octet-stream" sparkle:edSignature="phs4zILMbvd/IdvrywPLMHQuQFDryoN6rhNqG7PZA6U8fqRHKg29t7FvZCBq2W4F2yXrTL/+Z1M6b0SHmBUgDQ==" />
+      <sparkle:minimumSystemVersion>13.0</sparkle:minimumSystemVersion>
+      <sparkle:minimumAutoupdateVersion>40000</sparkle:minimumAutoupdateVersion>
+    </item>
+    <item>
+      <title>Version 4.0.1</title>
+      <link>https://github.com/oliverames/ping-warden/releases/tag/v4.0.1</link>
+      <sparkle:version>40001</sparkle:version>
+      <sparkle:shortVersionString>4.0.1</sparkle:shortVersionString>
+      <description>&lt;p&gt;&lt;strong&gt;Upgrading from Ping Warden 3 or earlier?&lt;/strong&gt; Ping Protection in the signed app now requires a one-time $15 license. Existing users whose protection was enabled with an approved helper keep a 90-day transition from their first launch of version 4. Check Settings → License for the remaining time. The dashboard and updates stay free, and the source remains MIT. Previous donors can email &lt;a href="mailto:oliver@ames.consulting"&gt;oliver@ames.consulting&lt;/a&gt; with their receipt for a license. &lt;a href="https://amesconsulting.gumroad.com/l/pingwarden"&gt;License details&lt;/a&gt;.&lt;/p&gt;
+&lt;style&gt;
+body {
+    font-family: -apple-system, BlinkMacSystemFont, "Helvetica Neue", Helvetica, Arial, sans-serif;
+    font-size: 13px;
+    line-height: 1.55;
+    color: #1d1d1f;
+    margin: 0;
+    padding: 0;
+}
+h1, h2, h3 { color: #000; font-weight: 600; }
+h1 { font-size: 18px; margin: 0 0 10px 0; }
+h2 {
+    font-size: 11px;
+    text-transform: uppercase;
+    letter-spacing: 0.6px;
+    color: #6e6e73;
+    margin: 18px 0 6px 0;
+}
+h3 { font-size: 13px; margin: 14px 0 6px 0; }
+p { margin: 0 0 10px 0; }
+ul, ol { padding-left: 20px; margin: 0 0 10px 0; }
+li { margin-bottom: 5px; }
+li &gt; strong:first-child { color: #000; }
+code {
+    font-family: ui-monospace, "SF Mono", Menlo, monospace;
+    background: #f2f2f7;
+    padding: 1px 5px;
+    border-radius: 3px;
+    font-size: 12px;
+}
+a { color: #f5a542; text-decoration: none; }
+a:hover { text-decoration: underline; }
+hr { border: 0; border-top: 1px solid #e5e5ea; margin: 16px 0; }
+@media (prefers-color-scheme: dark) {
+    body { color: #f5f5f7; }
+    h1, h2, h3, li &gt; strong:first-child { color: #fff; }
+    h2 { color: #98989d; }
+    code { background: #2c2c2e; }
+    hr { border-top-color: #38383a; }
+}
+&lt;/style&gt;
+&lt;p&gt;A licensing hardening release. Nothing changes for a paid license or for building from source.&lt;/p&gt;
+&lt;h2&gt;Fixes&lt;/h2&gt;
+&lt;ul&gt;
+&lt;li&gt;The in-app &lt;strong&gt;Buy a License…&lt;/strong&gt; button and every document now point at the current storefront, &lt;code class="notranslate"&gt;https://amesconsulting.gumroad.com/l/pingwarden&lt;/code&gt;. The old &lt;code class="notranslate"&gt;olivera40&lt;/code&gt; address returns 404.&lt;/li&gt;
+&lt;li&gt;Persisted protection no longer turns AWDL off at launch unless the license gate still holds. An install whose 90-day transition ended, or whose key was refunded, now starts with protection off and a note in the menu pointing to &lt;strong&gt;Settings → License&lt;/strong&gt;, instead of quietly restoring protection from the saved preference.&lt;/li&gt;
+&lt;li&gt;The cached license state in the shared App Group defaults is now sealed with an HMAC bound to the Mac's hardware UUID. A hand-written &lt;code class="notranslate"&gt;defaults write&lt;/code&gt;, or a preferences file copied from a licensed Mac, reads as unlicensed until the app verifies online again. The Control Center widget checks the same seal.&lt;/li&gt;
+&lt;li&gt;A clock rolled backwards past the last verification no longer stretches the 14-day offline window; the cache is ignored until the next online verification.&lt;/li&gt;
+&lt;li&gt;The 90-day transition is granted only when the helper was already approved on the Mac, which a fresh install cannot fake, and the one-shot marker now lives in the keychain so clearing the App Group defaults cannot re-arm it.&lt;/li&gt;
+&lt;li&gt;The stored key is re-verified once at launch, as the documentation already said, not only on the 6-hour timer.&lt;/li&gt;
+&lt;/ul&gt;
+&lt;h2&gt;Upgrade notes&lt;/h2&gt;
+&lt;ul&gt;
+&lt;li&gt;Licensed 4.0.0 installs re-verify with Gumroad on first launch of 4.0.1 to seal their cached state. An offline first launch shows protection off until the Mac is online once; the key stays stored.&lt;/li&gt;
+&lt;li&gt;3.x installs that upgrade directly still get the 90-day transition.&lt;/li&gt;
+&lt;/ul&gt;
+      </description>
+      <pubDate>Thu, 03 Sep 2026 15:11:11 +0000</pubDate>
+      <enclosure url="https://github.com/oliverames/ping-warden/releases/download/v4.0.1/PingWarden-4.0.1.dmg" sparkle:version="40001" sparkle:shortVersionString="4.0.1" length="5759056" type="application/octet-stream" sparkle:edSignature="Nkid/vso7lt5OXWM854qQ4XzCHFaQDkO0lFgI1HoQtnaqqJnkXfpsfi9hqj58JTdn1b0NbwIyUo9rSaf/lkVBA==" />
+      <sparkle:minimumSystemVersion>13.0</sparkle:minimumSystemVersion>
+      <sparkle:minimumAutoupdateVersion>40000</sparkle:minimumAutoupdateVersion>
+    </item>
+    <item>
+      <title>Version 4.0.0</title>
+      <link>https://github.com/oliverames/ping-warden/releases/tag/v4.0.0</link>
+      <sparkle:version>40000</sparkle:version>
+      <sparkle:shortVersionString>4.0.0</sparkle:shortVersionString>
+      <description>&lt;p&gt;&lt;strong&gt;Upgrading from Ping Warden 3 or earlier?&lt;/strong&gt; Ping Protection in the signed app now requires a one-time $15 license. Existing users whose protection was enabled with an approved helper keep a 90-day transition from their first launch of version 4. Check Settings → License for the remaining time. The dashboard and updates stay free, and the source remains MIT. Previous donors can email &lt;a href="mailto:oliver@ames.consulting"&gt;oliver@ames.consulting&lt;/a&gt; with their receipt for a license. &lt;a href="https://amesconsulting.gumroad.com/l/pingwarden"&gt;License details&lt;/a&gt;.&lt;/p&gt;
+&lt;style&gt;
+body {
+    font-family: -apple-system, BlinkMacSystemFont, "Helvetica Neue", Helvetica, Arial, sans-serif;
+    font-size: 13px;
+    line-height: 1.55;
+    color: #1d1d1f;
+    margin: 0;
+    padding: 0;
+}
+h1, h2, h3 { color: #000; font-weight: 600; }
+h1 { font-size: 18px; margin: 0 0 10px 0; }
+h2 {
+    font-size: 11px;
+    text-transform: uppercase;
+    letter-spacing: 0.6px;
+    color: #6e6e73;
+    margin: 18px 0 6px 0;
+}
+h3 { font-size: 13px; margin: 14px 0 6px 0; }
+p { margin: 0 0 10px 0; }
+ul, ol { padding-left: 20px; margin: 0 0 10px 0; }
+li { margin-bottom: 5px; }
+li &gt; strong:first-child { color: #000; }
+code {
+    font-family: ui-monospace, "SF Mono", Menlo, monospace;
+    background: #f2f2f7;
+    padding: 1px 5px;
+    border-radius: 3px;
+    font-size: 12px;
+}
+a { color: #f5a542; text-decoration: none; }
+a:hover { text-decoration: underline; }
+hr { border: 0; border-top: 1px solid #e5e5ea; margin: 16px 0; }
+@media (prefers-color-scheme: dark) {
+    body { color: #f5f5f7; }
+    h1, h2, h3, li &gt; strong:first-child { color: #fff; }
+    h2 { color: #98989d; }
+    code { background: #2c2c2e; }
+    hr { border-top-color: #38383a; }
+}
+&lt;/style&gt;
+&lt;p&gt;Ping Warden is moving to a license for the AWDL-blocking feature. The source stays MIT and everything except enabling Ping Protection is free.&lt;/p&gt;
+&lt;p&gt;Starting with this release, enabling Ping Protection in the prebuilt, signed, and notarized app requires a one-time $15 license at &lt;a href="https://amesconsulting.gumroad.com/l/pingwarden" rel="nofollow"&gt;Gumroad&lt;/a&gt;. One key works on the Macs you own and covers all future updates. The app verifies once with Gumroad, then re-checks roughly every 6 hours while it runs and once at launch. Verification is offline-friendly for up to 14 days. Building from source under MIT remains free and unchanged.&lt;/p&gt;
+&lt;h2&gt;Pricing&lt;/h2&gt;
+&lt;ul&gt;
+&lt;li&gt;Ping Protection now requires a license in the prebuilt app. All other features remain free.&lt;/li&gt;
+&lt;li&gt;The source code remains MIT. You can build from source, inspect it, and modify it whether you buy a license or not.&lt;/li&gt;
+&lt;li&gt;The license is a one-time $15 purchase at &lt;a href="https://amesconsulting.gumroad.com/l/pingwarden" rel="nofollow"&gt;Gumroad&lt;/a&gt;. No subscription, no ads, no analytics. Taxes are handled by Gumroad as merchant of record — the 10% + 50¢ direct fee (30% via Discover) covers processing.&lt;/li&gt;
+&lt;/ul&gt;
+&lt;h2&gt;Transition for existing users&lt;/h2&gt;
+&lt;ul&gt;
+&lt;li&gt;If Ping Protection was enabled on this Mac before the licensed build first ran, it keeps working for a 90-day transition that starts on that first launch. No action is needed today.&lt;/li&gt;
+&lt;li&gt;Check the time remaining in &lt;strong&gt;Settings → License&lt;/strong&gt;. When the transition ends, enter a license key there to keep protection available.&lt;/li&gt;
+&lt;li&gt;On first launch of the licensed build, existing users see a one-time notice that explains the change and points to &lt;strong&gt;Settings → License&lt;/strong&gt;. The notice appears only once per install.&lt;/li&gt;
+&lt;/ul&gt;
+&lt;h2&gt;Donors&lt;/h2&gt;
+&lt;ul&gt;
+&lt;li&gt;If you supported Ping Warden through &lt;a href="https://www.buymeacoffee.com/oliverames" rel="nofollow"&gt;Buy Me a Coffee&lt;/a&gt; before this release, email &lt;a href="mailto:oliver@ames.consulting"&gt;oliver@ames.consulting&lt;/a&gt; with your receipt and it will be honored as a full license after receipt verification. The License pane and the gate error both surface this offer, and the app now handles the conversion — no extra purchase needed.&lt;/li&gt;
+&lt;li&gt;The in-app donation prompt that appeared after latency sessions has been removed. The menu, Settings → Support, About, and Dashboard still offer a Donate link, and the full documentation now describes the licensed model instead.&lt;/li&gt;
+&lt;/ul&gt;
+&lt;h2&gt;License management&lt;/h2&gt;
+&lt;ul&gt;
+&lt;li&gt;New &lt;strong&gt;Settings → License&lt;/strong&gt; pane shows status (Licensed, transition with days remaining, or Unlicensed), key entry with verification, and a direct link to the Gumroad product page. The transition pane explains why the change is happening and carries the donor-honoring note with a mailto button.&lt;/li&gt;
+&lt;li&gt;License keys are verified at &lt;code class="notranslate"&gt;api.gumroad.com/v2/licenses/verify&lt;/code&gt; with your product ID and key, then cached so the app works offline. A cached valid result stands in for 14 days when the API cannot be reached. Refunded, chargebacked, or disabled keys are treated as revoked and turn protection off immediately with a notice.&lt;/li&gt;
+&lt;li&gt;The Control Center widget reads the same cached entitlement from the shared app group and refuses to enable protection without a valid license. Disabling is always allowed.&lt;/li&gt;
+&lt;li&gt;Uninstall clears all licensing state from the App Group defaults and the keychain.&lt;/li&gt;
+&lt;/ul&gt;
+      </description>
+      <pubDate>Thu, 03 Sep 2026 13:01:36 +0000</pubDate>
+      <enclosure url="https://github.com/oliverames/ping-warden/releases/download/v4.0.0/PingWarden-4.0.0.dmg" sparkle:version="40000" sparkle:shortVersionString="4.0.0" length="5729570" type="application/octet-stream" sparkle:edSignature="lvF4Ol9EPJq/g0pfJa7n1h9RemxxulXDK1Ag8ibum09Cco48xOxB/dvbgAt8tb545f4YfbGB/lO3d5DmALjhDw==" />
+      <sparkle:minimumSystemVersion>13.0</sparkle:minimumSystemVersion>
+      <sparkle:minimumAutoupdateVersion>40000</sparkle:minimumAutoupdateVersion>
+    </item>
+    <item>
+      <title>Version 3.1.0</title>
+      <link>https://github.com/oliverames/ping-warden/releases/tag/v3.1.0</link>
+      <sparkle:version>30100</sparkle:version>
+      <sparkle:shortVersionString>3.1.0</sparkle:shortVersionString>
+      <description>
+&lt;style&gt;
+body {
+    font-family: -apple-system, BlinkMacSystemFont, "Helvetica Neue", Helvetica, Arial, sans-serif;
+    font-size: 13px;
+    line-height: 1.55;
+    color: #1d1d1f;
+    margin: 0;
+    padding: 0;
+}
+h1, h2, h3 { color: #000; font-weight: 600; }
+h1 { font-size: 18px; margin: 0 0 10px 0; }
+h2 {
+    font-size: 11px;
+    text-transform: uppercase;
+    letter-spacing: 0.6px;
+    color: #6e6e73;
+    margin: 18px 0 6px 0;
+}
+h3 { font-size: 13px; margin: 14px 0 6px 0; }
+p { margin: 0 0 10px 0; }
+ul, ol { padding-left: 20px; margin: 0 0 10px 0; }
+li { margin-bottom: 5px; }
+li &gt; strong:first-child { color: #000; }
+code {
+    font-family: ui-monospace, "SF Mono", Menlo, monospace;
+    background: #f2f2f7;
+    padding: 1px 5px;
+    border-radius: 3px;
+    font-size: 12px;
+}
+a { color: #f5a542; text-decoration: none; }
+a:hover { text-decoration: underline; }
+hr { border: 0; border-top: 1px solid #e5e5ea; margin: 16px 0; }
+@media (prefers-color-scheme: dark) {
+    body { color: #f5f5f7; }
+    h1, h2, h3, li &gt; strong:first-child { color: #fff; }
+    h2 { color: #98989d; }
+    code { background: #2c2c2e; }
+    hr { border-top-color: #38383a; }
+}
+&lt;/style&gt;
+&lt;p&gt;&lt;a href="https://buymeacoffee.com/oliverames" rel="nofollow"&gt;Donate to Ping Warden on Buy Me a Coffee&lt;/a&gt;&lt;/p&gt;
+&lt;p&gt;Ping Warden 3.1 keeps your choices where you put them. A pause now survives a quit, a failed server refresh tells you instead of going quiet, and the app stops working when nobody is looking at it.&lt;/p&gt;
+&lt;h2&gt;Protection&lt;/h2&gt;
+&lt;ul&gt;
+&lt;li&gt;Pausing protection survives quitting and relaunching. Ping Warden used to store nothing on disk when you paused, so quitting during the ten minute window silently re-blocked AWDL while you were still trying to AirDrop or share a screen. The pause window now persists, and every path that genuinely ends it still clears it.&lt;/li&gt;
+&lt;li&gt;Protection controls stay responsive when several state changes race each other. Toggling from the menu, the dashboard, or the Control Center widget at the same time could strand the controls mid-transition and disable them until relaunch.&lt;/li&gt;
+&lt;li&gt;Stopping protection no longer leaves monitoring stuck on. A slow reply from the privileged helper used to be discarded after the timeout, so the app reported protection as active across relaunch while AWDL was already restored.&lt;/li&gt;
+&lt;/ul&gt;
+&lt;h2&gt;Cloud gaming&lt;/h2&gt;
+&lt;ul&gt;
+&lt;li&gt;A failed GeForce NOW zone refresh now says so and offers Retry. The server picker previously dropped its "Refreshing" caption and left a stale list with no explanation. Existing zones are kept through the failure, so a network blip cannot reset your selection or chart history.&lt;/li&gt;
+&lt;/ul&gt;
+&lt;h2&gt;Battery and idle power&lt;/h2&gt;
+&lt;ul&gt;
+&lt;li&gt;Live menu metrics run only while the menu is open. Turning on "Show Live Metrics in Menu" used to start a permanent two second probe and a five second intervention poll, which sent tens of thousands of pointless network connections a day toward numbers nobody was reading. Opening the menu still shows a fresh reading immediately.&lt;/li&gt;
+&lt;li&gt;Game Mode detection backs off while you are idle. Auto-detect scanned the full window list every ten seconds forever; after about ninety quiet seconds it now moves to thirty. App and display events still trigger an immediate check, so a game launching from deep idle is caught right away.&lt;/li&gt;
+&lt;/ul&gt;
+&lt;h2&gt;Security&lt;/h2&gt;
+&lt;ul&gt;
+&lt;li&gt;Sparkle updates to 2.9.6, which carries a symlink hardening fix in the installer's archive handling and a privilege escalation fix for root-invoked Sparkle processes.&lt;/li&gt;
+&lt;li&gt;The privileged helper now accepts XPC only from root and the logged-in console user. The previous check rejected system accounts but would have let any second desktop account drive the root daemon with a copy of the signed app.&lt;/li&gt;
+&lt;li&gt;Sentry updates to 9.26.0. Crash reporting remains off by default.&lt;/li&gt;
+&lt;/ul&gt;
+&lt;h2&gt;Release engineering&lt;/h2&gt;
+&lt;ul&gt;
+&lt;li&gt;Release validation now checks the helper's embedded version metadata, not just the app and widget. The helper's version lives in a plist compiled into its binary, so a half-applied version bump could previously ship with validation still reporting success.&lt;/li&gt;
+&lt;/ul&gt;
+      </description>
+      <pubDate>Wed, 26 Aug 2026 18:12:11 +0000</pubDate>
+      <enclosure url="https://github.com/oliverames/ping-warden/releases/download/v3.1.0/PingWarden-3.1.0.dmg" sparkle:version="30100" sparkle:shortVersionString="3.1.0" length="5685996" type="application/octet-stream" sparkle:edSignature="VNpZgXV5k5h4lMAnQYGPI20sXSl/OgwejnuyrkDj5zHAA2fzjP0fDaxUtsW4QtLuNpHKj/GKulAJmT9FimwLBw==" />
+      <sparkle:minimumSystemVersion>13.0</sparkle:minimumSystemVersion>
+    </item>
+    <item>
+      <title>Version 3.0.0</title>
+      <link>https://github.com/oliverames/ping-warden/releases/tag/v3.0.0</link>
+      <sparkle:version>30000</sparkle:version>
+      <sparkle:shortVersionString>3.0.0</sparkle:shortVersionString>
+      <description>
+&lt;style&gt;
+body {
+    font-family: -apple-system, BlinkMacSystemFont, "Helvetica Neue", Helvetica, Arial, sans-serif;
+    font-size: 13px;
+    line-height: 1.55;
+    color: #1d1d1f;
+    margin: 0;
+    padding: 0;
+}
+h1, h2, h3 { color: #000; font-weight: 600; }
+h1 { font-size: 18px; margin: 0 0 10px 0; }
+h2 {
+    font-size: 11px;
+    text-transform: uppercase;
+    letter-spacing: 0.6px;
+    color: #6e6e73;
+    margin: 18px 0 6px 0;
+}
+h3 { font-size: 13px; margin: 14px 0 6px 0; }
+p { margin: 0 0 10px 0; }
+ul, ol { padding-left: 20px; margin: 0 0 10px 0; }
+li { margin-bottom: 5px; }
+li &gt; strong:first-child { color: #000; }
+code {
+    font-family: ui-monospace, "SF Mono", Menlo, monospace;
+    background: #f2f2f7;
+    padding: 1px 5px;
+    border-radius: 3px;
+    font-size: 12px;
+}
+a { color: #f5a542; text-decoration: none; }
+a:hover { text-decoration: underline; }
+hr { border: 0; border-top: 1px solid #e5e5ea; margin: 16px 0; }
+@media (prefers-color-scheme: dark) {
+    body { color: #f5f5f7; }
+    h1, h2, h3, li &gt; strong:first-child { color: #fff; }
+    h2 { color: #98989d; }
+    code { background: #2c2c2e; }
+    hr { border-top-color: #38383a; }
+}
+&lt;/style&gt;
+&lt;p&gt;&lt;a href="https://buymeacoffee.com/oliverames" rel="nofollow"&gt;Donate to Ping Warden on Buy Me a Coffee&lt;/a&gt;&lt;/p&gt;
+&lt;p&gt;Ping Warden 3 turns Ping Protection into measurable Latency Sessions. Start a session for a game or call, watch one shared latency stream, and finish with a local recap that explains what happened without exposing network targets or claiming more than the measurements show.&lt;/p&gt;
+&lt;h2&gt;Latency Sessions and recaps&lt;/h2&gt;
+&lt;ul&gt;
+&lt;li&gt;Start and end Latency Sessions from the dashboard. Game Mode can manage sessions automatically.&lt;/li&gt;
+&lt;li&gt;The menu bar now has one clear Ping Protection control. Latency Sessions stay in the dashboard so the two actions cannot be mistaken for duplicates.&lt;/li&gt;
+&lt;li&gt;Review duration, median and P95 latency, jitter, Probe Failures, sample count, and wireless interventions.&lt;/li&gt;
+&lt;li&gt;Share a privacy-scrubbed text recap. Hostnames, IP addresses, game names, and raw samples are never written to session history.&lt;/li&gt;
+&lt;li&gt;Keep a bounded local history and clear it from the dashboard at any time.&lt;/li&gt;
+&lt;/ul&gt;
+&lt;h2&gt;Performance&lt;/h2&gt;
+&lt;ul&gt;
+&lt;li&gt;The dashboard, menu, and sessions now share one probe stream instead of running duplicate monitors.&lt;/li&gt;
+&lt;li&gt;Hostname lookups use a bounded five-minute address cache, one connection deadline, and cancellation that reaches DNS and socket work.&lt;/li&gt;
+&lt;li&gt;Rolling history avoids repeated array shifts. Statistics and snapshots are prepared off the main thread and published once per sample.&lt;/li&gt;
+&lt;li&gt;Game Mode detection moved its window scan off the main thread. App and display events trigger immediate checks, with a slower safety interval when no game is active.&lt;/li&gt;
+&lt;/ul&gt;
+&lt;h2&gt;Security and privacy&lt;/h2&gt;
+&lt;ul&gt;
+&lt;li&gt;Sparkle 2.9.4 replaces 2.8.1. Ping Warden now requires signed appcast metadata and verifies updates before extraction.&lt;/li&gt;
+&lt;li&gt;The Control Center widget applies protection directly through the helper's signed-client XPC boundary. Shared preferences and distributed notifications no longer authorize root operations.&lt;/li&gt;
+&lt;li&gt;Shared app and widget settings now use a Team-ID-prefixed macOS App Group, restoring reliable persistence on macOS 15 and later without an embedded provisioning profile.&lt;/li&gt;
+&lt;li&gt;Unsigned helper builds fail closed, and the helper launches on demand instead of staying alive after boot.&lt;/li&gt;
+&lt;li&gt;Diagnostics redact custom targets, use owner-only file permissions, and show their contents before sharing.&lt;/li&gt;
+&lt;li&gt;Crash reporting is off by default. Turning it off is immediate; opting in takes effect after relaunch.&lt;/li&gt;
+&lt;/ul&gt;
+&lt;h2&gt;Setup and donations&lt;/h2&gt;
+&lt;ul&gt;
+&lt;li&gt;The welcome screen explains the AirDrop, AirPlay, and Handoff tradeoff before approval.&lt;/li&gt;
+&lt;li&gt;Choosing Later no longer strands setup. Settings now has a visible Finish Setup action.&lt;/li&gt;
+&lt;li&gt;Unsupported CPU and latency claims have been removed from the app.&lt;/li&gt;
+&lt;li&gt;Every completed Latency Session recap includes a quiet donation link that never interrupts the recap or gates features. Permanent donation links are also available in the menu, Settings, About window, README, and GitHub repository.&lt;/li&gt;
+&lt;/ul&gt;
+&lt;h2&gt;Release engineering&lt;/h2&gt;
+&lt;ul&gt;
+&lt;li&gt;Releases build a fresh archive and validate the staged app, helper, widget, DMG, signatures, Team ID, entitlements, Hardened Runtime, Gatekeeper result, notarization ticket, and version metadata before publishing.&lt;/li&gt;
+&lt;li&gt;Marketing versions and numeric bundle builds are validated separately.&lt;/li&gt;
+&lt;li&gt;CI builds the complete app on macOS 26, runs the Foundation core on macOS and Linux, lints release scripts, and adds CodeQL and Dependabot coverage.&lt;/li&gt;
+&lt;li&gt;The update minimum is derived from the built app, fixing the appcast metadata that incorrectly excluded macOS 13 through 25 from recent updates.&lt;/li&gt;
+&lt;/ul&gt;
+      </description>
+      <pubDate>Mon, 13 Jul 2026 22:01:20 +0000</pubDate>
+      <enclosure url="https://github.com/oliverames/ping-warden/releases/download/v3.0.0/PingWarden-3.0.0.dmg" sparkle:version="30000" sparkle:shortVersionString="3.0.0" length="5605612" type="application/octet-stream" sparkle:edSignature="0+of8U7w+F+kRZ19vfD5VHgAm7Rfc/MD6nChMB4JRGv6LvQHzKocDhKGdBXoDg7i6ziNiKSeJnPoZt2aCb5UDg==" />
+      <sparkle:minimumSystemVersion>13.0</sparkle:minimumSystemVersion>
+    </item>
+    <item>
+      <title>Version 2.4.3</title>
+      <link>https://github.com/oliverames/ping-warden/releases/tag/v2.4.3</link>
+      <sparkle:version>2.4.3</sparkle:version>
+      <sparkle:shortVersionString>2.4.3</sparkle:shortVersionString>
+      <description>
+&lt;style&gt;
+body {
+    font-family: -apple-system, BlinkMacSystemFont, "Helvetica Neue", Helvetica, Arial, sans-serif;
+    font-size: 13px;
+    line-height: 1.55;
+    color: #1d1d1f;
+    margin: 0;
+    padding: 0;
+}
+h1, h2, h3 { color: #000; font-weight: 600; }
+h1 { font-size: 18px; margin: 0 0 10px 0; }
+h2 {
+    font-size: 11px;
+    text-transform: uppercase;
+    letter-spacing: 0.6px;
+    color: #6e6e73;
+    margin: 18px 0 6px 0;
+}
+h3 { font-size: 13px; margin: 14px 0 6px 0; }
+p { margin: 0 0 10px 0; }
+ul, ol { padding-left: 20px; margin: 0 0 10px 0; }
+li { margin-bottom: 5px; }
+li &gt; strong:first-child { color: #000; }
+code {
+    font-family: ui-monospace, "SF Mono", Menlo, monospace;
+    background: #f2f2f7;
+    padding: 1px 5px;
+    border-radius: 3px;
+    font-size: 12px;
+}
+a { color: #f5a542; text-decoration: none; }
+a:hover { text-decoration: underline; }
+hr { border: 0; border-top: 1px solid #e5e5ea; margin: 16px 0; }
+@media (prefers-color-scheme: dark) {
+    body { color: #f5f5f7; }
+    h1, h2, h3, li &gt; strong:first-child { color: #fff; }
+    h2 { color: #98989d; }
+    code { background: #2c2c2e; }
+    hr { border-top-color: #38383a; }
+}
+&lt;/style&gt;
+&lt;p&gt;&lt;a href="https://buymeacoffee.com/oliverames" rel="nofollow"&gt;Support Ping Warden on Buy Me a Coffee&lt;/a&gt;&lt;/p&gt;
+&lt;p&gt;Patch release for the 2.4 line.&lt;/p&gt;
+&lt;h2&gt;Reliability&lt;/h2&gt;
+&lt;ul&gt;
+&lt;li&gt;&lt;strong&gt;Settings crash fix&lt;/strong&gt;: Fixed a rare startup crash on macOS 26 and later. The hidden helper window that backs the standard Settings menu command was pinned to a one-pixel-wide size, which on newer macOS could send the layout engine into an endless update loop and abort the app. The window is now left to size itself, removing the loop.&lt;/li&gt;
+&lt;/ul&gt;
+      </description>
+      <pubDate>Mon, 22 Jun 2026 20:09:43 UTC</pubDate>
+      <enclosure url="https://github.com/oliverames/ping-warden/releases/download/v2.4.3/PingWarden-2.4.3.dmg" sparkle:version="2.4.3" sparkle:shortVersionString="2.4.3" length="5174077" type="application/octet-stream" sparkle:edSignature="HNUXkOjw+kvBTaJaaRWFr5SzSEiN0CzJLJTeEI7GNSjeCjVR4ADpbNZmsCAngzqWS86jSLw4Yk0fNPkIcwbSDg==" />
+      <sparkle:minimumSystemVersion>13.0</sparkle:minimumSystemVersion>
+    </item>
+    <item>
+      <title>Version 2.4.2</title>
+      <link>https://github.com/oliverames/ping-warden/releases/tag/v2.4.2</link>
+      <sparkle:version>2.4.2</sparkle:version>
+      <sparkle:shortVersionString>2.4.2</sparkle:shortVersionString>
+      <description>
+&lt;style&gt;
+body {
+    font-family: -apple-system, BlinkMacSystemFont, "Helvetica Neue", Helvetica, Arial, sans-serif;
+    font-size: 13px;
+    line-height: 1.55;
+    color: #1d1d1f;
+    margin: 0;
+    padding: 0;
+}
+h1, h2, h3 { color: #000; font-weight: 600; }
+h1 { font-size: 18px; margin: 0 0 10px 0; }
+h2 {
+    font-size: 11px;
+    text-transform: uppercase;
+    letter-spacing: 0.6px;
+    color: #6e6e73;
+    margin: 18px 0 6px 0;
+}
+h3 { font-size: 13px; margin: 14px 0 6px 0; }
+p { margin: 0 0 10px 0; }
+ul, ol { padding-left: 20px; margin: 0 0 10px 0; }
+li { margin-bottom: 5px; }
+li &gt; strong:first-child { color: #000; }
+code {
+    font-family: ui-monospace, "SF Mono", Menlo, monospace;
+    background: #f2f2f7;
+    padding: 1px 5px;
+    border-radius: 3px;
+    font-size: 12px;
+}
+a { color: #f5a542; text-decoration: none; }
+a:hover { text-decoration: underline; }
+hr { border: 0; border-top: 1px solid #e5e5ea; margin: 16px 0; }
+@media (prefers-color-scheme: dark) {
+    body { color: #f5f5f7; }
+    h1, h2, h3, li &gt; strong:first-child { color: #fff; }
+    h2 { color: #98989d; }
+    code { background: #2c2c2e; }
+    hr { border-top-color: #38383a; }
+}
+&lt;/style&gt;
+&lt;p&gt;&lt;a href="https://buymeacoffee.com/oliverames" rel="nofollow"&gt;Support Ping Warden on Buy Me a Coffee&lt;/a&gt;&lt;/p&gt;
+&lt;p&gt;Patch release for the 2.4 line.&lt;/p&gt;
+&lt;h2&gt;Reliability&lt;/h2&gt;
+&lt;ul&gt;
+&lt;li&gt;&lt;strong&gt;Donation prompt crash fix&lt;/strong&gt;: The support prompt now uses an explicit SwiftUI content size and matching AppKit window content rect. This avoids an unbounded macOS 27 SwiftUI/AppKit button measurement loop that could abort with an AttributeGraph stack overflow.&lt;/li&gt;
+&lt;li&gt;&lt;strong&gt;Dashboard picker layout fix&lt;/strong&gt;: The Ping History timeframe segmented control no longer shows a squeezed visible picker label when the dashboard card is narrow.&lt;/li&gt;
+&lt;li&gt;&lt;strong&gt;Settings title readability&lt;/strong&gt;: Settings section titles now use the native macOS titlebar material and soft scroll-edge treatment so scrolled content fades underneath without muddying the header text.&lt;/li&gt;
+&lt;/ul&gt;
+      </description>
+      <pubDate>Mon, 22 Jun 2026 13:59:49 UTC</pubDate>
+      <enclosure url="https://github.com/oliverames/ping-warden/releases/download/v2.4.2/PingWarden-2.4.2.dmg" sparkle:version="2.4.2" sparkle:shortVersionString="2.4.2" length="5174486" type="application/octet-stream" sparkle:edSignature="SIIujAEpGZR0wwHkwVKrsQlcgN72auxtTDTK0yWDAte0yFD8F5oTJSjQsfT1bzLtuvMQNl0q7Ab5KPYyojF8DQ==" />
+      <sparkle:minimumSystemVersion>13.0</sparkle:minimumSystemVersion>
+    </item>
+    <item>
+      <title>Version 2.4.1</title>
+      <link>https://github.com/oliverames/ping-warden/releases/tag/v2.4.1</link>
+      <sparkle:version>2.4.1</sparkle:version>
+      <sparkle:shortVersionString>2.4.1</sparkle:shortVersionString>
+      <description>
+&lt;style&gt;
+body {
+    font-family: -apple-system, BlinkMacSystemFont, "Helvetica Neue", Helvetica, Arial, sans-serif;
+    font-size: 13px;
+    line-height: 1.55;
+    color: #1d1d1f;
+    margin: 0;
+    padding: 0;
+}
+h1, h2, h3 { color: #000; font-weight: 600; }
+h1 { font-size: 18px; margin: 0 0 10px 0; }
+h2 {
+    font-size: 11px;
+    text-transform: uppercase;
+    letter-spacing: 0.6px;
+    color: #6e6e73;
+    margin: 18px 0 6px 0;
+}
+h3 { font-size: 13px; margin: 14px 0 6px 0; }
+p { margin: 0 0 10px 0; }
+ul, ol { padding-left: 20px; margin: 0 0 10px 0; }
+li { margin-bottom: 5px; }
+li &gt; strong:first-child { color: #000; }
+code {
+    font-family: ui-monospace, "SF Mono", Menlo, monospace;
+    background: #f2f2f7;
+    padding: 1px 5px;
+    border-radius: 3px;
+    font-size: 12px;
+}
+a { color: #f5a542; text-decoration: none; }
+a:hover { text-decoration: underline; }
+hr { border: 0; border-top: 1px solid #e5e5ea; margin: 16px 0; }
+@media (prefers-color-scheme: dark) {
+    body { color: #f5f5f7; }
+    h1, h2, h3, li &gt; strong:first-child { color: #fff; }
+    h2 { color: #98989d; }
+    code { background: #2c2c2e; }
+    hr { border-top-color: #38383a; }
+}
+&lt;/style&gt;
+&lt;p&gt;&lt;a href="https://buymeacoffee.com/oliverames" rel="nofollow"&gt;Support Ping Warden on Buy Me a Coffee&lt;/a&gt;&lt;/p&gt;
+&lt;p&gt;Patch release for the 2.4 line.&lt;/p&gt;
+&lt;h2&gt;Reliability&lt;/h2&gt;
+&lt;ul&gt;
+&lt;li&gt;&lt;strong&gt;Crash-reporting privacy/noise fix&lt;/strong&gt;: Sentry now explicitly disables failed HTTP request capture, so transient GitHub/Sparkle download errors like a 502 from a release asset do not get reported as Ping Warden errors. Crash reporting remains crash-only.&lt;/li&gt;
+&lt;/ul&gt;
+      </description>
+      <pubDate>Wed, 03 Jun 2026 12:44:01 UTC</pubDate>
+      <enclosure url="https://github.com/oliverames/ping-warden/releases/download/v2.4.1/PingWarden-2.4.1.dmg" sparkle:version="2.4.1" sparkle:shortVersionString="2.4.1" length="4432309" type="application/octet-stream" sparkle:edSignature="qQAowRtOr0GAPRLRnDWRgdxKCTVvw45OiGS18o6HaJDBs080pD9+9LXhosREejaTLJwr6KejsffoI175TW3vDA==" />
+      <sparkle:minimumSystemVersion>13.0</sparkle:minimumSystemVersion>
+    </item>
+    <item>
+      <title>Version 2.4.0</title>
+      <link>https://github.com/oliverames/ping-warden/releases/tag/v2.4.0</link>
+      <sparkle:version>2.4.0</sparkle:version>
+      <sparkle:shortVersionString>2.4.0</sparkle:shortVersionString>
+      <description>
+&lt;style&gt;
+body {
+    font-family: -apple-system, BlinkMacSystemFont, "Helvetica Neue", Helvetica, Arial, sans-serif;
+    font-size: 13px;
+    line-height: 1.55;
+    color: #1d1d1f;
+    margin: 0;
+    padding: 0;
+}
+h1, h2, h3 { color: #000; font-weight: 600; }
+h1 { font-size: 18px; margin: 0 0 10px 0; }
+h2 {
+    font-size: 11px;
+    text-transform: uppercase;
+    letter-spacing: 0.6px;
+    color: #6e6e73;
+    margin: 18px 0 6px 0;
+}
+h3 { font-size: 13px; margin: 14px 0 6px 0; }
+p { margin: 0 0 10px 0; }
+ul, ol { padding-left: 20px; margin: 0 0 10px 0; }
+li { margin-bottom: 5px; }
+li &gt; strong:first-child { color: #000; }
+code {
+    font-family: ui-monospace, "SF Mono", Menlo, monospace;
+    background: #f2f2f7;
+    padding: 1px 5px;
+    border-radius: 3px;
+    font-size: 12px;
+}
+a { color: #f5a542; text-decoration: none; }
+a:hover { text-decoration: underline; }
+hr { border: 0; border-top: 1px solid #e5e5ea; margin: 16px 0; }
+@media (prefers-color-scheme: dark) {
+    body { color: #f5f5f7; }
+    h1, h2, h3, li &gt; strong:first-child { color: #fff; }
+    h2 { color: #98989d; }
+    code { background: #2c2c2e; }
+    hr { border-top-color: #38383a; }
+}
+&lt;/style&gt;
+&lt;p&gt;&lt;a href="https://buymeacoffee.com/oliverames" rel="nofollow"&gt;Support Ping Warden on Buy Me a Coffee&lt;/a&gt;&lt;/p&gt;
+&lt;p&gt;Ping Warden 2.4.0 is a macOS 26-focused release that brings the app's settings, dashboard, and menu surfaces up to the current Tahoe design direction while tightening the release pipeline and Swift concurrency posture.&lt;/p&gt;
+&lt;h2&gt;Changelog&lt;/h2&gt;
+&lt;h3&gt;Interface&lt;/h3&gt;
+&lt;ul&gt;
+&lt;li&gt;&lt;strong&gt;Native settings redesign&lt;/strong&gt;: Settings now uses a single native split-view window with macOS sidebar chrome, consistent section spacing, and Tahoe-friendly rounded surfaces.&lt;/li&gt;
+&lt;li&gt;&lt;strong&gt;Liquid Glass polish&lt;/strong&gt;: Settings, dashboard cards, and first-run callouts now use macOS 26 glass materials and concentric corners where appropriate, with older fallback styling kept in place.&lt;/li&gt;
+&lt;li&gt;&lt;strong&gt;Dashboard layout cleanup&lt;/strong&gt;: The Ping Protection and Connection Settings panels have tighter alignment, clearer status states, and a more readable ping graph.&lt;/li&gt;
+&lt;li&gt;&lt;strong&gt;Menu bar icons&lt;/strong&gt;: Status menu actions now include SF Symbols so the dropdown matches the icon-led macOS 26 menu style.&lt;/li&gt;
+&lt;/ul&gt;
+&lt;h3&gt;Features&lt;/h3&gt;
+&lt;ul&gt;
+&lt;li&gt;&lt;strong&gt;Game Mode Auto-Detect is production-ready&lt;/strong&gt;: The setting is no longer labeled beta and now has steadier fullscreen-game detection behavior.&lt;/li&gt;
+&lt;li&gt;&lt;strong&gt;Control Center Widget is production-ready&lt;/strong&gt;: The widget path is no longer labeled beta. Settings now distinguishes widget availability from signing state without implying the feature is experimental.&lt;/li&gt;
+&lt;li&gt;&lt;strong&gt;Beta update channel&lt;/strong&gt;: Advanced settings include an opt-in Sparkle beta channel for testing pre-release builds.&lt;/li&gt;
+&lt;/ul&gt;
+&lt;h3&gt;Reliability&lt;/h3&gt;
+&lt;ul&gt;
+&lt;li&gt;&lt;strong&gt;Swift 6 strict concurrency&lt;/strong&gt;: The app target now builds with complete strict-concurrency checking, with sendable observer callbacks, explicit main-actor UI hops, and locked XPC callback state.&lt;/li&gt;
+&lt;li&gt;&lt;strong&gt;CI fix&lt;/strong&gt;: GitHub Actions now runs the maintained SwiftPM test suite instead of the removed smoke-test script.&lt;/li&gt;
+&lt;li&gt;&lt;strong&gt;Packaging hardening&lt;/strong&gt;: Release tooling validates notes, notarization prerequisites, appcast updates, and Sentry symbol upload paths before publishing.&lt;/li&gt;
+&lt;/ul&gt;
+      </description>
+      <pubDate>Tue, 02 Jun 2026 11:08:09 UTC</pubDate>
+      <enclosure url="https://github.com/oliverames/ping-warden/releases/download/v2.4.0/PingWarden-2.4.0.dmg" sparkle:version="2.4.0" sparkle:shortVersionString="2.4.0" length="5136748" type="application/octet-stream" sparkle:edSignature="qyDrx5j8CwoQPS5HwfyaDmj5z1rVVKlOpHPBCmeczuT8EJ96OHOHV+y+PpjaeSfrsDgCOjF0nYUi2HdUL3OPDA==" />
+      <sparkle:minimumSystemVersion>13.0</sparkle:minimumSystemVersion>
+    </item>
+    <item>
+      <title>Version 2.3.4</title>
+      <link>https://github.com/oliverames/ping-warden/releases/tag/v2.3.4</link>
+      <sparkle:version>2.3.4</sparkle:version>
+      <sparkle:shortVersionString>2.3.4</sparkle:shortVersionString>
+      <description>
+&lt;style&gt;
+body {
+    font-family: -apple-system, BlinkMacSystemFont, "Helvetica Neue", Helvetica, Arial, sans-serif;
+    font-size: 13px;
+    line-height: 1.55;
+    color: #1d1d1f;
+    margin: 0;
+    padding: 0;
+}
+h1, h2, h3 { color: #000; font-weight: 600; }
+h1 { font-size: 18px; margin: 0 0 10px 0; }
+h2 {
+    font-size: 11px;
+    text-transform: uppercase;
+    letter-spacing: 0.6px;
+    color: #6e6e73;
+    margin: 18px 0 6px 0;
+}
+h3 { font-size: 13px; margin: 14px 0 6px 0; }
+p { margin: 0 0 10px 0; }
+ul, ol { padding-left: 20px; margin: 0 0 10px 0; }
+li { margin-bottom: 5px; }
+li &gt; strong:first-child { color: #000; }
+code {
+    font-family: ui-monospace, "SF Mono", Menlo, monospace;
+    background: #f2f2f7;
+    padding: 1px 5px;
+    border-radius: 3px;
+    font-size: 12px;
+}
+a { color: #f5a542; text-decoration: none; }
+a:hover { text-decoration: underline; }
+hr { border: 0; border-top: 1px solid #e5e5ea; margin: 16px 0; }
+@media (prefers-color-scheme: dark) {
+    body { color: #f5f5f7; }
+    h1, h2, h3, li &gt; strong:first-child { color: #fff; }
+    h2 { color: #98989d; }
+    code { background: #2c2c2e; }
+    hr { border-top-color: #38383a; }
+}
+&lt;/style&gt;
+&lt;p&gt;Post-release stability and polish pass from manual macOS app testing.&lt;/p&gt;
+&lt;h2&gt;UX&lt;/h2&gt;
+&lt;ul&gt;
+&lt;li&gt;&lt;strong&gt;Ping Protection language&lt;/strong&gt;: Settings, Dashboard, and the Control Center widget now consistently use "Ping Protection" and "protection events" in primary UI instead of implementation-level AWDL labels.&lt;/li&gt;
+&lt;li&gt;&lt;strong&gt;Dashboard state copy&lt;/strong&gt;: The interventions panel now reflects the actual protection state instead of saying protection is active when it is off or not set up.&lt;/li&gt;
+&lt;/ul&gt;
+&lt;h2&gt;Packaging&lt;/h2&gt;
+&lt;ul&gt;
+&lt;li&gt;&lt;strong&gt;Leaner app bundle&lt;/strong&gt;: Release automation scripts are excluded from the shipped app resources.&lt;/li&gt;
+&lt;li&gt;&lt;strong&gt;macOS metadata&lt;/strong&gt;: The app now declares the Utilities category in its Info.plist.&lt;/li&gt;
+&lt;/ul&gt;
+      </description>
+      <pubDate>Tue, 19 May 2026 16:25:05 UTC</pubDate>
+      <enclosure url="https://github.com/oliverames/ping-warden/releases/download/v2.3.4/PingWarden-2.3.4.dmg" sparkle:version="2.3.4" sparkle:shortVersionString="2.3.4" length="5050408" type="application/octet-stream" sparkle:edSignature="3NFUv2OoRnPYICVcvMTOT3X6rPDCRQwulZOagtJz1bYbZ6oTOvEtWdCbGryAHxZmtx/BZYLH1vGLHcN1ltraDQ==" />
+      <sparkle:minimumSystemVersion>13.0</sparkle:minimumSystemVersion>
+    </item>
+    <item>
+      <title>Version 2.3.3</title>
+      <link>https://github.com/oliverames/ping-warden/releases/tag/v2.3.3</link>
+      <sparkle:version>2.3.3</sparkle:version>
+      <sparkle:shortVersionString>2.3.3</sparkle:shortVersionString>
+      <description>
+&lt;style&gt;
+body {
+    font-family: -apple-system, BlinkMacSystemFont, "Helvetica Neue", Helvetica, Arial, sans-serif;
+    font-size: 13px;
+    line-height: 1.55;
+    color: #1d1d1f;
+    margin: 0;
+    padding: 0;
+}
+h1, h2, h3 { color: #000; font-weight: 600; }
+h1 { font-size: 18px; margin: 0 0 10px 0; }
+h2 {
+    font-size: 11px;
+    text-transform: uppercase;
+    letter-spacing: 0.6px;
+    color: #6e6e73;
+    margin: 18px 0 6px 0;
+}
+h3 { font-size: 13px; margin: 14px 0 6px 0; }
+p { margin: 0 0 10px 0; }
+ul, ol { padding-left: 20px; margin: 0 0 10px 0; }
+li { margin-bottom: 5px; }
+li &gt; strong:first-child { color: #000; }
+code {
+    font-family: ui-monospace, "SF Mono", Menlo, monospace;
+    background: #f2f2f7;
+    padding: 1px 5px;
+    border-radius: 3px;
+    font-size: 12px;
+}
+a { color: #f5a542; text-decoration: none; }
+a:hover { text-decoration: underline; }
+hr { border: 0; border-top: 1px solid #e5e5ea; margin: 16px 0; }
+@media (prefers-color-scheme: dark) {
+    body { color: #f5f5f7; }
+    h1, h2, h3, li &gt; strong:first-child { color: #fff; }
+    h2 { color: #98989d; }
+    code { background: #2c2c2e; }
+    hr { border-top-color: #38383a; }
+}
+&lt;/style&gt;
+&lt;p&gt;First-launch and Settings polish found during manual macOS app testing.&lt;/p&gt;
+&lt;h2&gt;UX&lt;/h2&gt;
+&lt;ul&gt;
+&lt;li&gt;&lt;strong&gt;Cleaner first launch&lt;/strong&gt; — Sparkle no longer opens its automatic-update prompt before Ping Warden's own welcome/setup flow. Manual "Check for Updates" still works from the menu.&lt;/li&gt;
+&lt;li&gt;&lt;strong&gt;Settings scrolling&lt;/strong&gt; — Settings tabs now keep their section header pinned outside the scroll view, and Dashboard no longer nests a second scroll view inside Settings. Dashboard content can scroll without sliding under the titlebar.&lt;/li&gt;
+&lt;/ul&gt;
+&lt;h2&gt;Internal&lt;/h2&gt;
+&lt;ul&gt;
+&lt;li&gt;&lt;strong&gt;Release automation&lt;/strong&gt; — The release script now accepts App Store Connect API-key notarization credentials as well as the legacy keychain profile, and the gh-pages appcast commit disables GPG signing in non-interactive automation.&lt;/li&gt;
+&lt;/ul&gt;
+      </description>
+      <pubDate>Tue, 19 May 2026 11:31:45 UTC</pubDate>
+      <enclosure url="https://github.com/oliverames/ping-warden/releases/download/v2.3.3/PingWarden-2.3.3.dmg" sparkle:version="2.3.3" sparkle:shortVersionString="2.3.3" length="5060281" type="application/octet-stream" sparkle:edSignature="Kq3eKo5jcJYEHac7b1NHBlIVzCnYUbJo8dN5pESIxQC+yQqM1Wj8hOA5oA18sD/MfENfnPUeDiBpp3/IaY+OAQ==" />
+      <sparkle:minimumSystemVersion>13.0</sparkle:minimumSystemVersion>
+    </item>
+    <item>
+      <title>Version 2.3.2</title>
+      <link>https://github.com/oliverames/ping-warden/releases/tag/v2.3.2</link>
+      <sparkle:version>2.3.2</sparkle:version>
+      <sparkle:shortVersionString>2.3.2</sparkle:shortVersionString>
+      <description>
+&lt;style&gt;
+body {
+    font-family: -apple-system, BlinkMacSystemFont, "Helvetica Neue", Helvetica, Arial, sans-serif;
+    font-size: 13px;
+    line-height: 1.55;
+    color: #1d1d1f;
+    margin: 0;
+    padding: 0;
+}
+h1, h2, h3 { color: #000; font-weight: 600; }
+h1 { font-size: 18px; margin: 0 0 10px 0; }
+h2 {
+    font-size: 11px;
+    text-transform: uppercase;
+    letter-spacing: 0.6px;
+    color: #6e6e73;
+    margin: 18px 0 6px 0;
+}
+h3 { font-size: 13px; margin: 14px 0 6px 0; }
+p { margin: 0 0 10px 0; }
+ul, ol { padding-left: 20px; margin: 0 0 10px 0; }
+li { margin-bottom: 5px; }
+li &gt; strong:first-child { color: #000; }
+code {
+    font-family: ui-monospace, "SF Mono", Menlo, monospace;
+    background: #f2f2f7;
+    padding: 1px 5px;
+    border-radius: 3px;
+    font-size: 12px;
+}
+a { color: #f5a542; text-decoration: none; }
+a:hover { text-decoration: underline; }
+hr { border: 0; border-top: 1px solid #e5e5ea; margin: 16px 0; }
+@media (prefers-color-scheme: dark) {
+    body { color: #f5f5f7; }
+    h1, h2, h3, li &gt; strong:first-child { color: #fff; }
+    h2 { color: #98989d; }
+    code { background: #2c2c2e; }
+    hr { border-top-color: #38383a; }
+}
+&lt;/style&gt;
+&lt;p&gt;Stability-focused beta with packaging fixes for the Control Center widget and tighter reconnect behavior around the privileged helper.&lt;/p&gt;
+&lt;h2&gt;Reliability&lt;/h2&gt;
+&lt;ul&gt;
+&lt;li&gt;&lt;strong&gt;Control Center widget packaging&lt;/strong&gt; — The widget target now builds with its own &lt;code class="notranslate"&gt;Info.plist&lt;/code&gt; and entitlements instead of inheriting the main app metadata. The built &lt;code class="notranslate"&gt;.appex&lt;/code&gt; now carries the required &lt;code class="notranslate"&gt;NSExtension&lt;/code&gt; payload and correct extension package type.&lt;/li&gt;
+&lt;li&gt;&lt;strong&gt;Helper reconnect hardening&lt;/strong&gt; — Replacing an XPC connection can no longer let the old connection's invalidation handler clear the fresh connection. This avoids false "lost helper" states during reconnect churn.&lt;/li&gt;
+&lt;li&gt;&lt;strong&gt;Ping monitor session isolation&lt;/strong&gt; — Stale ping probes are dropped after a target change or monitor restart, and overlapping probes are skipped instead of building a backlog when a network call is slow.&lt;/li&gt;
+&lt;li&gt;&lt;strong&gt;Helper control pipe&lt;/strong&gt; — The helper's write side of the control pipe is now non-blocking, so rapid toggle/reconnect churn cannot hang an XPC handler thread.&lt;/li&gt;
+&lt;/ul&gt;
+&lt;h2&gt;Internal&lt;/h2&gt;
+&lt;ul&gt;
+&lt;li&gt;Version metadata is consistent across the app, helper, widget, Xcode build settings, and helper runtime version string.&lt;/li&gt;
+&lt;li&gt;XPC helper connection counting now guards against underflow on duplicate invalidation callbacks.&lt;/li&gt;
+&lt;/ul&gt;
+      </description>
+      <pubDate>Mon, 18 May 2026 21:52:26 UTC</pubDate>
+      <enclosure url="https://github.com/oliverames/ping-warden/releases/download/v2.3.2/PingWarden-2.3.2.dmg" sparkle:version="2.3.2" sparkle:shortVersionString="2.3.2" length="4351953" type="application/octet-stream" sparkle:edSignature="+ozqofQYvQiQRWQe83cQmV2VCt4vVKuYN4xcAY8CnN/ZyVC70IQL36lLcz9YmM8x9VkTcIKu/5Y8WvYExzMRAQ==" />
+      <sparkle:minimumSystemVersion>13.0</sparkle:minimumSystemVersion>
+    </item>
+    <item>
+      <title>Version 2.3.0</title>
+      <link>https://github.com/oliverames/ping-warden/releases/tag/v2.3.0</link>
+      <sparkle:version>2.3.0</sparkle:version>
+      <sparkle:shortVersionString>2.3.0</sparkle:shortVersionString>
+      <description>
+&lt;style&gt;
+body {
+    font-family: -apple-system, BlinkMacSystemFont, "Helvetica Neue", Helvetica, Arial, sans-serif;
+    font-size: 13px;
+    line-height: 1.55;
+    color: #1d1d1f;
+    margin: 0;
+    padding: 0;
+}
+h1, h2, h3 { color: #000; font-weight: 600; }
+h1 { font-size: 18px; margin: 0 0 10px 0; }
+h2 {
+    font-size: 11px;
+    text-transform: uppercase;
+    letter-spacing: 0.6px;
+    color: #6e6e73;
+    margin: 18px 0 6px 0;
+}
+h3 { font-size: 13px; margin: 14px 0 6px 0; }
+p { margin: 0 0 10px 0; }
+ul, ol { padding-left: 20px; margin: 0 0 10px 0; }
+li { margin-bottom: 5px; }
+li &gt; strong:first-child { color: #000; }
+code {
+    font-family: ui-monospace, "SF Mono", Menlo, monospace;
+    background: #f2f2f7;
+    padding: 1px 5px;
+    border-radius: 3px;
+    font-size: 12px;
+}
+a { color: #f5a542; text-decoration: none; }
+a:hover { text-decoration: underline; }
+hr { border: 0; border-top: 1px solid #e5e5ea; margin: 16px 0; }
+@media (prefers-color-scheme: dark) {
+    body { color: #f5f5f7; }
+    h1, h2, h3, li &gt; strong:first-child { color: #fff; }
+    h2 { color: #98989d; }
+    code { background: #2c2c2e; }
+    hr { border-top-color: #38383a; }
+}
+&lt;/style&gt;
+&lt;p&gt;Two user-facing features plus the usual round of testing improvements.&lt;/p&gt;
+&lt;h2&gt;Features&lt;/h2&gt;
+&lt;ul&gt;
+&lt;li&gt;&lt;strong&gt;Custom ping servers&lt;/strong&gt; (&lt;a href="https://github.com/oliverames/ping-warden/issues/29" data-hovercard-type="issue" data-hovercard-url="/oliverames/ping-warden/issues/29/hovercard"&gt;#29&lt;/a&gt;) — Add your own DNS or ping targets (NextDNS, Control D, anything else) under Dashboard → Custom Servers. Targets persist in the App Group, survive updates, and feed into the same auto-select-nearest flow as the built-in list.&lt;/li&gt;
+&lt;li&gt;&lt;strong&gt;One-time donation prompt&lt;/strong&gt; — A polite, dismissible Buy Me a Coffee ask that appears once on launch and again only on minor-version bumps. A "Don't ask again" button is a permanent kill switch, and the entire flow is governed by &lt;code class="notranslate"&gt;VersionPromptPolicy&lt;/code&gt; so it cannot accidentally re-fire after a patch release.&lt;/li&gt;
+&lt;/ul&gt;
+&lt;h2&gt;Internal&lt;/h2&gt;
+&lt;ul&gt;
+&lt;li&gt;New &lt;code class="notranslate"&gt;VersionPromptPolicy&lt;/code&gt; and &lt;code class="notranslate"&gt;CustomPingTargetStore&lt;/code&gt; in &lt;code class="notranslate"&gt;Core/&lt;/code&gt;, both pure-Foundation and covered by &lt;code class="notranslate"&gt;swift test&lt;/code&gt;. Total Core test count: 33 (up from 15 in v2.2.2).&lt;/li&gt;
+&lt;li&gt;&lt;code class="notranslate"&gt;PingWardenPreferences.defaults&lt;/code&gt; is now exposed so non-singleton consumers (custom-target store, future targets) can share the App Group suite without duplicating the suite name.&lt;/li&gt;
+&lt;li&gt;&lt;code class="notranslate"&gt;performUninstall&lt;/code&gt; resets the new donation-prompt and custom-targets state alongside the existing keys.&lt;/li&gt;
+&lt;/ul&gt;
+      </description>
+      <pubDate>Mon, 11 May 2026 15:24:51 UTC</pubDate>
+      <enclosure url="https://github.com/oliverames/ping-warden/releases/download/v2.3.0/PingWarden-2.3.0.dmg" sparkle:version="2.3.0" sparkle:shortVersionString="2.3.0" length="3738671" type="application/octet-stream" sparkle:edSignature="PU28uyfVu8Bi+3FSlwdmsO1jfbylMbuZK6fYx7thRIH+r0A2QU/FyziuoFG6SkaBlRGC5QnQpNTklpXoFpbaDA==" />
+      <sparkle:minimumSystemVersion>13.0</sparkle:minimumSystemVersion>
+    </item>
+    <item>
+      <title>Version 2.2.2</title>
+      <link>https://github.com/oliverames/ping-warden/releases/tag/v2.2.2</link>
+      <sparkle:version>2.2.2</sparkle:version>
+      <sparkle:shortVersionString>2.2.2</sparkle:shortVersionString>
+      <description>
+        &lt;h2&gt;What's New in 2.2.2&lt;/h2&gt;
+        &lt;p&gt;See release notes on GitHub&lt;/p&gt;
+      </description>
+      <pubDate>Mon, 11 May 2026 15:05:33 UTC</pubDate>
+      <enclosure url="https://github.com/oliverames/ping-warden/releases/download/v2.2.2/PingWarden-2.2.2.dmg" sparkle:version="2.2.2" sparkle:shortVersionString="2.2.2" length="3685550" type="application/octet-stream" sparkle:edSignature="G/RTmCdSZGH3LzONVigErU/Cc3CA1tB5+sxRgN+knb5X2IC+IAA138bIr99TtebdjL0iuT9uIj4Uyv/eIubrCA==" />
+      <sparkle:minimumSystemVersion>13.0</sparkle:minimumSystemVersion>
+    </item>
+    <item>
+      <title>Version 2.2.1</title>
+      <link>https://github.com/oliverames/ping-warden/releases/tag/v2.2.1</link>
+      <sparkle:version>2.2.1</sparkle:version>
+      <sparkle:shortVersionString>2.2.1</sparkle:shortVersionString>
+      <description>
+        &lt;h2&gt;What's New in 2.2.1&lt;/h2&gt;
+        &lt;p&gt;See release notes on GitHub&lt;/p&gt;
+      </description>
+      <pubDate>Fri, 20 Mar 2026 23:14:03 UTC</pubDate>
+      <enclosure url="https://github.com/oliverames/ping-warden/releases/download/v2.2.1/PingWarden-2.2.1.dmg" sparkle:version="2.2.1" sparkle:shortVersionString="2.2.1" length="3632174" type="application/octet-stream" sparkle:edSignature="ArlbDFERQSiA26vf4h6ENoCmLULYX+mAXvhMRRxX+o4XIYPbjflfyhHO65THYsYYJAzRZ4tmDPvM9YdxotOUDQ==" />
+      <sparkle:minimumSystemVersion>13.0</sparkle:minimumSystemVersion>
+    </item>
+    <item>
+      <title>Version 2.2.0</title>
+      <link>https://github.com/oliverames/ping-warden/releases/tag/v2.2.0</link>
+      <sparkle:version>2.2.0</sparkle:version>
+      <sparkle:shortVersionString>2.2.0</sparkle:shortVersionString>
+      <description>
+        &lt;h2&gt;What's New in 2.2.0&lt;/h2&gt;
+        &lt;p&gt;See release notes on GitHub&lt;/p&gt;
+      </description>
+      <pubDate>Fri, 20 Mar 2026 12:07:38 UTC</pubDate>
+      <enclosure url="https://github.com/oliverames/ping-warden/releases/download/v2.2.0/PingWarden-2.2.0.dmg" sparkle:version="2.2.0" sparkle:shortVersionString="2.2.0" length="3627205" type="application/octet-stream" sparkle:edSignature="BuhBlcfIAOyJZfVXZD2fjIHBnJv+Fs3Jp+2VsBW0w52O7bURfMSj8X5WWkNL+ai7sUMeNM2I8y935/4FF6esCA==" />
+      <sparkle:minimumSystemVersion>13.0</sparkle:minimumSystemVersion>
+    </item>
+    <item>
+      <title>Version 2.1.2</title>
+      <link>https://github.com/oliverames/ping-warden/releases/tag/v2.1.2</link>
+      <sparkle:version>2.1.2</sparkle:version>
+      <sparkle:shortVersionString>2.1.2</sparkle:shortVersionString>
+      <description>
+        &lt;h2&gt;What's New in 2.1.2&lt;/h2&gt;
+        &lt;p&gt;See release notes on GitHub&lt;/p&gt;
+      </description>
+      <pubDate>Sun, 08 Feb 2026 00:00:45 UTC</pubDate>
+      <enclosure url="https://github.com/oliverames/ping-warden/releases/download/v2.1.2/PingWarden-2.1.2.dmg" sparkle:version="2.1.2" sparkle:shortVersionString="2.1.2" length="3623770" type="application/octet-stream" sparkle:edSignature="Th9J20ii+EOsC5TceYhnfSF4Ejtgv6dS/fMQtUX2BHZeSo9HrHpxxJez3xi0+BY5DJPDltgVwGy+xh1fAhXoBw==" />
+      <sparkle:minimumSystemVersion>13.0</sparkle:minimumSystemVersion>
+    </item>
+    <item>
+      <title>Version 2.1.1</title>
+      <link>https://github.com/oliverames/ping-warden/releases/tag/v2.1.1</link>
+      <sparkle:version>2.1.1</sparkle:version>
+      <sparkle:shortVersionString>2.1.1</sparkle:shortVersionString>
+      <description>
+        &lt;h2&gt;What's New in 2.1.1&lt;/h2&gt;
+        &lt;p&gt;See release notes on GitHub&lt;/p&gt;
+      </description>
+      <pubDate>Sat, 07 Feb 2026 01:35:13 UTC</pubDate>
+      <enclosure url="https://github.com/oliverames/ping-warden/releases/download/v2.1.1/PingWarden-2.1.1.dmg" sparkle:version="2.1.1" sparkle:shortVersionString="2.1.1" length="3453952" type="application/octet-stream" sparkle:edSignature="QKhPfyLmESMdxi3wQr74UdvYWyw6Qdj/gt4GbCFtxoq4gBtpgHVmbFkJaJl+cHrBbPD9H31TlmUwqVxpNNJFDQ==" />
+      <sparkle:minimumSystemVersion>13.0</sparkle:minimumSystemVersion>
+    </item>
+    <item>
+      <title>Version 2.1.0</title>
+      <link>https://github.com/oliverames/ping-warden/releases/tag/v2.1.0</link>
+      <sparkle:version>2.1.0</sparkle:version>
+      <sparkle:shortVersionString>2.1.0</sparkle:shortVersionString>
+      <description>
+        &lt;h2&gt;What's New in 2.1.0&lt;/h2&gt;
+        &lt;p&gt;See release notes on GitHub&lt;/p&gt;
+      </description>
+      <pubDate>Sat, 07 Feb 2026 01:04:22 UTC</pubDate>
+      <enclosure url="https://github.com/oliverames/ping-warden/releases/download/v2.1.0/PingWarden-2.1.0.dmg" sparkle:version="2.1.0" sparkle:shortVersionString="2.1.0" length="3427027" type="application/octet-stream" sparkle:edSignature="vUUnCba6ovgG86jtiQri5qwQVRdM1jsL2XWVEvUDQ53RU1hIBJqV4NGKBDJT5NV8EucH/ilsaR+bqyXEwC4QBQ==" />
+      <sparkle:minimumSystemVersion>13.0</sparkle:minimumSystemVersion>
+    </item>
+    <item>
+      <title>Version 2.0.5</title>
+      <link>https://github.com/oliverames/ping-warden/releases/tag/v2.0.5</link>
+      <sparkle:version>2.0.5</sparkle:version>
+      <sparkle:shortVersionString>2.0.5</sparkle:shortVersionString>
+      <description>
+        &lt;h2&gt;What's New in 2.0.5&lt;/h2&gt;
+        &lt;ul&gt;
+          &lt;li&gt;&lt;strong&gt;Automatic Updates:&lt;/strong&gt; Added Sparkle framework for automatic update checking&lt;/li&gt;
+          &lt;li&gt;Check for updates manually via the menu bar&lt;/li&gt;
+          &lt;li&gt;Background update checking enabled&lt;/li&gt;
+        &lt;/ul&gt;
+      </description>
+      <pubDate>Thu, 06 Feb 2026 01:30:00 +0000</pubDate>
+      <enclosure url="https://github.com/oliverames/ping-warden/releases/download/v2.0.5/PingWarden-2.0.5.dmg" sparkle:version="2.0.5" sparkle:shortVersionString="2.0.5" length="3436051" type="application/octet-stream" sparkle:edSignature="dqPWgU0ARBkRWIlGQkCM6e6I7bg/phEBv91ti3QLu3tl3xqJRAApkmHwuxPRXHjMIR12ocX0XSDoq+RItsQKAA==" />
+      <sparkle:minimumSystemVersion>13.0</sparkle:minimumSystemVersion>
+    </item>
+    <item>
+      <title>Version 2.0.4</title>
+      <link>https://github.com/oliverames/ping-warden/releases/tag/v2.0.4</link>
+      <sparkle:version>2.0.4</sparkle:version>
+      <sparkle:shortVersionString>2.0.4</sparkle:shortVersionString>
+      <description>
+        &lt;h2&gt;What's New in 2.0.4&lt;/h2&gt;
+        &lt;ul&gt;
+          &lt;li&gt;&lt;strong&gt;Fixed ping measurement:&lt;/strong&gt; Corrected timing bug that caused inaccurate latency readings&lt;/li&gt;
+        &lt;/ul&gt;
+      </description>
+      <pubDate>Wed, 05 Feb 2026 20:15:00 +0000</pubDate>
+      <enclosure url="https://github.com/oliverames/ping-warden/releases/download/v2.0.4/PingWarden-2.0.4.dmg" sparkle:version="2.0.4" sparkle:shortVersionString="2.0.4" length="2586530" type="application/octet-stream" />
+      <sparkle:minimumSystemVersion>13.0</sparkle:minimumSystemVersion>
+    </item>
   </channel>
 </rss>
 <!-- sparkle-signatures:
-edSignature: +uZKz91xLalC0DVk/qpLU/QUzCPutCVk1nwlwuH88JfrW3dM2mKPkno1lQgt+cUFH4N/DMbJ2nmZMpLIJK02BA==
-length: 417
+edSignature: FLITSJgcStoEImtNYrCN+kvuay3GojHVtQzwH2TxHETiOiatXx1CbMhMoqwyyYSTOPjF3xsHwxjAb0HR4KrQDA==
+length: 61234
 -->
