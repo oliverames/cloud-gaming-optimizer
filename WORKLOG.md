@@ -4,7 +4,9 @@
 
 Apple Developer access worked. The onboarding review found that an unregistered helper caused the welcome to repeat at every launch after dismissal. Added a persistent presentation marker without changing the welcome layout, protection intent, or license policy. Manual setup remains available, and app-data removal restores the introduction. Updated both READMEs, Quick Start, and release notes.
 
-All 117 core tests and nine release-tool tests pass. A full Debug build with isolated settings and keychain identities was visually checked through first launch, **Not Now**, quit, relaunch, Settings, and the free dashboard. The welcome fits its normal window and does not repeat. The full stable release is prepared as 4.0.4 / 40004. See `docs/2026-09-05-welcome-followup.md` for evidence and limits.
+All 117 core tests and nine release-tool tests pass. A full Debug build with isolated settings and keychain identities was visually checked through first launch, **Not Now**, quit, relaunch, Settings, and the free dashboard. The welcome fits its normal window and does not repeat.
+
+The full stable 4.0.4 / 40004 release published at 16:56 UTC from `2b3c46a`. Independently downloaded the public DMG, checked its bytes and Apple signature, and verified Gatekeeper and both stapled notarization tickets. Both live Sparkle feeds and their archive signatures verify against the app key, with the paid-upgrade boundary intact. Gumroad offers only the current DMG embed and preserves license keys. Sentry finalized the release and uploaded the missing symbols. Build Verification passed for the source commit; CodeQL was still running at 16:58 UTC. See `docs/2026-09-05-welcome-followup.md` for evidence and limits.
 
 ## 2026-09-05 - Landing polish and purchase verification
 

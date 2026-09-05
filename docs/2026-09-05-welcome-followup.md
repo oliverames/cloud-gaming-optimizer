@@ -22,4 +22,15 @@ This follows [Apple's onboarding guidance](https://developer.apple.com/design/hu
 
 ## Publication
 
-The full stable release is prepared for version 4.0.4, build 40004. Public artifact, Sparkle, and Gumroad verification will be recorded after publication.
+The full stable [4.0.4 release](https://github.com/oliverames/ping-warden/releases/tag/v4.0.4), build 40004, was published at 16:56 UTC on September 5, 2026. The public tag points to the tested source commit `2b3c46a731d3391888a90ba2df95e5cfdfe08942`.
+
+Checks completed by 16:58 UTC:
+
+- Downloaded the public GitHub DMG independently. It is 5,771,634 bytes and exactly matches the release artifact. SHA-256: `9918cfb97dbc14a77bb84a942776302606119f7cdf6f5d55c86fde33cf2334fa`.
+- Mounted the public DMG read-only. The app reports 4.0.4 / 40004. Its complete signature verifies, Gatekeeper accepts it as Notarized Developer ID, and the app and DMG have valid stapled notarization tickets. The signer is Oliver Ames, team `PV3W52NDZ3`.
+- Both public Sparkle feeds advertise 4.0.4 / 40004, preserve paid-upgrade boundary 40000 and the $15 disclosure, and point to the verified download. Independently verified both complete feed signatures and the DMG signature against the app's public key. Public feed bytes match both committed feed copies.
+- Gumroad is published at US$15. Its buyer content embeds only `PingWarden-4.0.4.dmg` and retains one license-key block. The publisher downloaded and checked the Gumroad file against the release artifact before replacing the old embed, then reread the resulting content.
+- Sentry processed the archive's debug information, uploaded four missing files, and finalized `com.amesvt.pingwarden@4.0.4` with the correct source revision.
+- GitHub Build Verification passed for the release source, including the complete macOS app, Linux core tests, and shell checks. CodeQL analysis was still running at this observation.
+
+The landing page and checkout copy from the [earlier September 5 review](2026-09-05-landing-review.md) remain published. No buyer message was sent, and no additional customer-key verification was needed for this welcome-only change.
