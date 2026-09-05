@@ -1,3 +1,17 @@
+# Ping Warden 4.0.4
+
+The welcome screen now appears automatically only once, so you can dismiss setup and use the free dashboard without repeated prompts.
+
+## Fixes
+
+- Choosing **Not Now**, closing the welcome, or opening License settings no longer makes the introduction reappear at the next launch when helper setup is incomplete.
+- You can still start setup from the menu bar or **Settings → General → Finish Setup** whenever you want Ping Protection.
+- Removing app data restores the introduction for a fresh installation. Dismissing it does not change protection settings or license access.
+
+## Upgrading from a free version
+
+Ping Protection requires a [one-time $15 license](https://amesconsulting.gumroad.com/l/pingwarden). The dashboard, diagnostics, and updates stay free, and the source remains MIT. Existing users whose protection was enabled with an approved helper when they first launched version 4 keep their original 90-day transition. Check **Settings → License** for the time remaining. If you donated before version 4, email [oliver@ames.consulting](mailto:oliver@ames.consulting) with your receipt for a license.
+
 # Ping Warden 4.0.3
 
 The welcome screen now uses the app icon, native macOS controls, and a shorter introduction to protection, live latency, and wireless sharing.

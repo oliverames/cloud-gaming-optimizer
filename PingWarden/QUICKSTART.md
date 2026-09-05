@@ -18,6 +18,8 @@ If protection was enabled with an approved helper when you first launched versio
 
 ### 3. Approve the helper
 
+The welcome appears automatically once. Choose **Not Now** to use the free dashboard and finish setup later.
+
 1. Click **Turn On Ping Protection** in the welcome window, or **Finish Setup** in **Settings → General** if you already closed it.
 2. Approve Ping Warden in System Settings when macOS asks.
 3. Return to Ping Warden after the approval is complete.

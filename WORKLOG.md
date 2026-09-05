@@ -1,5 +1,11 @@
 # Ping Warden Worklog
 
+## 2026-09-05 - 4.0.4 welcome dismissal
+
+Apple Developer access worked. The onboarding review found that an unregistered helper caused the welcome to repeat at every launch after dismissal. Added a persistent presentation marker without changing the welcome layout, protection intent, or license policy. Manual setup remains available, and app-data removal restores the introduction. Updated both READMEs, Quick Start, and release notes.
+
+All 117 core tests and nine release-tool tests pass. A full Debug build with isolated settings and keychain identities was visually checked through first launch, **Not Now**, quit, relaunch, Settings, and the free dashboard. The welcome fits its normal window and does not repeat. The full stable release is prepared as 4.0.4 / 40004. See `docs/2026-09-05-welcome-followup.md` for evidence and limits.
+
 ## 2026-09-05 - Landing polish and purchase verification
 
 Published the second landing pass: app icon above the title, a shorter hero, complete phone navigation, a header purchase action, and a direct free download. Removed hidden reveal states and the floating button. Corrected contrast, feature labels, and the transition disclosure. Updated Gumroad's description for the version 4 donor cutoff, original transition deadline, and current setup labels. The description now has a tracked source in `docs/gumroad-product-description.html`.

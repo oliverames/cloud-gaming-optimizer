@@ -67,6 +67,8 @@ Open **Settings → License** and enter the key from your receipt. The app verif
 
 ### 3. Approve the helper
 
+The welcome appears automatically once. Choose **Not Now** to use the free dashboard and finish setup later.
+
 In the welcome window, click **Turn On Ping Protection** after activation. If you already closed it, open **Settings → General** and click **Finish Setup**. Approve Ping Warden in System Settings when macOS asks. This one-time approval lets the app control wireless sharing.
 
 ### 4. Turn on Ping Protection and verify it

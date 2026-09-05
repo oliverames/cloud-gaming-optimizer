@@ -233,11 +233,15 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSMenuDele
             setupMenuBar()
         }
 
-        // Check if this is first launch (helper not registered)
+        // Helper setup can remain incomplete when someone only wants the
+        // free dashboard. Show the optional introduction once, not every launch.
         if !monitor.isHelperRegistered {
-            log.info("First launch detected - helper not registered")
+            log.info("Helper setup is incomplete")
             if debugWindowTarget == nil {
                 DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
+                    guard self.welcomePresentation.shouldPresentAutomatically(
+                        helperIsRegistered: PingWardenMonitor.shared.isHelperRegistered
+                    ) else { return }
                     self.showWelcomeWindow()
                 }
             }
@@ -482,6 +486,10 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSMenuDele
 
     // MARK: - Welcome Window
 
+    private var welcomePresentation: WelcomePresentationState {
+        WelcomePresentationState(defaults: PingWardenPreferences.shared.defaults)
+    }
+
     private func showWelcomeWindow() {
         if welcomeWindow != nil { return }
 
@@ -561,6 +569,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSMenuDele
         NSApp.setActivationPolicy(.regular)
 
         window.makeKeyAndOrderFront(nil)
+        welcomePresentation.markPresented()
         NSApp.activate(ignoringOtherApps: true)
         ensureApplicationMenuItems()
     }
