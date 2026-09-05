@@ -1,5 +1,11 @@
 # Ping Warden Worklog
 
+## 2026-09-05 - Landing polish and purchase verification
+
+Published the second landing pass: app icon above the title, a shorter hero, complete phone navigation, a header purchase action, and a direct free download. Removed hidden reveal states and the floating button. Corrected contrast, feature labels, and the transition disclosure. Updated Gumroad's description for the version 4 donor cutoff, original transition deadline, and current setup labels. The description now has a tracked source in `docs/gumroad-product-description.html`.
+
+Verified prepared layouts from 320 to 1440 pixels, live desktop and phone renders, keyboard controls, dark appearance, reduced motion, sanitizer output, and the US$15 checkout. Published HTML and description match their prepared sources. Buyer download and license-key content are unchanged. At Oliver's request, a new paid purchase passed Gumroad's non-incrementing license verification without changing its use count. Inbox delivery and activation on the buyer's Mac are not observable through the available sale record. See `docs/2026-09-05-landing-review.md` for evidence and limits.
+
 ## 2026-09-04 - Documentation verification after 4.0.3
 
 Clarified the version 4 donor cutoff and the original 90-day deadline in both READMEs and Quick Start. Added the approved-helper eligibility condition and disclosed the Gumroad verification request in the privacy and License sections. Updated the detailed Sparkle guide for stable and beta feeds, paid-upgrade review, and current release publication. Reread the changed text against the release implementation, checked relative links, and passed `git diff --check`. This follow-up changes documentation only.

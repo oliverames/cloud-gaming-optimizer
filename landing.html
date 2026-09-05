@@ -129,7 +129,7 @@
   .btn { font-family: var(--font-heading); font-weight: 600; font-size: 1rem; padding: 0.85rem 1.25rem; min-height: 44px; border-radius: var(--radius-pill); text-decoration: none; display: inline-flex; justify-content: center; align-items: center; gap: 0.4rem; border: 1px solid transparent; background: transparent; cursor: pointer; text-align: center; transition: background var(--motion-snap), color var(--motion-snap), border-color var(--motion-snap); }
   .btn:hover { text-decoration: none; }
   .btn--primary { background: var(--text-0); color: var(--surface-0); border-color: var(--text-0); }
-  .btn--primary:hover { background: var(--accent-hover); border-color: var(--accent-hover); color: #faf8f5; }
+  .btn--primary:hover { background: color-mix(in srgb, var(--accent-hover) 85%, black); border-color: color-mix(in srgb, var(--accent-hover) 85%, black); color: #faf8f5; }
   .btn--ghost { color: var(--text-0); border-color: color-mix(in srgb, var(--text-0) 22%, transparent); }
   .btn--ghost:hover { border-color: var(--text-0); color: var(--text-0); }
 
@@ -209,7 +209,7 @@
   .practice-card p { font-size: 1.02rem; line-height: 1.55; color: var(--text-1); margin: 0 0 1.15rem; flex: 1; }
   .practice-card .practice-cta { font-family: var(--font-heading); font-size: 0.88rem; font-weight: 600; letter-spacing: 0.08em; text-transform: uppercase; color: var(--accent-text); }
   .practice-card--primary { border-color: color-mix(in srgb, var(--accent) 62%, transparent); background: radial-gradient(circle at 100% 0, color-mix(in srgb, var(--accent) 14%, transparent), transparent 52%), var(--surface-0); }
-  .practice-card__num { font-family: var(--font-heading); font-weight: 700; font-size: 2.2rem; line-height: 1; color: var(--accent); margin-bottom: 0.7rem; }
+  .practice-card__num { font-family: var(--font-heading); font-weight: 700; font-size: 2.2rem; line-height: 1; color: var(--accent-text); margin-bottom: 0.7rem; }
   .practice-card--primary .practice-card__num { color: var(--accent-text); }
 
   /* ---- Pricing: the featured testimonial card, repurposed ---- */
@@ -240,7 +240,7 @@
   @media (max-width: 60rem) { .steps { grid-template-columns: repeat(2, 1fr); } }
   @media (max-width: 40rem) { .steps { grid-template-columns: 1fr; } }
   .steps li { counter-increment: step; padding: 1.5rem 1.6rem; border-radius: var(--radius-tile); background: var(--surface-0); box-shadow: var(--shadow-card); border: 1px solid color-mix(in srgb, var(--text-0) 4%, transparent); }
-  .steps li::before { content: counter(step, decimal-leading-zero); display: block; font-family: var(--font-heading); font-weight: 700; font-size: 2.2rem; line-height: 1; color: var(--accent); margin-bottom: 0.6rem; }
+  .steps li::before { content: counter(step, decimal-leading-zero); display: block; font-family: var(--font-heading); font-weight: 700; font-size: 2.2rem; line-height: 1; color: var(--accent-text); margin-bottom: 0.6rem; }
   .steps h3 { font-size: 1.35rem; margin-bottom: 0.4rem; }
   .steps p { color: var(--text-1); font-size: 0.98rem; line-height: 1.55; }
 
@@ -456,11 +456,8 @@
           <li>Diagnostics, updates, and controls for wireless sharing</li>
           <li>Full source code under the MIT license</li>
           <li>Build and modify the app under MIT, including its license policy</li>
-          <li><details class="faq"><summary>How the 90-day transition works</summary><p>If protection was enabled with an approved helper when you first launched version 4, it stays available for 90 days from that launch. Check Settings → License for the remaining time. Updating again keeps the original deadline. After it ends, enter a license key to continue using protection.</p></details></li>
         </ul>
-        <div class="fine">
-          <p><strong>Ping Warden</strong> is an open-source macOS menu bar app that keeps cloud gaming latency consistent by blocking AWDL while you play. This license unlocks Ping Protection in the prebuilt, signed and notarized app.</p>
-        </div>
+        <details class="faq"><summary>How the 90-day transition works</summary><p>If protection was enabled with an approved helper when you first launched version 4, it stays available for 90 days from that launch. Check Settings → License for the remaining time. Updating again keeps the original deadline. After it ends, enter a license key to continue using protection.</p></details>
       </div>
     </div>
     <div class="why">

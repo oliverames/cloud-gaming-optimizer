@@ -109,3 +109,9 @@ The follow-up was visually verified in Release/light and Debug/dark appearances.
 Both READMEs and Quick Start now identify the donor cutoff as version 4 and describe the approved-helper requirement and original transition deadline. The root privacy section and detailed License section disclose that activation and refresh send the key and product ID to Gumroad over HTTPS. The detailed guide also describes both update feeds, the paid-upgrade boundary, and replacement of the Gumroad download. These descriptions were checked against the release code, and all relative links in the three guides resolve.
 
 At 21:28 UTC on September 4, 2026, the release's Linux tests and shell lint had passed. Its macOS build and security analysis were running. An obsolete dependency analysis was cancelled after confirming that its commit had been superseded.
+
+### September 5 follow-through
+
+The queued release and documentation checks subsequently passed, including macOS Build Verification and CodeQL. The second landing pass is published and documented in [the September 5 review](2026-09-05-landing-review.md).
+
+After Oliver specifically requested verification of a new purchase, Gumroad accepted its issued key with non-incrementing verification against the app's product ID. This extends the earlier fixture-only activation evidence with a real paid-key server check. It does not establish inbox delivery, download completion, or activation on the buyer's Mac.
