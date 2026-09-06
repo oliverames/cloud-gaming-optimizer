@@ -5,7 +5,7 @@
 <h1 align="center">Ping Warden</h1>
 
 <p align="center">
-  <strong>Stop AWDL from reactivating during latency-sensitive games and calls.</strong>
+  <strong>Stop AWDL lag spikes during cloud gaming on your Mac.</strong>
 </p>
 
 <p align="center">
@@ -33,7 +33,7 @@
 
 ---
 
-Ping Warden is an open source (MIT) macOS menu bar app for latency-sensitive games, calls, and cloud streaming. The source stays MIT and everything except enabling Ping Protection is free. Ping Protection watches Apple Wireless Direct Link (AWDL), the interface used by AirDrop, AirPlay, Handoff, and other nearby-device features, and keeps that interface down while it is active. The prebuilt app requires a one-time $15 license to enable Ping Protection. Eligible existing users receive the [90-day transition described below](#pricing).
+Ping Warden (formerly AWDL Control) is an open source (MIT) macOS menu bar app built for cloud gaming on a Mac. If GeForce NOW or Xbox Cloud Gaming stutters every few seconds over Wi-Fi, the cause is usually AWDL, and Ping Warden holds it down while you play. It also works for any latency-sensitive game or call. The source stays MIT and everything except enabling Ping Protection is free. Ping Protection watches Apple Wireless Direct Link (AWDL), the interface used by AirDrop, AirPlay, Handoff, and other nearby-device features, and keeps that interface down while it is active. The prebuilt app requires a one-time $15 license to enable Ping Protection. Eligible existing users receive the [90-day transition described below](#pricing).
 
 <p align="center">
   <img src="docs/images/ping-warden-3-dashboard.png" width="920" alt="Ping Warden 3 dashboard showing a Latency Session, live latency, jitter, probe failures, and ping history">
