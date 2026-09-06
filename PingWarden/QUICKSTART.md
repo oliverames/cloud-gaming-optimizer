@@ -39,10 +39,10 @@ For a helper health check, open **Settings > Advanced** and click **Run Test**.
 ## Automatic protection for games
 
 1. Open **Settings > Automation**.
-2. Turn on **Game Mode Auto-Detect**.
-3. Grant Screen Recording access when macOS asks, then restart Ping Warden if prompted.
+2. Turn on **Game Mode Auto-Detect**. No permission is needed.
+3. Optional: click **Enable Fullscreen Detection…** and allow Screen Recording if you also want fullscreen games behind other windows caught.
 
-Ping Warden turns protection on for recognized fullscreen games and restores your previous state when the game closes. Some games do not declare the metadata that macOS uses for Game Mode; use the menu bar toggle for those titles.
+Ping Warden turns protection on when a recognized game is the frontmost app and restores your previous state when the game closes. It stays off while your Mac is on Ethernet, where AWDL cannot interfere. Some games do not declare the metadata that macOS uses for Game Mode; use the menu bar toggle for those titles.
 
 ## Control Center widget
 

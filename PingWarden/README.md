@@ -161,10 +161,8 @@ Cards include:
   - Spike and intervention event list.
 - Ping Protection:
   - Intervention counter and explanatory status.
-- Connection Settings:
-  - Ping target selection.
-  - Auto-select nearest endpoint.
-  - Update interval selection.
+- Ping Target:
+  - Shows the current target with a Change… button that opens Settings > Targets.
 
 Data retention behavior:
 
@@ -178,7 +176,7 @@ Controls:
 - Ping Protection setup and status.
 - Launch at Login.
 - Show Dock Icon.
-- Menu Dropdown Metrics (show current ping and interventions in menu dropdown).
+- Show Live Metrics in Menu (current ping and interventions in the menu dropdown; the same toggle appears in the menu itself).
 
 Status block:
 
@@ -188,7 +186,7 @@ Status block:
 
 Controls:
 
-- Game Mode Auto-Detect.
+- Game Mode Auto-Detect: engages when a recognized game is the frontmost app, no permission needed; an optional Enable Fullscreen Detection… button requests Screen Recording to also catch fullscreen games behind other windows. Skipped while the Mac is on Ethernet.
 - Hide Menu Bar Icon mode for people who use the Control Center toggle (macOS 26+, signed release builds only).
 
 ### 8.4 Advanced
@@ -208,6 +206,13 @@ Tools:
 - The transition applies when protection was enabled with an approved helper at the first launch of version 4. It lasts 90 days from that launch, and updates preserve the deadline. For donations before version 4, the pane explains how to request a license at [oliver@ames.consulting](mailto:oliver@ames.consulting).
 - Activation and refresh send the license key and product ID to Gumroad over HTTPS. The key stays in the macOS Keychain between checks.
 
+### 8.6 Targets
+
+- Ping target selection, including discovered GeForce NOW zones and the network gateway.
+- Find Fastest Target.
+- Update interval selection.
+- Custom servers (add, edit, remove).
+
 ## 9. Menu Bar and App Menu Integration
 
 Menu bar:
@@ -215,7 +220,7 @@ Menu bar:
 - One primary Ping Protection action, plus a contextual 10-minute pause.
 - Latency Sessions stay in the dashboard so they are not confused with the persistent protection control.
 - Optional live metrics in dropdown.
-- Settings, About, Donate, and update actions.
+- Settings, About, Buy a License (while unlicensed), and update actions.
 
 App menu (frontmost app state):
 

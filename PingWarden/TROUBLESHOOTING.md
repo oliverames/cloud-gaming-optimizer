@@ -61,13 +61,13 @@ Do not use a fixed CPU percentage as the only test. Activity Monitor readings va
 
 ## Game Mode auto-detect does not work
 
-### Check Screen Recording access
+### Check that the game is frontmost
 
-1. Open **System Settings > Privacy & Security > Screen Recording**.
-2. Turn on access for Ping Warden.
-3. Quit and reopen Ping Warden.
+Since 4.1.0, detection works from the frontmost app and needs no permission. Bring the game to the front and wait a few seconds; the menu bar status changes when protection engages. Detection is skipped while the Mac is on Ethernet.
 
-Ping Warden uses this permission to inspect on-screen windows and identify fullscreen games. It does not record or upload the screen.
+### Optional: Screen Recording access
+
+Screen Recording only adds detection of a fullscreen game sitting behind other windows. To enable it, open **Settings > Automation** and click **Enable Fullscreen Detection…**, or open **System Settings > Privacy & Security > Screen Recording** and turn on access for Ping Warden. Ping Warden reads only window metadata and never records or uploads the screen.
 
 ### Check the game
 
@@ -163,6 +163,6 @@ Ping Warden does not block Location Services scans.
 
 - Ping Warden requires macOS 13 Ventura or newer.
 - Ping Protection temporarily disables AWDL-dependent features.
-- Game Mode detection requires Screen Recording access and compatible app metadata.
+- Game Mode detection requires compatible app metadata; Screen Recording access is optional and only adds fullscreen games behind other windows.
 - The Control Center widget requires macOS 26 or newer and a signed release build.
 - Ping Warden addresses AWDL-related interruptions, not every source of network latency.

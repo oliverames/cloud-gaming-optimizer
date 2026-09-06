@@ -83,7 +83,7 @@ The [Quick Start guide](PingWarden/QUICKSTART.md) covers first-run setup and the
 |---------|--------------|
 | Ping Protection | Keeps `awdl0` down with an event-driven privileged helper |
 | Live dashboard | Tracks latency, jitter, probe failures, history, and helper interventions |
-| Game Mode auto-detect | Turns protection on for recognized fullscreen games after you grant Screen Recording access |
+| Game Mode auto-detect | Turns protection on when a recognized game is the frontmost app, with no permission needed; optional Screen Recording access also catches fullscreen games behind other windows |
 | Quick pause | Restores nearby-device features for 10 minutes, then returns to your previous protection state |
 | Control Center widget | Provides a system toggle on macOS 26 or newer in signed release builds |
 | Diagnostics export | Creates a local support snapshot that you can review before sharing |
