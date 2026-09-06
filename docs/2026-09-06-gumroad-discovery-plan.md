@@ -302,7 +302,14 @@ license, or the price, and it links only to GitHub. Its structured data types
 it as CreativeWork rather than SoftwareApplication.
 
 The source is `~/Developer/Projects/ames-consulting/work/ping-warden/index.html`,
-a different repository with its own deploy, so I have not touched it. The
+generated from `scripts/generate-software-pages.mjs` and normalised by
+`scripts/apply-seo.mjs`. Rewritten later on 2026-09-06 as commit `2484e42` in
+that repository: title "Ping Warden: Fix Mac Cloud Gaming Stutter | Work by
+Oliver Ames" (the site's consistency test requires that suffix), a
+symptom-first description, SoftwareApplication schema with a $15 Offer
+pointing at Gumroad, a purchase button ahead of the repository link, and four
+story cards. `npm run check:all` passed, and the page was rendered at 1280 and
+390 wide. Awaiting push and deploy. The
 change is a rewrite of that one page: a title and H1 built around the search
 phrase, a meta description that opens with the symptom, SoftwareApplication
 structured data with the price and an offer URL pointing at Gumroad, a visible
