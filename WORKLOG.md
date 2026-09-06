@@ -1,5 +1,11 @@
 # Ping Warden Worklog
 
+## 2026-09-06 - 4.1.1 UI review applied
+
+Applied the ten UI recommendations from `docs/2026-09-06-repository-review.md` (commit `ec18e18`) and shipped them as 4.1.1 / 41100 from `5f2dd0c`. The Automation pane no longer claims Game Mode needs Screen Recording or fullscreen, and the toggle turns on without the permission; Donate left the dashboard and the menu; About uses the app icon; the dashboard opens at 1,000 points; session stats are coloured; Targets is its own Settings section; the welcome says cloud gaming. `LicenseGateParityTests` now asserts the widget's hand-copied licence gate matches the app's (132 tests).
+
+Every changed screen was captured from an isolated Debug build (identifiers renamed to `pingwardenreview`, driven by `--show-window=` and System Events). The earlier "grey setup button" finding was a capture artefact from a non-key window and was dropped. Release verified: `stapler validate` and `spctl` accept the DMG as Notarized Developer ID, GitHub `v4.1.1` public, cache-busted feed leads with 4.1.1, Sentry finalized, Gumroad buyer download replaced with the licence-key block intact. Still unexercised in a live game.
+
 ## 2026-09-06 - 4.1.0 frontmost-app detection and Ethernet skip
 
 Shipped the Game Mode detection change from `f122db0`. Protection now engages when a game is the frontmost app, with no Screen Recording permission, and stays off on a wired path. The decision is pure and tested in `Core/GameModeActivationPolicy.swift`. Built and tested, but not exercised in a live game before release; the first field report will be the real check.

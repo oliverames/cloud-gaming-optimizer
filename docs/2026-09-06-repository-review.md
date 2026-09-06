@@ -268,3 +268,9 @@ where the preferences already live.
 
 - `e069697`: removed twelve unreferenced symbols (section 4).
 - This document.
+- Later the same day, on Oliver's go: `ec18e18` applied 6.1 through 6.10 and
+  added `LicenseGateParityTests` for the section 1 drift guard, shipped as
+  4.1.1. Item 6.5's grey-button note was withdrawn: the button was already
+  `.borderedProminent` and only looked grey because the window was not key
+  when captured. Item 6.9 was done in full as a Targets settings section
+  with a summary card on the dashboard.
