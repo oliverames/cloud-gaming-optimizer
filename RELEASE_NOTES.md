@@ -1,3 +1,26 @@
+# Ping Warden 4.1.1
+
+Settings now describe Game Mode auto-detect the way 4.1.0 made it work, and a review of every screen tidied the places where the free-app era still showed.
+
+## Fixes
+
+- **Automation** no longer shows "Needs Permission" on Game Mode Auto-Detect, and the toggle turns on without Screen Recording. The row explains that detection works from the frontmost app, and an optional "Enable Fullscreen Detection…" button opens the permission only if you want fullscreen games behind other windows caught too. The launch-time permission alert is gone.
+- **License** now says "before version 4" for the donation offer instead of "before this release", and shows the price beside Buy a License.
+
+## Improvements
+
+- **Targets** is a new Settings section that holds the ping server picker and your custom targets. The dashboard shows which target it is pinging with a Change… button, and stays a read-out.
+- The dashboard opens tall enough to show every card, including the ping history chart, instead of hiding four of six below the fold.
+- Session results colour Median, P95, and Probe Failures the way Network Quality already does, so a bad session looks bad at a glance.
+- The menu bar menu opens on the app's state first, and offers Buy a License… while unlicensed instead of Donate. The dashboard's donation line is gone; the General and License panes still explain how a pre-version-4 donation becomes a licence.
+- About shows the real app icon and puts the licence link first.
+- The welcome screen says what the app is for: stopping the stutter when you cloud game on a Mac.
+- The Settings sidebar separates Dashboard from the settings sections, and the live-metrics toggle has one name in both places it appears.
+
+## Upgrading from a free version
+
+Ping Protection requires a [one-time $15 license](https://amesconsulting.gumroad.com/l/pingwarden). The dashboard, diagnostics, and updates stay free, and the source remains MIT. Existing users whose protection was enabled with an approved helper when they first launched version 4 keep their original 90-day transition. Check **Settings → License** for the time remaining. If you donated before version 4, email [oliver@ames.consulting](mailto:oliver@ames.consulting) with your receipt for a license.
+
 # Ping Warden 4.1.0
 
 Game Mode auto-detect now recognizes a game the moment it comes to the front, and protection stays out of the way on a wired connection.
