@@ -1,5 +1,13 @@
 # Ping Warden Worklog
 
+## 2026-09-06 - 4.1.0 frontmost-app detection and Ethernet skip
+
+Shipped the Game Mode detection change from `f122db0`. Protection now engages when a game is the frontmost app, with no Screen Recording permission, and stays off on a wired path. The decision is pure and tested in `Core/GameModeActivationPolicy.swift`. Built and tested, but not exercised in a live game before release; the first field report will be the real check.
+
+The full stable 4.1.0 / 41000 release published from `ed2f913`. Verified: `swift test` 127/0, GitHub release `v4.1.0` public with the DMG, gh-pages and the cache-busted live feed lead with 4.1.0 (the Pages CDN served 4.0.4 for about a minute after publish), `stapler validate` and `spctl` accept the DMG as Notarized Developer ID, Sentry release finalized with four dSYMs, and the Gumroad buyer download replaced with the licence-key block intact.
+
+Same day, the discovery pass: Gumroad listing renamed to lead with cloud gaming and moved to Software & Plugins, landing hero republished, GitHub homepage pointed at Gumroad, README rewritten, and the ames.consulting work page rebuilt as a product page with SoftwareApplication schema (ames-consulting `2484e42`). Record in `docs/2026-09-06-gumroad-discovery-plan.md`.
+
 ## 2026-09-05 - 4.0.4 welcome dismissal
 
 Apple Developer access worked. The onboarding review found that an unregistered helper caused the welcome to repeat at every launch after dismissal. Added a persistent presentation marker without changing the welcome layout, protection intent, or license policy. Manual setup remains available, and app-data removal restores the introduction. Updated both READMEs, Quick Start, and release notes.
