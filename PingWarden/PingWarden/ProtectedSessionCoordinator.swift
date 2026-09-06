@@ -125,16 +125,6 @@ final class ProtectedSessionCoordinator: ObservableObject {
         )
     }
 
-    func startForGameMode() {
-        guard phase == .idle, accumulator == nil else { return }
-        Task { await start(trigger: .gameMode) }
-    }
-
-    func stopForGameMode() {
-        guard activeTrigger == .gameMode || phase == .starting else { return }
-        Task { await stop(endReason: .gameModeEnded) }
-    }
-
     func finishForTermination() {
         guard accumulator != nil else { return }
         finish(

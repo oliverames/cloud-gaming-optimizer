@@ -44,15 +44,6 @@ class PingMonitor: @unchecked Sendable {
         case fair       // 50-100ms
         case poor       // >100ms or packet loss
         
-        var color: String {
-            switch self {
-            case .excellent: return "green"
-            case .good: return "yellow"
-            case .fair: return "orange"
-            case .poor: return "red"
-            }
-        }
-        
         var description: String {
             switch self {
             case .excellent: return "Excellent"
@@ -108,10 +99,6 @@ class PingMonitor: @unchecked Sendable {
             // signaling loss. Surface the last *successful* measurement.
             history.last(where: { $0.success })?.latency
         }
-    }
-    
-    var currentPingMs: Double? {
-        currentPing.map { $0 * 1000.0 }
     }
     
     // MARK: - Public Methods
@@ -187,34 +174,6 @@ class PingMonitor: @unchecked Sendable {
         // @StateObject / AppDelegate releases happen on the main thread in
         // practice, where the timer was scheduled, so invalidating here is safe.
         timer?.invalidate()
-    }
-    
-    /// Get current network statistics
-    func getStatistics() -> NetworkStatistics {
-        let recentResults = snapshotRecentResults()
-
-        let pureSamples = recentResults.map {
-            PingSample(latencyMs: $0.latencyMs, success: $0.success, timestamp: $0.timestamp)
-        }
-        let computed = PingStatistics.calculate(from: pureSamples)
-
-        return NetworkStatistics(
-            currentPing: computed.currentPing,
-            averagePing: computed.averagePing,
-            minimumPing: computed.minimumPing,
-            maximumPing: computed.maximumPing,
-            jitter: computed.jitter,
-            packetLoss: computed.packetLoss,
-            quality: Self.mapQuality(computed.quality)
-        )
-    }
-    
-    /// Get historical ping data for graphing
-    func getHistory(lastMinutes: Int = 60) -> [PingResult] {
-        let cutoff = Date().addingTimeInterval(-TimeInterval(lastMinutes * 60))
-        return withHistoryLock {
-            history.elements.filter { $0.timestamp > cutoff }
-        }
     }
     
     /// Clear history
@@ -465,10 +424,6 @@ struct NetworkStatistics {
     let jitter: Double           // milliseconds (variance)
     let packetLoss: Double       // percentage (0-100)
     let quality: PingMonitor.Quality
-    
-    var qualityColor: String {
-        quality.color
-    }
     
     var qualityDescription: String {
         quality.description

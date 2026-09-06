@@ -224,22 +224,6 @@ class DashboardViewModel: ObservableObject {
         rebuildTargets()
     }
 
-    @discardableResult
-    func updateCustomTarget(id: UUID, displayName: String, host: String, port: Int) -> CustomPingTargetValidationError? {
-        if let failure = CustomPingTargetStore.validate(displayName: displayName, host: host, port: port) {
-            return failure
-        }
-        let updated = CustomPingTarget(
-            id: id,
-            displayName: displayName.trimmingCharacters(in: .whitespacesAndNewlines),
-            host: host.trimmingCharacters(in: .whitespacesAndNewlines),
-            port: UInt16(port)
-        )
-        customTargets = customTargetStore.update(updated)
-        rebuildTargets()
-        return nil
-    }
-
     private static func toPingTargets(_ customs: [CustomPingTarget]) -> [PingTarget] {
         customs.map { custom in
             PingTarget(

@@ -206,11 +206,6 @@ class PingWardenMonitor: @unchecked Sendable {
         return helperService.status == .enabled
     }
 
-    /// Check if helper needs system approval (user denied or not yet approved)
-    var needsApproval: Bool {
-        return helperService.status == .requiresApproval
-    }
-
     /// Current registration status
     var registrationStatus: SMAppService.Status {
         return helperService.status
@@ -231,12 +226,6 @@ class PingWardenMonitor: @unchecked Sendable {
         stateLock.lock()
         defer { stateLock.unlock() }
         return _isMonitoring
-    }
-
-    var isHelperConnected: Bool {
-        stateLock.lock()
-        defer { stateLock.unlock() }
-        return _xpcConnection != nil
     }
 
     /// Adopt state that a signed extension already applied directly through
@@ -733,19 +722,6 @@ class PingWardenMonitor: @unchecked Sendable {
                 completion(success)
             }
         })
-    }
-
-    // MARK: - Compatibility Checks
-
-    /// Legacy check - now checks SMAppService status
-    func isDaemonInstalled() -> Bool {
-        return isHelperRegistered
-    }
-
-    /// Legacy check - now checks XPC connection
-    func isDaemonVersionCompatible() -> Bool {
-        // In v2.x, version is always compatible since helper is bundled
-        return isHelperRegistered
     }
 
     // MARK: - XPC Connection Management
