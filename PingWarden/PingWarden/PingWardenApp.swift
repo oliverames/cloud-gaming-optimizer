@@ -12,6 +12,7 @@ import SwiftUI
 import ServiceManagement
 import os.log
 import Sparkle
+import Network
 
 private let log = Logger(subsystem: "com.amesvt.pingwarden", category: "App")
 
@@ -2791,13 +2792,14 @@ struct AboutView: View {
 
 // MARK: - Game Mode Detector
 
-/// Detects when macOS Game Mode is active by monitoring for fullscreen games.
-/// Only apps that are categorized as games (via LSApplicationCategoryType or LSSupportsGameMode
-/// in their Info.plist) will trigger game mode detection, preventing false positives from
-/// non-game fullscreen apps like productivity apps or browsers.
-///
-/// Note: This feature requires Screen Recording permission on macOS 10.15+.
-/// Without this permission, CGWindowListCopyWindowInfo won't return window names or owner info.
+/// Detects when a game is running so Ping Protection can engage on its own.
+/// Two observation paths feed `GameModeActivationPolicy`: the frontmost app
+/// (via `NSWorkspace` activation events, no permission needed) and a fullscreen
+/// window owned by a game (via `CGWindowListCopyWindowInfo`, which needs Screen
+/// Recording permission to expose window owners). Only apps that declare a game
+/// category or LSSupportsGameMode in their Info.plist count, so a fullscreen
+/// browser or productivity app never trips it. Engagement is skipped on a wired
+/// path, because AWDL shares the Wi-Fi radio and cannot disturb Ethernet.
 final class GameModeDetector: @unchecked Sendable {
     private let detectionQueue = DispatchQueue(
         label: "com.amesvt.pingwarden.game-mode-detection",
@@ -2815,8 +2817,13 @@ final class GameModeDetector: @unchecked Sendable {
     private var appDidTerminateObserver: NSObjectProtocol?
     private var appDidActivateObserver: NSObjectProtocol?
     private var screenParametersObserver: NSObjectProtocol?
-    private var inactiveFullscreenSamples = 0
+    private var inactiveSamples = 0
     private var idleStreakTicks = 0
+    /// PID of the frontmost app, captured on the main thread from activation
+    /// events and read on `detectionQueue`, so no cross-queue sync is needed.
+    private var frontmostPID: pid_t?
+    private var pathMonitor: NWPathMonitor?
+    private var pathInterface: GameModeActivationPolicy.PathInterface = .unknown
 
     private static let ignoredFullscreenOwners: Set<String> = [
         "Finder",
@@ -2851,9 +2858,10 @@ final class GameModeDetector: @unchecked Sendable {
             return
         }
 
-        // Check for Screen Recording permission on first start
+        // Screen Recording only gates the fullscreen path; the frontmost-app
+        // path works without it, so this is a degraded mode rather than a failure.
         if !Self.hasScreenRecordingPermission() {
-            log.warning("Screen Recording permission not granted - Game Mode detection may not work correctly")
+            log.warning("Screen Recording permission not granted - fullscreen game detection unavailable, frontmost-app detection still active")
             if !hasLoggedPermissionWarning {
                 hasLoggedPermissionWarning = true
                 // Only show alert once per app session
@@ -2861,9 +2869,12 @@ final class GameModeDetector: @unchecked Sendable {
             }
         }
 
+        let initialFrontmostPID = NSWorkspace.shared.frontmostApplication?.processIdentifier
         detectionQueue.async { [weak self] in
             guard let self else { return }
             self.isRunning = true
+            self.frontmostPID = initialFrontmostPID
+            self.startPathMonitor()
             self.checkGameModeStatus()
             self.scheduleSafetyTimer()
         }
@@ -2891,7 +2902,11 @@ final class GameModeDetector: @unchecked Sendable {
                 forName: NSWorkspace.didActivateApplicationNotification,
                 object: nil,
                 queue: .main
-            ) { [weak self] _ in
+            ) { [weak self] notification in
+                let pid = (notification.userInfo?[NSWorkspace.applicationUserInfoKey] as? NSRunningApplication)?.processIdentifier
+                self?.detectionQueue.async { [weak self] in
+                    self?.frontmostPID = pid
+                }
                 self?.scheduleGameModeStatusCheck()
             }
         }
@@ -2932,8 +2947,12 @@ final class GameModeDetector: @unchecked Sendable {
             isRunning = false
             timer?.cancel()
             timer = nil
+            pathMonitor?.cancel()
+            pathMonitor = nil
+            pathInterface = .unknown
+            frontmostPID = nil
             gameCheckCache.removeAll()
-            inactiveFullscreenSamples = 0
+            inactiveSamples = 0
             idleStreakTicks = 0
 
             if isGameModeActive {
@@ -2966,7 +2985,7 @@ final class GameModeDetector: @unchecked Sendable {
         DispatchQueue.main.async {
             let alert = NSAlert()
             alert.messageText = "Screen Recording Permission Needed"
-            alert.informativeText = "Game Mode auto-detect reads app and window metadata to identify fullscreen games. It never captures or saves screen contents."
+            alert.informativeText = "Game Mode auto-detect already recognizes a game when it is the frontmost app. Screen Recording permission adds detection of fullscreen games behind other windows. Ping Warden reads only window metadata and never captures or saves screen contents."
             alert.alertStyle = .informational
             alert.addButton(withTitle: "Open System Settings")
             alert.addButton(withTitle: "Cancel")
@@ -3010,12 +3029,44 @@ final class GameModeDetector: @unchecked Sendable {
         newTimer.resume()
     }
 
+    private func startPathMonitor() {
+        dispatchPrecondition(condition: .onQueue(detectionQueue))
+        pathMonitor?.cancel()
+        let monitor = NWPathMonitor()
+        monitor.pathUpdateHandler = { [weak self] path in
+            guard let self, self.isRunning else { return }
+            let interface = Self.pathInterface(for: path)
+            guard interface != self.pathInterface else { return }
+            self.pathInterface = interface
+            self.log.info("Network path is now \(String(describing: interface))")
+            self.checkGameModeStatus()
+        }
+        monitor.start(queue: detectionQueue)
+        pathMonitor = monitor
+    }
+
+    private static func pathInterface(for path: NWPath) -> GameModeActivationPolicy.PathInterface {
+        guard path.status == .satisfied else { return .unknown }
+        if path.usesInterfaceType(.wifi) { return .wifi }
+        if path.usesInterfaceType(.wiredEthernet) { return .wired }
+        return .other
+    }
+
     private func checkGameModeStatus() {
         dispatchPrecondition(condition: .onQueue(detectionQueue))
-        let isFullscreen = isAnyAppFullscreen()
+        let frontmostIsGame = frontmostPID.map { isAppAGame(pid: $0) } ?? false
+        // The fullscreen scan is pointless without Screen Recording, since the
+        // window list then carries no owner info; skip the walk in that case.
+        let fullscreenGame = frontmostIsGame ? false
+            : (Self.hasScreenRecordingPermission() && isAnyAppFullscreen())
+        let engage = GameModeActivationPolicy.shouldEngage(
+            frontmostIsGame: frontmostIsGame,
+            fullscreenGamePresent: fullscreenGame,
+            pathInterface: pathInterface
+        )
 
-        if isFullscreen {
-            inactiveFullscreenSamples = 0
+        if engage {
+            inactiveSamples = 0
             idleStreakTicks = 0
             if !isGameModeActive {
                 isGameModeActive = true
@@ -3029,7 +3080,7 @@ final class GameModeDetector: @unchecked Sendable {
         }
 
         guard isGameModeActive else {
-            inactiveFullscreenSamples = 0
+            inactiveSamples = 0
             idleStreakTicks += 1
             // Recreate the repeating timer so a streak crossing the idle
             // threshold takes effect on the very next tick.
@@ -3037,13 +3088,13 @@ final class GameModeDetector: @unchecked Sendable {
             return
         }
 
-        inactiveFullscreenSamples += 1
+        inactiveSamples += 1
         idleStreakTicks += 1
-        guard inactiveFullscreenSamples >= 2 else {
+        guard inactiveSamples >= 2 else {
             return
         }
 
-        inactiveFullscreenSamples = 0
+        inactiveSamples = 0
         isGameModeActive = false
         log.info("Game Mode detected: false")
         scheduleSafetyTimer()
