@@ -7,14 +7,47 @@ working tree.
 
 ## One correction to the brief
 
-Ping Warden is not an uptime or endpoint monitor, so it should not chase those
-terms. An uptime monitor watches whether a remote service answers, and an
+Ping Warden is built primarily for cloud gaming, and it is not an uptime or
+endpoint monitor, so it should not chase monitoring terms. An uptime monitor watches whether a remote service answers, and an
 endpoint monitor is a fleet-management idea aimed at IT administrators. Ping
-Warden holds down a local network interface so one Mac stops stuttering. The
-buyers are people playing GeForce Now or Xbox Cloud Gaming on a MacBook, not
+Warden holds `awdl0` down by ioctl so one Mac stops stuttering mid-session. The
+buyers are people playing GeForce NOW or Xbox Cloud Gaming on a MacBook, not
 administrators, and ranking for monitoring terms would draw traffic that never
-converts. The plan below targets the symptom language those buyers actually
-type.
+converts. The dashboard already discovers GeForce NOW regions as ping targets,
+so cloud gaming is not a positioning choice bolted on afterwards. It is what
+the app was built for, and the copy below leads with it.
+
+## The finding that outranks everything else here
+
+NVIDIA's own support article for GeForce NOW stuttering on macOS tells users to
+disable AWDL, and it names "the AWDL Control utility" as the way to do it. That
+phrase resolves in search to `james-howard/AWDLControl`, which carries 236 stars
+and was last pushed on 2026-04-13. Ping Warden carries 87 stars and was pushed
+today, and it is signed, notarized, and shipping updates through Sparkle.
+
+Ping Warden used to be called AWDL Control. Commit `2f3bdf6` reads "Rename
+project from AWDLControl to PingWarden", and the old tree still sits on the
+`gh-pages` branch with `com.amesvt.pingwarden.helper.plist` inside it. The
+rename gave up the exact term that NVIDIA now sends people to, and a different
+developer's repository collects that traffic.
+
+A caveat on sourcing. NVIDIA's knowledge base returned 403 to a direct fetch and
+a 500 error in the browser on 2026-09-06, so I have not read that page myself.
+The quoted recommendation comes from search-result summaries, and the page
+should be read directly before anyone acts on the outreach idea below.
+
+Three things follow, and the first two cost almost nothing:
+
+1. Reclaim the term without renaming back. Put "formerly AWDL Control" in the
+   README's opening paragraph, add `awdl-control` to the repository topics, and
+   work the phrase into the Gumroad description. Someone searching NVIDIA's
+   recommended term should find the app that is still being maintained.
+2. Add the competing projects' vocabulary to the tag set. The neighbouring repos
+   are named `geforcenow-awdl0`, `Geforce-Now-Mac-stutter-free-Launcher`, and
+   `mac-wifi-fix`, which tells you the words people use: stutter, awdl0, and
+   fix.
+3. Ask NVIDIA to list Ping Warden in that article. This is outreach rather than
+   SEO, it is your call, and it needs the page read first.
 
 ## Where the listing stands today
 
@@ -74,12 +107,19 @@ the count below is a judgement call rather than a documented limit.
 
 ### 1. Rename the product so the page title carries the search terms
 
-Decided on 2026-09-06: use the short form below.
+Revised on 2026-09-06 after Oliver confirmed cloud gaming is the primary use.
+The earlier proposal led with generic Wi-Fi lag and buried the audience.
 
 The `<title>` element is the strongest on-page signal Gumroad exposes, and it
 currently reads "Ping Warden License". Nobody searches that. Proposed name:
 
-> **Ping Warden: Stop Wi-Fi Lag Spikes on Mac**
+> **Ping Warden: Fix Mac Wi-Fi Lag Spikes for Cloud Gaming**
+
+That runs 54 characters, still inside the roughly 60 that Google shows. It
+carries the platform, the symptom, and the audience in one line. Naming a
+single service in the title would narrow it too far, so GeForce NOW and Xbox
+Cloud Gaming belong in the description body where they can catch long-tail
+queries instead.
 
 The name also appears in the cart, the receipt, and the buyer's library, so
 dropping the word "License" makes the purchase slightly less self-describing.
@@ -103,8 +143,10 @@ so this change unblocks that too. It incidentally suggests $15 is at the low end
 This string becomes the JSON-LD description, which is what rich results show. It
 currently leads with the price. Proposed:
 
-> Your Mac's Wi-Fi stutters every few seconds because AirDrop keeps waking the
-> radio, and Ping Warden holds it down while you play. One-time $15, open source.
+> Cloud gaming on a Mac stutters because AirDrop keeps grabbing your Wi-Fi
+> radio, and Ping Warden holds awdl0 down while you play. $15 once, open source.
+
+That is 151 characters.
 
 ### 4. Rewrite the first sentence of the product description
 
@@ -115,27 +157,31 @@ contains none of the words a person in this situation would type. Proposed
 opening, replacing the first sentence of `docs/gumroad-product-description.html`
 and leaving the rest of that file intact:
 
-> If your Mac stutters every few seconds on Wi-Fi, the cause is usually AWDL,
-> the interface behind AirDrop and Handoff, grabbing your radio mid-game. Ping
-> Warden is an open source macOS menu bar app that holds AWDL down while you
-> play, and the source stays MIT.
+> If GeForce NOW or Xbox Cloud Gaming stutters every few seconds on your Mac,
+> the cause is usually AWDL, the interface behind AirDrop and Handoff. Ping
+> Warden is an open source macOS menu bar app that holds `awdl0` down while you
+> play, and its dashboard discovers GeForce NOW regions to ping. The source
+> stays MIT.
 
-That opening sentence is 147 characters, so it survives Google's truncation
-window intact instead of being cut mid-clause.
+That opening sentence is 144 characters, so it survives Google's truncation
+window intact instead of being cut mid-clause, and it puts the two service
+names in front of the reader before anything else.
 
 ### 5. Replace the tag set
 
 The current five tags name the category of thing. They miss the symptom, which
 is what people search. Proposed:
 
-`awdl`, `airdrop`, `wifi-lag`, `ping-spikes`, `jitter`, `macos`, `cloud-gaming`,
-`geforce-now`, `latency`, `menu-bar-app`
+`awdl`, `awdl-control`, `awdl0`, `geforce-now`, `cloud-gaming`, `mac-stutter`,
+`wifi-lag`, `airdrop`, `macos`, `menu-bar-app`
 
-The search evidence for the symptom terms is consistent. The results for a
-lay-language query about Mac Wi-Fi lag spikes are a MacRumors thread titled
-around jitter and erratic ping, a GitHub project named `mac-wifi-fix`, and two
-independent blog posts, one of which calls AWDL "the silent latency killer".
-Those are the words in circulation.
+The search evidence is consistent across two different queries. A lay-language
+query about Mac Wi-Fi lag spikes returns a MacRumors thread about jitter and
+erratic ping, a project called `mac-wifi-fix`, and a post calling AWDL "the
+silent latency killer". A cloud-gaming query returns NVIDIA's own article plus
+three GitHub projects whose names carry the vocabulary directly. Note that the
+README's own words, "latency, jitter, probe failures", are engineer language
+rather than searcher language, so the product copy should not borrow from it.
 
 ### 6. Ask the five existing buyers for a review
 
