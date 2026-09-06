@@ -6,6 +6,77 @@
     <description>Pre-release updates for Ping Warden</description>
     <language>en</language>
     <item>
+      <title>Version 4.1.1</title>
+      <link>https://github.com/oliverames/ping-warden/releases/tag/v4.1.1</link>
+      <sparkle:version>41100</sparkle:version>
+      <sparkle:shortVersionString>4.1.1</sparkle:shortVersionString>
+      <description>&lt;p&gt;&lt;strong&gt;Upgrading from Ping Warden 3 or earlier?&lt;/strong&gt; Ping Protection in the signed app now requires a one-time $15 license. Existing users whose protection was enabled with an approved helper keep a 90-day transition from their first launch of version 4. Check Settings → License for the remaining time. The dashboard and updates stay free, and the source remains MIT. Previous donors can email &lt;a href="mailto:oliver@ames.consulting"&gt;oliver@ames.consulting&lt;/a&gt; with their receipt for a license. &lt;a href="https://amesconsulting.gumroad.com/l/pingwarden"&gt;License details&lt;/a&gt;.&lt;/p&gt;
+&lt;style&gt;
+body {
+    font-family: -apple-system, BlinkMacSystemFont, "Helvetica Neue", Helvetica, Arial, sans-serif;
+    font-size: 13px;
+    line-height: 1.55;
+    color: #1d1d1f;
+    margin: 0;
+    padding: 0;
+}
+h1, h2, h3 { color: #000; font-weight: 600; }
+h1 { font-size: 18px; margin: 0 0 10px 0; }
+h2 {
+    font-size: 11px;
+    text-transform: uppercase;
+    letter-spacing: 0.6px;
+    color: #6e6e73;
+    margin: 18px 0 6px 0;
+}
+h3 { font-size: 13px; margin: 14px 0 6px 0; }
+p { margin: 0 0 10px 0; }
+ul, ol { padding-left: 20px; margin: 0 0 10px 0; }
+li { margin-bottom: 5px; }
+li &gt; strong:first-child { color: #000; }
+code {
+    font-family: ui-monospace, "SF Mono", Menlo, monospace;
+    background: #f2f2f7;
+    padding: 1px 5px;
+    border-radius: 3px;
+    font-size: 12px;
+}
+a { color: #f5a542; text-decoration: none; }
+a:hover { text-decoration: underline; }
+hr { border: 0; border-top: 1px solid #e5e5ea; margin: 16px 0; }
+@media (prefers-color-scheme: dark) {
+    body { color: #f5f5f7; }
+    h1, h2, h3, li &gt; strong:first-child { color: #fff; }
+    h2 { color: #98989d; }
+    code { background: #2c2c2e; }
+    hr { border-top-color: #38383a; }
+}
+&lt;/style&gt;
+&lt;p&gt;Settings now describe Game Mode auto-detect the way 4.1.0 made it work, and a review of every screen tidied the places where the free-app era still showed.&lt;/p&gt;
+&lt;h2&gt;Fixes&lt;/h2&gt;
+&lt;ul&gt;
+&lt;li&gt;&lt;strong&gt;Automation&lt;/strong&gt; no longer shows "Needs Permission" on Game Mode Auto-Detect, and the toggle turns on without Screen Recording. The row explains that detection works from the frontmost app, and an optional "Enable Fullscreen Detection…" button opens the permission only if you want fullscreen games behind other windows caught too. The launch-time permission alert is gone.&lt;/li&gt;
+&lt;li&gt;&lt;strong&gt;License&lt;/strong&gt; now says "before version 4" for the donation offer instead of "before this release", and shows the price beside Buy a License.&lt;/li&gt;
+&lt;/ul&gt;
+&lt;h2&gt;Improvements&lt;/h2&gt;
+&lt;ul&gt;
+&lt;li&gt;&lt;strong&gt;Targets&lt;/strong&gt; is a new Settings section that holds the ping server picker and your custom targets. The dashboard shows which target it is pinging with a Change… button, and stays a read-out.&lt;/li&gt;
+&lt;li&gt;The dashboard opens tall enough to show every card, including the ping history chart, instead of hiding four of six below the fold.&lt;/li&gt;
+&lt;li&gt;Session results colour Median, P95, and Probe Failures the way Network Quality already does, so a bad session looks bad at a glance.&lt;/li&gt;
+&lt;li&gt;The menu bar menu opens on the app's state first, and offers Buy a License… while unlicensed instead of Donate. The dashboard's donation line is gone; the General and License panes still explain how a pre-version-4 donation becomes a licence.&lt;/li&gt;
+&lt;li&gt;About shows the real app icon and puts the licence link first.&lt;/li&gt;
+&lt;li&gt;The welcome screen says what the app is for: stopping the stutter when you cloud game on a Mac.&lt;/li&gt;
+&lt;li&gt;The Settings sidebar separates Dashboard from the settings sections, and the live-metrics toggle has one name in both places it appears.&lt;/li&gt;
+&lt;/ul&gt;
+&lt;h2&gt;Upgrading from a free version&lt;/h2&gt;
+&lt;p&gt;Ping Protection requires a &lt;a href="https://amesconsulting.gumroad.com/l/pingwarden" rel="nofollow"&gt;one-time $15 license&lt;/a&gt;. The dashboard, diagnostics, and updates stay free, and the source remains MIT. Existing users whose protection was enabled with an approved helper when they first launched version 4 keep their original 90-day transition. Check &lt;strong&gt;Settings → License&lt;/strong&gt; for the time remaining. If you donated before version 4, email &lt;a href="mailto:oliver@ames.consulting"&gt;oliver@ames.consulting&lt;/a&gt; with your receipt for a license.&lt;/p&gt;
+      </description>
+      <pubDate>Sun, 06 Sep 2026 23:03:21 +0000</pubDate>
+      <enclosure url="https://github.com/oliverames/ping-warden/releases/download/v4.1.1/PingWarden-4.1.1.dmg" sparkle:version="41100" sparkle:shortVersionString="4.1.1" length="5795432" type="application/octet-stream" sparkle:edSignature="1IXgex4oezp2YetpuHveSCEM4JcKQIhzw1Nx3LUAxymmGj5pN5+hlVRoYvVnZ5mc6saM6v4bDCo84Nk1orRiAQ==" />
+      <sparkle:minimumSystemVersion>13.0</sparkle:minimumSystemVersion>
+      <sparkle:minimumAutoupdateVersion>40000</sparkle:minimumAutoupdateVersion>
+    </item>
+    <item>
       <title>Version 4.1.0</title>
       <link>https://github.com/oliverames/ping-warden/releases/tag/v4.1.0</link>
       <sparkle:version>41000</sparkle:version>
@@ -1198,6 +1269,6 @@ hr { border: 0; border-top: 1px solid #e5e5ea; margin: 16px 0; }
   </channel>
 </rss>
 <!-- sparkle-signatures:
-edSignature: 3+MulSfLTdqIXCAm9Bhbg/08fvVee7yKkOHNzBgTuAxdz8tsCQ76gOC2zawCYd/xi79mz+u1DArCSVQpJzpPDg==
-length: 73520
+edSignature: nKQqHoNu3WSfFJ7Qy0ARpCMdtaOMoYFf3+wiwEqpLz/KvmxNFkO/s82bWyRwEEzTKsUyDGimj49YFUq4LnCnCA==
+length: 78899
 -->
