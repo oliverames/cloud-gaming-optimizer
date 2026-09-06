@@ -324,6 +324,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSMenuDele
         handleMenuMetricsPreferenceChange()
         ensureApplicationMenuItems()
         installSettingsShortcutMonitor()
+        installSettingsSectionObserver()
 
         // Observe all window close events so we can update dock icon visibility
         // when any foreground utility window closes.
@@ -641,6 +642,12 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSMenuDele
         case "automation":
             settingsNavigation.selectedSection = .automation
             openSettings()
+        case "targets":
+            settingsNavigation.selectedSection = .targets
+            openSettings()
+        case "license":
+            settingsNavigation.selectedSection = .license
+            openSettings()
         case "advanced":
             settingsNavigation.selectedSection = .advanced
             openSettings()
@@ -672,6 +679,33 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSMenuDele
         // responds to its action every time the menu opens, overriding the
         // assignments in updateQuickActionMenuItems().
         statusMenu?.autoenablesItems = false
+
+        // State first, so the menu opens on what the app is doing.
+        let statusMenuItem = NSMenuItem(title: "Status: Checking...", action: nil, keyEquivalent: "")
+        statusMenuItem.tag = 100
+        statusMenu?.addItem(statusMenuItem)
+
+        let pingMenuItem = NSMenuItem(title: "Current Ping: --", action: nil, keyEquivalent: "")
+        pingMenuItem.tag = 101
+        pingMenuItem.isEnabled = false
+        statusMenu?.addItem(pingMenuItem)
+
+        let interventionsMenuItem = NSMenuItem(title: "Wireless Interruptions: --", action: nil, keyEquivalent: "")
+        interventionsMenuItem.tag = 102
+        interventionsMenuItem.isEnabled = false
+        statusMenu?.addItem(interventionsMenuItem)
+
+        let showMetricsItem = NSMenuItem(
+            title: "Show Live Metrics in Menu",
+            action: #selector(toggleMenuDropdownMetrics),
+            keyEquivalent: ""
+        )
+        showMetricsItem.tag = 160
+        showMetricsItem.target = self
+        showMetricsItem.image = menuSymbol("chart.xyaxis.line")
+        statusMenu?.addItem(showMetricsItem)
+
+        statusMenu?.addItem(NSMenuItem.separator())
 
         let dashboardItem = NSMenuItem(
             title: "Open Dashboard...",
@@ -705,31 +739,6 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSMenuDele
         statusMenu?.addItem(pauseItem)
 
         statusMenu?.addItem(NSMenuItem.separator())
-
-        // Status item
-        let statusMenuItem = NSMenuItem(title: "Status: Checking...", action: nil, keyEquivalent: "")
-        statusMenuItem.tag = 100
-        statusMenu?.addItem(statusMenuItem)
-
-        let pingMenuItem = NSMenuItem(title: "Current Ping: --", action: nil, keyEquivalent: "")
-        pingMenuItem.tag = 101
-        pingMenuItem.isEnabled = false
-        statusMenu?.addItem(pingMenuItem)
-
-        let interventionsMenuItem = NSMenuItem(title: "Wireless Interruptions: --", action: nil, keyEquivalent: "")
-        interventionsMenuItem.tag = 102
-        interventionsMenuItem.isEnabled = false
-        statusMenu?.addItem(interventionsMenuItem)
-
-        let showMetricsItem = NSMenuItem(
-            title: "Show Live Metrics in Menu",
-            action: #selector(toggleMenuDropdownMetrics),
-            keyEquivalent: ""
-        )
-        showMetricsItem.tag = 160
-        showMetricsItem.target = self
-        showMetricsItem.image = menuSymbol("chart.xyaxis.line")
-        statusMenu?.addItem(showMetricsItem)
 
         updateStatusMenuItem()
         updateMenuMetricsMenuItems()
@@ -768,14 +777,18 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSMenuDele
         aboutItem.image = menuSymbol("info.circle")
         statusMenu?.addItem(aboutItem)
 
-        let supportItem = NSMenuItem(
-            title: "Donate to Ping Warden...",
-            action: #selector(supportPingWarden),
+        // Shown only while unlicensed; the license pane carries the donation
+        // conversion path, so the menu no longer needs a Donate item.
+        let licenseItem = NSMenuItem(
+            title: "Buy a License...",
+            action: #selector(openLicenseSettings),
             keyEquivalent: ""
         )
-        supportItem.target = self
-        supportItem.image = menuSymbol("cup.and.saucer")
-        statusMenu?.addItem(supportItem)
+        licenseItem.target = self
+        licenseItem.tag = 170
+        licenseItem.image = menuSymbol("checkmark.seal")
+        licenseItem.isHidden = LicenseManager.shared.canEnableProtection
+        statusMenu?.addItem(licenseItem)
 
         statusMenu?.addItem(NSMenuItem.separator())
 
@@ -823,10 +836,41 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSMenuDele
     @objc private func openDashboard() {
         settingsNavigation.selectedSection = .dashboard
         openSettings()
+        growSettingsWindowForDashboard()
+    }
+
+    /// The dashboard needs about 1,000 points to show every card. A frame
+    /// restored from a short settings session hides the chart, so grow to
+    /// the visible screen height when the dashboard is what was asked for.
+    private func growSettingsWindowForDashboard() {
+        guard let window = settingsWindow, let screen = window.screen ?? NSScreen.main else { return }
+        let target: CGFloat = 1000
+        guard window.frame.height < target else { return }
+        let visible = screen.visibleFrame
+        var frame = window.frame
+        frame.size.height = min(target, visible.height)
+        frame.origin.y = max(visible.minY, min(frame.origin.y, visible.maxY - frame.height))
+        window.setFrame(frame, display: true, animate: true)
     }
 
     @objc func openAbout() {
         showAbout()
+    }
+
+    /// The dashboard's target summary asks for the Targets pane by name; the
+    /// dashboard view has no handle on the navigation model, so it posts.
+    private func installSettingsSectionObserver() {
+        NotificationCenter.default.addObserver(
+            forName: .pingWardenOpenSettingsSection,
+            object: nil,
+            queue: .main
+        ) { [weak self] notification in
+            guard let self,
+                  let raw = notification.userInfo?["section"] as? String,
+                  let section = SettingsSection(rawValue: raw) else { return }
+            self.settingsNavigation.selectedSection = section
+            self.openSettings()
+        }
     }
 
     private func installSettingsShortcutMonitor() {
@@ -862,7 +906,8 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSMenuDele
             : NSSize(width: 980, height: 700)
 #else
         let usesDebugMinimumSize = false
-        let initialSize = NSSize(width: 980, height: 700)
+        // Tall enough for the dashboard's six cards; settings panes fit easily.
+        let initialSize = NSSize(width: 980, height: 1000)
 #endif
         hostingController.view.frame = NSRect(origin: .zero, size: initialSize)
 
@@ -932,6 +977,11 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSMenuDele
 
     @objc private func supportPingWarden() {
         NSWorkspace.shared.open(URL(string: "https://buymeacoffee.com/oliverames")!)
+    }
+
+    @objc private func openLicenseSettings() {
+        settingsNavigation.selectedSection = .license
+        openSettings()
     }
 
     @objc private func checkForUpdates() {
@@ -1164,6 +1214,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSMenuDele
     }
 
     func menuWillOpen(_ menu: NSMenu) {
+        menu.items.first(where: { $0.tag == 170 })?.isHidden = LicenseManager.shared.canEnableProtection
         guard menu === statusMenu else { return }
         isStatusMenuOpen = true
         syncMenuMetricsTargetIfNeeded()
@@ -1425,7 +1476,7 @@ struct LicenseTransitionNoticeView: View {
                 VStack(alignment: .leading, spacing: 8) {
                     Text("Already supported Ping Warden?")
                         .font(.headline)
-                    Text("If you donated through the Buy Me a Coffee link before this release, email \(LicenseManager.donationConversionEmail) and that support will be honored as a full license.")
+                    Text("If you donated through the Buy Me a Coffee link before version 4, email \(LicenseManager.donationConversionEmail) and that support will be honored as a full license.")
                         .font(.callout)
                         .foregroundStyle(.secondary)
                         .fixedSize(horizontal: false, vertical: true)
@@ -1491,9 +1542,17 @@ struct SettingsView: View {
 
     var body: some View {
         NavigationSplitView {
-            List(SettingsSection.allCases, selection: $navigationModel.selectedSection) { section in
-                Label(section.rawValue, systemImage: section.icon)
-                    .tag(section)
+            List(selection: $navigationModel.selectedSection) {
+                Section {
+                    Label(SettingsSection.dashboard.rawValue, systemImage: SettingsSection.dashboard.icon)
+                        .tag(SettingsSection.dashboard)
+                }
+                Section("Settings") {
+                    ForEach(SettingsSection.allCases.filter { $0 != .dashboard }) { section in
+                        Label(section.rawValue, systemImage: section.icon)
+                            .tag(section)
+                    }
+                }
             }
             .listStyle(.sidebar)
             .navigationSplitViewColumnWidth(min: 180, ideal: 200, max: 220)
@@ -1538,6 +1597,7 @@ enum SettingsSection: String, CaseIterable, Identifiable {
     case dashboard = "Dashboard"
     case general = "General"
     case license = "License"
+    case targets = "Targets"
     case automation = "Automation"
     case advanced = "Advanced"
 
@@ -1548,6 +1608,7 @@ enum SettingsSection: String, CaseIterable, Identifiable {
         case .dashboard: return "chart.xyaxis.line"
         case .general: return "gearshape"
         case .license: return "checkmark.seal"
+        case .targets: return "server.rack"
         case .automation: return "sparkles"
         case .advanced: return "wrench.and.screwdriver"
         }
@@ -1567,6 +1628,8 @@ struct SettingsContentView: View {
                 GeneralSettingsContent(onCheckForUpdates: onCheckForUpdates)
             case .license:
                 LicenseSettingsContent()
+            case .targets:
+                TargetsSettingsContent()
             case .automation:
                 AutomationSettingsContent()
             case .advanced:
@@ -1608,6 +1671,7 @@ private let settingsLog = Logger(subsystem: "com.amesvt.pingwarden", category: "
 struct StatusBadge: View {
     enum Tint {
         case unavailable
+        case informational
     }
 
     let text: String
@@ -1627,12 +1691,13 @@ struct StatusBadge: View {
     private var fillColor: Color {
         switch tint {
         case .unavailable: return Color(red: 0.40, green: 0.40, blue: 0.40)
+        case .informational: return Color(red: 0.24, green: 0.42, blue: 0.62)
         }
     }
 
     private var voiceOverLabel: String {
         switch tint {
-        case .unavailable: return "\(text)"
+        case .unavailable, .informational: return "\(text)"
         }
     }
 }
@@ -1817,7 +1882,7 @@ struct GeneralSettingsContent: View {
 
                 Toggle(isOn: $showMenuDropdownMetrics) {
                     VStack(alignment: .leading, spacing: 2) {
-                        Text("Menu Dropdown Metrics")
+                        Text("Show Live Metrics in Menu")
                         Text("Show current ping and protection events in the menu")
                             .font(.caption)
                             .foregroundStyle(.secondary)
@@ -1958,7 +2023,7 @@ struct LicenseSettingsContent: View {
                             .font(.caption)
                             .foregroundStyle(.secondary)
                             .fixedSize(horizontal: false, vertical: true)
-                        Text("If you donated through the Buy Me a Coffee link before this release, thank you. Email \(LicenseManager.donationConversionEmail) and that support will be honored as a full license.")
+                        Text("If you donated through the Buy Me a Coffee link before version 4, thank you. Email \(LicenseManager.donationConversionEmail) and that support will be honored as a full license.")
                             .font(.caption)
                             .foregroundStyle(.secondary)
                             .fixedSize(horizontal: false, vertical: true)
@@ -2001,6 +2066,9 @@ struct LicenseSettingsContent: View {
                             NSWorkspace.shared.open(LicenseManager.purchaseURL)
                         }
                     }
+                    Text("$15 once, for the Macs you own. Stays valid offline for 14 days between checks.")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
 
                     if let licenseMessage {
                         Label(licenseMessage, systemImage: messageIcon)
@@ -2038,6 +2106,9 @@ struct LicenseSettingsContent: View {
                             NSWorkspace.shared.open(LicenseManager.purchaseURL)
                         }
                     }
+                    Text("$15 once, for the Macs you own. Stays valid offline for 14 days between checks.")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
 
                     if let licenseMessage {
                         Label(licenseMessage, systemImage: messageIcon)
@@ -2049,7 +2120,7 @@ struct LicenseSettingsContent: View {
 
                 Section {
                     VStack(alignment: .leading, spacing: 8) {
-                        Text("If you donated through the Buy Me a Coffee link before this release, thank you. Email \(LicenseManager.donationConversionEmail) and that support will be honored as a full license.")
+                        Text("If you donated through the Buy Me a Coffee link before version 4, thank you. Email \(LicenseManager.donationConversionEmail) and that support will be honored as a full license.")
                             .font(.caption)
                             .foregroundStyle(.secondary)
                             .fixedSize(horizontal: false, vertical: true)
@@ -2125,26 +2196,34 @@ struct AutomationSettingsContent: View {
                     VStack(alignment: .leading, spacing: 2) {
                         HStack(spacing: 8) {
                             Text("Game Mode Auto-Detect")
-                            if !screenRecordingPermissionGranted {
-                                StatusBadge(text: "Needs Permission", tint: .unavailable)
+                            if gameModeAutoDetect && !screenRecordingPermissionGranted {
+                                StatusBadge(text: "Fullscreen Detection Off", tint: .informational)
                             }
                         }
-                        Text("Turn on protection and record a local latency session while a recognized game is fullscreen")
+                        Text("Turn on protection and record a latency session while a game is running. Works from the frontmost app with no extra permission.")
                             .font(.caption)
                             .foregroundStyle(.secondary)
                     }
                 }
                 .accessibilityLabel("Game Mode Auto-Detect")
-                .accessibilityHint("Uses visible window metadata to recognize fullscreen games and never captures or saves screen contents")
+                .accessibilityHint("Recognizes a game from the frontmost app. Screen Recording permission adds fullscreen games behind other windows and never captures or saves screen contents")
                 .onChangeCompat(of: gameModeAutoDetect) { newValue in
                     screenRecordingPermissionGranted = GameModeDetector.hasScreenRecordingPermission()
-                    guard !newValue || screenRecordingPermissionGranted else {
-                        gameModeAutoDetect = false
-                        PingWardenPreferences.shared.gameModeAutoDetect = false
-                        showingScreenRecordingPermissionAlert = true
-                        return
-                    }
                     PingWardenPreferences.shared.gameModeAutoDetect = newValue
+                }
+
+                if gameModeAutoDetect && !screenRecordingPermissionGranted {
+                    HStack(alignment: .firstTextBaseline, spacing: 12) {
+                        Text("Screen Recording permission also catches a fullscreen game sitting behind other windows. Optional.")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                            .fixedSize(horizontal: false, vertical: true)
+                        Spacer(minLength: 8)
+                        Button("Enable Fullscreen Detection...") {
+                            showingScreenRecordingPermissionAlert = true
+                        }
+                        .controlSize(.small)
+                    }
                 }
             }
 
@@ -2197,13 +2276,13 @@ struct AutomationSettingsContent: View {
         .onReceive(NotificationCenter.default.publisher(for: NSApplication.didBecomeActiveNotification)) { _ in
             refreshAvailability()
         }
-        .alert("Screen Recording Permission Needed", isPresented: $showingScreenRecordingPermissionAlert) {
+        .alert("Enable Fullscreen Detection", isPresented: $showingScreenRecordingPermissionAlert) {
             Button("Open System Settings") {
                 GameModeDetector.openScreenRecordingSettings()
             }
             Button("Cancel", role: .cancel) {}
         } message: {
-            Text("Game Mode auto-detect reads app and window metadata to identify fullscreen games. It never captures or saves screen contents.")
+            Text("Game Mode auto-detect already recognizes a game when it is the frontmost app. Allowing Screen Recording lets it also notice a fullscreen game behind other windows. Ping Warden reads only window metadata and never captures or saves screen contents.")
         }
         .confirmationDialog(
             "Hide Menu Bar Icon?",
@@ -2677,6 +2756,8 @@ struct AboutView: View {
 
     @ScaledMetric(relativeTo: .largeTitle) private var heroIconSize: CGFloat = 64
 
+    @ObservedObject private var license = LicenseManager.shared
+
     private var version: String {
         Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "1.0.0"
     }
@@ -2690,9 +2771,10 @@ struct AboutView: View {
             VStack(spacing: 0) {
                 Spacer(minLength: 28)
 
-                Image(systemName: "antenna.radiowaves.left.and.right.slash")
-                    .font(.system(size: heroIconSize, weight: .thin))
-                    .foregroundStyle(.tint)
+                Image(nsImage: NSApplication.shared.applicationIconImage)
+                    .resizable()
+                    .interpolation(.high)
+                    .frame(width: heroIconSize, height: heroIconSize)
                     .accessibilityHidden(true)
 
                 Text("Ping Warden")
@@ -2717,15 +2799,17 @@ struct AboutView: View {
 
                 ViewThatFits(in: .horizontal) {
                     HStack(spacing: 12) {
-                        aboutDonateButton
+                        aboutLicenseLink
                         aboutDocumentationLink
                         aboutIssueLink
+                        aboutDonateButton
                     }
 
                     VStack(spacing: 8) {
-                        aboutDonateButton
+                        aboutLicenseLink
                         aboutDocumentationLink
                         aboutIssueLink
+                        aboutDonateButton
                     }
                 }
                 .buttonStyle(.link)
@@ -2769,6 +2853,18 @@ struct AboutView: View {
         .background(.regularMaterial)
     }
 
+    @ViewBuilder
+    private var aboutLicenseLink: some View {
+        if license.canEnableProtection {
+            Text("Licensed")
+                .foregroundStyle(.secondary)
+        } else {
+            Button("Buy a License") {
+                NSWorkspace.shared.open(LicenseManager.purchaseURL)
+            }
+        }
+    }
+
     private var aboutDonateButton: some View {
         Button("Donate") {
             openURL(URL(string: "https://buymeacoffee.com/oliverames")!)
@@ -2808,7 +2904,6 @@ final class GameModeDetector: @unchecked Sendable {
     private var timer: DispatchSourceTimer?
     private var isRunning = false
     private var isGameModeActive = false
-    private var hasLoggedPermissionWarning = false
     private let log = Logger(subsystem: "com.amesvt.pingwarden", category: "GameMode")
     /// Cache of pid → isGame to avoid re-reading Info.plist every 2 seconds.
     /// Entries are evicted via `appDidTerminateObserver` so the cache cannot
@@ -2862,11 +2957,6 @@ final class GameModeDetector: @unchecked Sendable {
         // path works without it, so this is a degraded mode rather than a failure.
         if !Self.hasScreenRecordingPermission() {
             log.warning("Screen Recording permission not granted - fullscreen game detection unavailable, frontmost-app detection still active")
-            if !hasLoggedPermissionWarning {
-                hasLoggedPermissionWarning = true
-                // Only show alert once per app session
-                showScreenRecordingPermissionAlert()
-            }
         }
 
         let initialFrontmostPID = NSWorkspace.shared.frontmostApplication?.processIdentifier
@@ -2978,23 +3068,6 @@ final class GameModeDetector: @unchecked Sendable {
             return
         }
         NSWorkspace.shared.open(url)
-    }
-
-    /// Show alert explaining Screen Recording permission is needed
-    private func showScreenRecordingPermissionAlert() {
-        DispatchQueue.main.async {
-            let alert = NSAlert()
-            alert.messageText = "Screen Recording Permission Needed"
-            alert.informativeText = "Game Mode auto-detect already recognizes a game when it is the frontmost app. Screen Recording permission adds detection of fullscreen games behind other windows. Ping Warden reads only window metadata and never captures or saves screen contents."
-            alert.alertStyle = .informational
-            alert.addButton(withTitle: "Open System Settings")
-            alert.addButton(withTitle: "Cancel")
-
-            let response = alert.runModal()
-            if response == .alertFirstButtonReturn {
-                Self.openScreenRecordingSettings()
-            }
-        }
     }
 
     private func scheduleGameModeStatusCheck() {

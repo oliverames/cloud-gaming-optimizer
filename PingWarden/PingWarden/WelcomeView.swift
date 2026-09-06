@@ -80,7 +80,7 @@ struct WelcomeView: View {
                     .multilineTextAlignment(.center)
                     .fixedSize(horizontal: false, vertical: true)
 
-                Text("A quieter connection, right from your menu bar.")
+                Text("Stop the stutter when you cloud game on a Mac.")
                     .font(.body)
                     .foregroundStyle(.secondary)
                     .multilineTextAlignment(.center)
@@ -92,8 +92,8 @@ struct WelcomeView: View {
             VStack(alignment: .leading, spacing: 20) {
                 WelcomeBenefitRow(
                     icon: "shield.lefthalf.filled",
-                    title: "Reduce wireless interruptions",
-                    description: "Ping Protection keeps wireless sharing quiet while you play."
+                    title: "Stop Wi‑Fi lag spikes",
+                    description: "Ping Protection stops AirDrop from grabbing the Wi‑Fi radio while you play GeForce NOW or any cloud game."
                 )
                 WelcomeBenefitRow(
                     icon: "waveform.path.ecg",

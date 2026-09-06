@@ -116,6 +116,14 @@ private enum LatencyPalette {
         return poor
     }
 
+    /// Probe-failure share for a session. Cloud gaming tolerates almost no
+    /// loss, so 1% already reads as fair and 5% as poor.
+    static func forPacketLoss(_ percent: Double) -> Color {
+        if percent < 1 { return excellent }
+        if percent < 5 { return fair }
+        return poor
+    }
+
     static func forQuality(_ quality: PingMonitor.Quality) -> Color {
         switch quality {
         case .excellent: return excellent
@@ -207,12 +215,69 @@ struct DashboardSettingsContent: View {
             // AWDL Interventions Card
             InterventionsCard(viewModel: viewModel)
 
-            // Server Selection
-            ServerSelectionCard(viewModel: viewModel)
-
-            // User-defined servers (issue #29)
-            CustomServersCard(viewModel: viewModel)
+            // Which target the numbers above describe; editing lives in
+            // Settings → Targets so the dashboard stays a read-out.
+            TargetSummaryCard(viewModel: viewModel)
         }
+    }
+}
+
+extension Notification.Name {
+    static let pingWardenOpenSettingsSection = Notification.Name("PingWardenOpenSettingsSection")
+}
+
+// MARK: - Targets Settings Content
+
+/// Settings → Targets. Owns its own view model like the dashboard does; only
+/// one sidebar section is visible at a time, so the shared ping monitor is
+/// never driven by two instances at once.
+struct TargetsSettingsContent: View {
+    @StateObject private var viewModel = DashboardViewModel()
+
+    var body: some View {
+        ScrollView {
+            VStack(alignment: .leading, spacing: DashboardLayout.sectionSpacing) {
+                ServerSelectionCard(viewModel: viewModel)
+                CustomServersCard(viewModel: viewModel)
+            }
+            .padding(20)
+            .frame(maxWidth: .infinity, alignment: .leading)
+        }
+        .scrollContentBackground(.hidden)
+        .onAppear { viewModel.start() }
+        .onDisappear { viewModel.stop() }
+    }
+}
+
+struct TargetSummaryCard: View {
+    @ObservedObject var viewModel: DashboardViewModel
+
+    var body: some View {
+        HStack(alignment: .firstTextBaseline, spacing: 12) {
+            VStack(alignment: .leading, spacing: 2) {
+                Text("Ping Target")
+                    .font(.headline)
+                if let target = viewModel.selectedTarget {
+                    Text("\(target.displayName) · \(target.host):\(target.port)")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                } else {
+                    Text("No target selected")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
+            }
+            Spacer(minLength: 12)
+            Button("Change...") {
+                NotificationCenter.default.post(
+                    name: .pingWardenOpenSettingsSection,
+                    object: nil,
+                    userInfo: ["section": "Targets"]
+                )
+            }
+            .accessibilityHint("Opens the Targets settings pane")
+        }
+        .dashboardCardStyle()
     }
 }
 
@@ -416,19 +481,6 @@ private struct SessionRecapView: View {
                     .foregroundStyle(.secondary)
             }
 
-            Divider()
-
-            HStack(spacing: 12) {
-                Text("Ping Warden stays open source. Donations help fund future releases.")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-                Spacer(minLength: 12)
-                Button("Donate...") {
-                    NSWorkspace.shared.open(URL(string: "https://buymeacoffee.com/oliverames")!)
-                }
-                .buttonStyle(.borderless)
-                .accessibilityHint("Opens the Ping Warden donation page in your browser")
-            }
         }
     }
 
@@ -446,14 +498,23 @@ private struct SessionRecapView: View {
     @ViewBuilder
     private var metrics: some View {
         SessionMetric(label: "Duration", value: ProtectedSessionCard.durationText(summary.duration))
-        SessionMetric(label: "Median", value: String(format: "%.0f ms", summary.medianLatencyMs))
+        SessionMetric(
+            label: "Median",
+            value: String(format: "%.0f ms", summary.medianLatencyMs),
+            tint: LatencyPalette.forLatency(summary.medianLatencyMs)
+        )
         SessionMetric(
             label: "P95",
             value: String(format: "%.0f ms", summary.p95LatencyMs),
-            helpText: "95% of successful latency measurements were at or below this value"
+            helpText: "95% of successful latency measurements were at or below this value",
+            tint: LatencyPalette.forLatency(summary.p95LatencyMs)
         )
         SessionMetric(label: "Jitter", value: String(format: "%.0f ms", summary.jitterMs))
-        SessionMetric(label: "Probe Failures", value: String(format: "%.1f%%", summary.packetLossPercent))
+        SessionMetric(
+            label: "Probe Failures",
+            value: String(format: "%.1f%%", summary.packetLossPercent),
+            tint: LatencyPalette.forPacketLoss(summary.packetLossPercent)
+        )
         SessionMetric(label: "Interventions", value: "\(summary.interventionCount)")
     }
 }
@@ -462,6 +523,9 @@ private struct SessionMetric: View {
     let label: String
     let value: String
     var helpText: String? = nil
+    /// Same palette the Network Quality card uses, so a bad session reads
+    /// as bad at a glance. Nil keeps the neutral weight (Duration, Interventions).
+    var tint: Color? = nil
 
     var body: some View {
         VStack(alignment: .leading, spacing: 2) {
@@ -471,6 +535,7 @@ private struct SessionMetric: View {
             Text(value)
                 .font(.subheadline)
                 .fontWeight(.semibold)
+                .foregroundStyle(tint ?? .primary)
         }
         .accessibilityElement(children: .combine)
         .accessibilityHint(helpText ?? "")
