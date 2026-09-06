@@ -17,6 +17,18 @@ converts. The dashboard already discovers GeForce NOW regions as ping targets,
 so cloud gaming is not a positioning choice bolted on afterwards. It is what
 the app was built for, and the copy below leads with it.
 
+## Applied on 2026-09-06
+
+The live listing now carries the name "Ping Warden: Fix Mac Wi-Fi Lag Spikes
+for Cloud Gaming", the Software & Plugins category (taxonomy 77), the new
+summary, the ten-tag set, and the description whose first sentence names
+GeForce NOW and Xbox Cloud Gaming. Price and publish state are unchanged. The
+GitHub repository description now leads with cloud gaming, its homepage points
+at the Gumroad page, and `awdl-control` and `awdl0` replaced the generic
+`performance` and `mac` topics. The README tagline and opening paragraph, and
+the landing page hero, were rewritten to match, and the hero was rendered at
+1280 and 390 wide before the file was committed.
+
 ## The finding that outranks everything else here
 
 NVIDIA's own support article for GeForce NOW stuttering on macOS tells users to
@@ -214,3 +226,86 @@ already clean and changing it would break the links in the README, the badges,
 and the existing receipts. The single dashboard cover image is good, though a
 second cover showing the menu bar in place would give the gallery something to
 scroll to.
+
+## Who was first, and what awdlcontrol.net is
+
+The first commit in this repository is dated 2025-10-26 and reads "Create macOS
+AWDL Control app with ControlWidget API". James Howard's repository was created
+on 2026-01-02, so this project carried the name first, by about ten weeks.
+That is why "formerly AWDL Control" stays in the README and the description,
+though only as a parenthetical, because the phrase means nothing to anyone who
+has not read NVIDIA's article.
+
+`awdlcontrol.net` is James Howard's own site for his app. It is one paragraph,
+a download link, and a GitHub link, and it carries no meta description, no
+price, and no mention of NVIDIA or GeForce NOW. It is free and MIT, which is
+the honest competitive picture: a paid app is competing against a free one
+that NVIDIA happens to recommend, and the case for paying has to be made on
+the dashboard, the signed builds, the widget, and the fact that it is still
+maintained.
+
+## What his code does that ours could borrow
+
+I read `AWDLControl/AppDelegate.m` in James Howard's repository and
+`GameModeDetector` in `PingWarden/PingWardenApp.swift` side by side, and I
+checked the installed GeForce NOW client's Info.plist on this Mac. GeForce NOW
+declares `public.app-category.games`, so both detectors recognise it. The
+differences are in how each one decides that a game is running.
+
+His detector listens for `NSWorkspaceDidActivateApplicationNotification`,
+reads the frontmost app's Info.plist, and blocks AWDL when that app is a game
+and the Mac is on Wi-Fi. It needs no permissions and it fires the instant you
+switch to the game. Ours polls on a 2, 10, or 30 second cadence, looks for a
+fullscreen window owned by a game, and needs Screen Recording permission to
+read window owners at all. That permission is a real onboarding cost, and the
+fullscreen requirement means a windowed GeForce NOW session may not trigger
+protection.
+
+Three things are worth taking from his approach:
+
+1. Add a frontmost-app path that needs no permission, so protection still
+   engages when the user declines Screen Recording. His `activeGame` method is
+   about twenty lines and could sit beside the existing fullscreen check.
+2. Drop the fullscreen requirement for apps that declare the games category,
+   or make it a preference. A cloud gaming client in a window is still a
+   cloud gaming client.
+3. Skip blocking when the active interface is Ethernet, since AWDL cannot
+   interfere with a wired connection. He does this with a small Reachability
+   wrapper around `nw_path_monitor`.
+
+Two things ours already does better and should keep. Our category match
+accepts the subcategory forms such as `public.app-category.action-games`,
+where his only accepts the exact generic string, so his misses most native
+titles. And our detector caches the plist result per process, where his
+re-reads the plist on every activation.
+
+Neither app can see Xbox Cloud Gaming, because it runs in a browser tab. A
+short allowlist of cloud gaming bundle identifiers, starting with
+`com.nvidia.gfnpc.mall`, would be a cheap safety net regardless of what each
+client declares. I have not checked what Moonlight, Parsec, or Steam Link
+declare, so the allowlist should be built from their plists rather than from
+memory.
+
+## The page that can actually rank
+
+`ames.consulting/work/ping-warden/` is a real server-rendered page on a domain
+you control, with a canonical URL, breadcrumb and CreativeWork structured data,
+and full text a crawler can read. It is the only surface in this whole
+exercise that Google can index completely, and it is the strongest candidate
+to rank first for "mac cloud gaming stutter".
+
+Right now it is a 207-word portfolio entry titled "Ping Warden | Work by
+Oliver Ames". Its meta description says the app "keeps local wireless
+discovery traffic from disrupting latency-sensitive work". The page contains
+zero occurrences of GeForce, cloud gaming, stutter, AWDL, lag, Gumroad,
+license, or the price, and it links only to GitHub. Its structured data types
+it as CreativeWork rather than SoftwareApplication.
+
+The source is `~/Developer/Projects/ames-consulting/work/ping-warden/index.html`,
+a different repository with its own deploy, so I have not touched it. The
+change is a rewrite of that one page: a title and H1 built around the search
+phrase, a meta description that opens with the symptom, SoftwareApplication
+structured data with the price and an offer URL pointing at Gumroad, a visible
+purchase link, and body copy that reuses the landing page's hero and setup
+sections. Then point the GitHub homepage there instead of at Gumroad, so the
+repository's 87 stars flow to a page you own.
