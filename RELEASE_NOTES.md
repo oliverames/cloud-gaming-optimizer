@@ -1,3 +1,17 @@
+# Ping Warden 4.1.0
+
+Game Mode auto-detect now recognizes a game the moment it comes to the front, and protection stays out of the way on a wired connection.
+
+## Improvements
+
+- Protection turns on when a game is the frontmost app, with no Screen Recording permission needed. A windowed GeForce NOW session now triggers it the same as a fullscreen one.
+- Screen Recording permission is optional. Granting it adds detection of fullscreen games sitting behind other windows, and the permission prompt now says so.
+- Ping Warden skips protection while your Mac is on Ethernet, since AWDL shares the Wi-Fi radio and cannot interfere with a wired connection. It engages again when you move back to Wi-Fi.
+
+## Upgrading from a free version
+
+Ping Protection requires a [one-time $15 license](https://amesconsulting.gumroad.com/l/pingwarden). The dashboard, diagnostics, and updates stay free, and the source remains MIT. Existing users whose protection was enabled with an approved helper when they first launched version 4 keep their original 90-day transition. Check **Settings → License** for the time remaining. If you donated before version 4, email [oliver@ames.consulting](mailto:oliver@ames.consulting) with your receipt for a license.
+
 # Ping Warden 4.0.4
 
 The welcome screen now appears automatically only once, so you can dismiss setup and use the free dashboard without repeated prompts.
